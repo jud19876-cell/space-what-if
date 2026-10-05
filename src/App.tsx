@@ -46,13 +46,55 @@ export default function App() {
     });
   }, [runCommands]);
 
+  const handleFireAsteroid = useCallback((asteroidId: string, targetPos: Vec3) => {
+    runCommands([
+      {
+        action: 'fire_body_towards',
+        bodyId: asteroidId,
+        targetPosition: targetPos,
+        speedAuDay: 0.08, // 약 138 km/s 고속 돌진
+      },
+    ]);
+    const body = findBody(stateRef.current, asteroidId);
+    setToast({
+      key: Date.now(),
+      emoji: '🚀☄️',
+      text: `슈우웅-! ${body?.name ?? '소행성'}이 클릭한 화면 방향으로 쏜살같이 날아갑니다!`,
+      type: 'normal',
+    });
+    setTick((t) => t + 1);
+  }, [runCommands]);
+
+  const handleSpawnReadyAsteroid = useCallback((massType: 'normal' | 'giant' = 'normal') => {
+    runCommands([{ action: 'spawn_asteroid_near', massType }]);
+    const s = stateRef.current;
+    const latest = s.bodies[s.bodies.length - 1];
+    if (latest) {
+      setSelected(latest.id);
+      sceneRef.current?.setAimingAsteroid(latest.id);
+      setToast({
+        key: Date.now(),
+        emoji: '🎯☄️',
+        text: `소행성이 준비되었습니다! 날아가길 원하는 화면 위치나 행성을 클릭하세요!`,
+        type: 'normal',
+      });
+    }
+  }, [runCommands]);
+
   useEffect(() => {
     const sc = createSpaceScene(
       containerRef.current!,
       () => stateRef.current,
       (id) => {
         setSelected(id);
-        if (id) setHinted(true);
+        if (id) {
+          setHinted(true);
+          if (id.includes('asteroid') || id.includes('fragment')) {
+            sc.setAimingAsteroid(id);
+          } else {
+            sc.setAimingAsteroid(null);
+          }
+        }
       },
       (ev) => {
         setToast({
@@ -85,6 +127,7 @@ export default function App() {
       },
       handleLaunchAsteroid,
       (info) => setAimInfo(info),
+      handleFireAsteroid,
     );
     sceneRef.current = sc;
     const iv = setInterval(() => setTick((t) => t + 1), 250);
@@ -92,10 +135,15 @@ export default function App() {
       clearInterval(iv);
       sc.dispose();
     };
-  }, [handleLaunchAsteroid]);
+  }, [handleLaunchAsteroid, handleFireAsteroid]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selected);
+    if (selected && (selected.includes('asteroid') || selected.includes('fragment'))) {
+      sceneRef.current?.setAimingAsteroid(selected);
+    } else {
+      sceneRef.current?.setAimingAsteroid(null);
+    }
   }, [selected]);
 
   useEffect(() => {
@@ -135,6 +183,9 @@ export default function App() {
     const newSpeed = Math.max(1, Math.min(100, state.speed + delta));
     runCommands([{ action: 'set_speed', speed: newSpeed }]);
   };
+
+  const selectedBody = selected ? findBody(state, selected) : null;
+  const isAsteroidSelected = !!(selected && (selected.includes('asteroid') || selected.includes('fragment')));
 
   return (
     <div className="app">
@@ -182,13 +233,23 @@ export default function App() {
 
         <div className="controls">
           <button
+            id="btn-spawn-ready"
+            className="btn spawn-asteroid-btn"
+            onClick={() => handleSpawnReadyAsteroid('normal')}
+            title="소행성을 클릭하고 화면을 클릭해 원하는 방향으로 날려보내기"
+          >
+            <span>☄️</span>
+            <span className="btn-text">소행성 클릭 발사</span>
+          </button>
+
+          <button
             id="btn-cannon"
             className={`btn cannon-toggle-btn ${cannonMode ? 'cannon-on' : ''}`}
             onClick={() => setCannonMode((prev) => !prev)}
-            title="소행성 대포 모드 (궤적 조준 발사)"
+            title="소행성 대포 모드 (드래그 궤적 조준 발사)"
           >
-            <span className="cannon-btn-icon">☄️</span>
-            <span className="cannon-btn-label">{cannonMode ? '대포 조준 중' : '소행성 대포'}</span>
+            <span className="cannon-btn-icon">🎯</span>
+            <span className="cannon-btn-label">{cannonMode ? '대포 모드 끄기' : '대포 조준 모드'}</span>
           </button>
 
           <button
@@ -211,7 +272,27 @@ export default function App() {
         </div>
       </header>
 
-      {/* 대포 모드 조준 HUD 패널 */}
+      {/* 사용자가 소행성을 클릭했을 때 뜨는 방향 지정 안내 배너 */}
+      {isAsteroidSelected && (
+        <div className="aim-guide-banner">
+          <span className="banner-icon">🎯</span>
+          <div className="banner-info">
+            <strong>{selectedBody?.name}</strong> 선택됨!
+            <span className="banner-desc">👉 날아갈 방향의 <strong>화면 공간</strong>이나 <strong>목표 행성</strong>을 클릭하세요!</span>
+          </div>
+          <button
+            className="btn banner-cancel-btn"
+            onClick={() => {
+              setSelected(null);
+              sceneRef.current?.setAimingAsteroid(null);
+            }}
+          >
+            ✕ 취소
+          </button>
+        </div>
+      )}
+
+      {/* 대포 모드 드래그 조준 HUD 패널 */}
       {cannonMode && (
         <div className="cannon-hud">
           <div className="cannon-hud-title">
@@ -220,7 +301,7 @@ export default function App() {
             <span className="cannon-hud-close" onClick={() => setCannonMode(false)}>✕</span>
           </div>
           <p className="cannon-hud-desc">
-            우주 공간을 <strong>클릭 & 드래그</strong>하여 발사 각도와 파워를 정하세요!
+            우주 공간을 <strong>클릭 & 드래그</strong>하여 발사 각도와 파워를 정하거나, 아래 <strong>소행성 생성</strong> 후 화면을 클릭해 보세요!
           </p>
           <div className="cannon-types">
             <button
@@ -238,8 +319,18 @@ export default function App() {
               <small>충돌 시 행성 산산조각 폭발!</small>
             </button>
           </div>
+
+          <div className="cannon-actions-row">
+            <button
+              className="btn btn-action-spawn"
+              onClick={() => handleSpawnReadyAsteroid(cannonMassType)}
+            >
+              ☄️ 소행성 준비 (화면 클릭 발사)
+            </button>
+          </div>
+
           <div className="cannon-quick-targets">
-            <span className="quick-title">원클릭 표적 발사:</span>
+            <span className="quick-title">원클릭 표적 돌진:</span>
             <button
               className="btn quick-target-btn"
               onClick={() => runCommands([{ action: 'target_launch', targetId: 'earth', massType: cannonMassType }])}
@@ -267,9 +358,9 @@ export default function App() {
         </div>
       )}
 
-      {selected && <InfoCard state={state} id={selected} onClose={() => setSelected(null)} />}
+      {selected && !isAsteroidSelected && <InfoCard state={state} id={selected} onClose={() => setSelected(null)} />}
 
-      {!hinted && !selected && !cannonMode && <div className="hint">👆 행성이나 블랙홀을 눌러 봐! 또는 ☄️ 소행성 대포를 쏴봐!</div>}
+      {!hinted && !selected && !cannonMode && <div className="hint">👆 소행성을 누르고 화면을 클릭하면 그 방향으로 날아가 부딪쳐요!</div>}
 
       {toast && (
         <div className={`toast toast-${toast.type ?? 'normal'}`} key={toast.key}>

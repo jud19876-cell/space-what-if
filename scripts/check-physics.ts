@@ -1,5 +1,5 @@
 // 핵심 물리 시나리오 자동 테스트.  실행: npm run test:physics  (Node 22.6+ / 24)
-import { dist2, length, totalEnergy, type Body } from '../src/physics.ts';
+import { dist2, length, totalEnergy, type Body, type Vec3 } from '../src/physics.ts';
 import { createInitialState, executeCommand, findBody, advance, DAYS_PER_SECOND, type SimState } from '../src/simulation.ts';
 import { createSolarSystem } from '../src/solarSystem.ts';
 
@@ -208,6 +208,32 @@ const r0 = (b: Body) => length(b.position);
   check('배속 설정: 50x 설정', s.speed === 50, `speed=${s.speed}`);
   executeCommand(s, { action: 'set_speed', speed: 100 });
   check('배속 설정: 100x 설정', s.speed === 100, `speed=${s.speed}`);
+}
+
+// 16. 소행성 준비(spawn_asteroid_near) 및 화면 클릭 방향 발사(fire_body_towards) 검증
+{
+  const s = createInitialState();
+  executeCommand(s, { action: 'spawn_asteroid_near', massType: 'normal' });
+  const spawned = s.bodies.find((b) => b.id.includes('asteroid_'));
+  check('소행성 생성: 대기 소행성 생성 확인', !!spawned, `생성된 ID: ${spawned?.id}`);
+
+  if (spawned) {
+    const targetPos: Vec3 = [0, 0, 0]; // 태양 방향으로 발사
+    executeCommand(s, {
+      action: 'fire_body_towards',
+      bodyId: spawned.id,
+      targetPosition: targetPos,
+      speedAuDay: 0.1,
+    });
+    const firedSpeed = length(spawned.velocity);
+    check('소행성 클릭 방향 발사: 목표 방향으로 초고속 발사 설정', Math.abs(firedSpeed - 0.1) < 1e-4, `발사 속도: ${firedSpeed.toFixed(4)} AU/day`);
+
+    // 태양 쪽으로 날아가는지 15일 시뮬레이션
+    const distBefore = length(spawned.position);
+    run(s, 5);
+    const distAfter = length(spawned.position);
+    check('소행성 비행: 목표 좌표(태양) 쪽으로 이동', distAfter < distBefore, `거리 변화: ${distBefore.toFixed(2)} -> ${distAfter.toFixed(2)} AU`);
+  }
 }
 
 console.log(failed ? `\n${failed}개 실패` : '\n모든 테스트 통과');

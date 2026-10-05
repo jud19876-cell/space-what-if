@@ -63,6 +63,7 @@ export interface SpaceScene {
   clearTrails(): void;
   setSelected(id: string | null): void;
   setCannonMode(active: boolean, massType?: 'normal' | 'giant'): void;
+  setAimingAsteroid(id: string | null): void;
   dispose(): void;
 }
 
@@ -156,6 +157,7 @@ export function createSpaceScene(
   onCollision?: (ev: CollisionEvent) => void,
   onLaunchAsteroid?: (pos: Vec3, vel: Vec3, massType: 'normal' | 'giant') => void,
   onAimInfo?: (info: AimInfo | null) => void,
+  onFireAsteroid?: (asteroidId: string, targetPos: Vec3) => void,
 ): SpaceScene {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -496,6 +498,34 @@ export function createSpaceScene(
   trajLine.visible = false;
   scene.add(trajLine);
 
+  // 소행성 2단계 클릭 조준 레이저선 (Asteroid Laser Aiming Line)
+  let aimingAsteroidId: string | null = null;
+  const laserPos = new Float32Array(2 * 3);
+  const laserGeo = new THREE.BufferGeometry();
+  laserGeo.setAttribute('position', new THREE.BufferAttribute(laserPos, 3));
+  laserGeo.setDrawRange(0, 0);
+  const laserLine = new THREE.Line(
+    laserGeo,
+    new THREE.LineBasicMaterial({
+      color: 0xff3b30,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+    }),
+  );
+  laserLine.frustumCulled = false;
+  laserLine.visible = false;
+  scene.add(laserLine);
+
+  // 타겟 위치 마커 링
+  const targetRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.5, 0.8, 32),
+    new THREE.MeshBasicMaterial({ color: 0xff3b30, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }),
+  );
+  targetRing.rotation.x = -Math.PI / 2;
+  targetRing.visible = false;
+  scene.add(targetRing);
+
   let isDraggingCannon = false;
   const cannonStart = new THREE.Vector3();
   const cannonCurrent = new THREE.Vector3();
@@ -656,7 +686,7 @@ export function createSpaceScene(
   ro.observe(container);
   window.addEventListener('resize', updateSize);
 
-  // ---------- 클릭 & 대포 모드 드래그 조준 ----------
+  // ---------- 클릭 & 대포 모드 드래그 조준 & 소행성 타겟팅 클릭 발사 ----------
   const raycaster = new THREE.Raycaster();
   const down = { x: 0, y: 0 };
   const el = renderer.domElement;
@@ -690,6 +720,35 @@ export function createSpaceScene(
   };
 
   const onMove = (e: PointerEvent) => {
+    // 1. 소행성이 조준된 상태이면 마우스 위치로 레이저선 표시
+    if (aimingAsteroidId) {
+      const astVis = visuals.get(aimingAsteroidId);
+      if (astVis && astVis.group.visible) {
+        raycaster.setFromCamera(getNDC(e), camera);
+        if (raycaster.ray.intersectPlane(groundPlane, planeHit)) {
+          laserLine.visible = true;
+          targetRing.visible = true;
+          targetRing.position.copy(planeHit);
+          targetRing.position.y = 0.05;
+
+          const pArr = laserPos;
+          pArr[0] = astVis.vis.x;
+          pArr[1] = astVis.vis.y;
+          pArr[2] = astVis.vis.z;
+          pArr[3] = planeHit.x;
+          pArr[4] = 0.05;
+          pArr[5] = planeHit.z;
+          laserGeo.setDrawRange(0, 2);
+          laserGeo.attributes.position.needsUpdate = true;
+        }
+      } else {
+        aimingAsteroidId = null;
+        laserLine.visible = false;
+        targetRing.visible = false;
+      }
+    }
+
+    // 2. 대포 드래그 조준 중이면 예측 궤적선 표시
     if (!cannonActive || !isDraggingCannon) return;
 
     raycaster.setFromCamera(getNDC(e), camera);
@@ -705,20 +764,15 @@ export function createSpaceScene(
       return;
     }
 
-    // 속도 계산 (AU/일)
     const vMag = Math.max(0.008, Math.min(0.095, dist * 0.0055));
     const dirX = dragVec.x / dist;
     const dirZ = dragVec.z / dist;
-
-    // Three.js (x, 0, z) -> physics (vx, vy, 0)
-    // Three.js: x = px * s, z = -py * s  ==>  vx ~ dirX, vy ~ -dirZ
     const vx = dirX * vMag;
     const vy = -dirZ * vMag;
     const speedKmS = vMag * AU_PER_DAY_TO_KM_S;
 
     onAimInfo?.({ active: true, speedKmS, massType: cannonMassType });
 
-    // 실시간 예측 궤적선 계산 (Sun 중력장 28단계 적분)
     const startP = unmapPoint(cannonStart);
     let curPx = startP[0];
     let curPy = startP[1];
@@ -730,7 +784,6 @@ export function createSpaceScene(
     const pArr = trajPos;
     let ptCount = 0;
 
-    // 시작점
     pArr[0] = cannonStart.x;
     pArr[1] = 0.05;
     pArr[2] = cannonStart.z;
@@ -798,6 +851,53 @@ export function createSpaceScene(
         best = h.object.userData.id;
       }
     }
+
+    // [핵심] 사용자가 소행성을 클릭한 후, 화면의 원하는 방향이나 목표 행성을 클릭한 경우:
+    // 그쪽 방향으로 소행성이 즉시 발사되어 날아감!
+    if (aimingAsteroidId) {
+      if (best === aimingAsteroidId) {
+        // 이미 조준 중인 소행성을 다시 클릭하면 취소
+        aimingAsteroidId = null;
+        laserLine.visible = false;
+        targetRing.visible = false;
+        onPick(null);
+        return;
+      }
+
+      let targetPos: Vec3;
+      if (best) {
+        const tgtBody = getState().bodies.find((b) => b.id === best);
+        targetPos = tgtBody ? [...tgtBody.position] : [0, 0, 0];
+      } else {
+        if (raycaster.ray.intersectPlane(groundPlane, planeHit)) {
+          targetPos = unmapPoint(planeHit);
+        } else {
+          targetPos = [0, 0, 0];
+        }
+      }
+
+      const astVis = visuals.get(aimingAsteroidId);
+      if (astVis) {
+        triggerShockwave(astVis.vis, 0xff7700, 0.8);
+      }
+      onFireAsteroid?.(aimingAsteroidId, targetPos);
+      playLaunchSound();
+
+      aimingAsteroidId = null;
+      laserLine.visible = false;
+      targetRing.visible = false;
+      return;
+    }
+
+    // 소행성을 처음 클릭한 경우 -> 조준 모드 진입!
+    if (best && (best.includes('asteroid') || best.includes('fragment'))) {
+      aimingAsteroidId = best;
+      laserLine.visible = true;
+      targetRing.visible = true;
+      onPick(best);
+      return;
+    }
+
     onPick(best);
   };
 
@@ -839,6 +939,13 @@ export function createSpaceScene(
         muzzleRing.visible = false;
         trajLine.visible = false;
         onAimInfo?.(null);
+      }
+    },
+    setAimingAsteroid(id) {
+      aimingAsteroidId = id;
+      if (!id) {
+        laserLine.visible = false;
+        targetRing.visible = false;
       }
     },
     dispose() {

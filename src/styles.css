@@ -232,6 +232,25 @@ body,
   flex-shrink: 0;
 }
 
+.spawn-asteroid-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 17px;
+  background: linear-gradient(135deg, rgba(79, 227, 193, 0.25), rgba(139, 123, 255, 0.3));
+  border: 1px solid rgba(79, 227, 193, 0.5);
+  box-shadow: 0 4px 16px rgba(79, 227, 193, 0.25);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.spawn-asteroid-btn:hover {
+  background: linear-gradient(135deg, rgba(79, 227, 193, 0.45), rgba(139, 123, 255, 0.5));
+  border-color: #4fe3c1;
+  box-shadow: 0 0 20px rgba(79, 227, 193, 0.6);
+}
+
 .cannon-toggle-btn {
   display: flex;
   align-items: center;
@@ -360,6 +379,32 @@ body,
   border-color: #ff4d6d;
   box-shadow: 0 0 20px rgba(255, 30, 60, 0.6);
 }
+.cannon-actions-row {
+  margin-bottom: 12px;
+}
+.btn-action-spawn {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: bold;
+  background: linear-gradient(135deg, rgba(79, 227, 193, 0.35), rgba(139, 123, 255, 0.4));
+  border: 1px solid rgba(79, 227, 193, 0.6);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+.btn-action-spawn:hover {
+  background: linear-gradient(135deg, rgba(79, 227, 193, 0.6), rgba(139, 123, 255, 0.7));
+  border-color: #4fe3c1;
+  box-shadow: 0 0 20px rgba(79, 227, 193, 0.6);
+  transform: translateY(-2px);
+}
+
 .cannon-quick-targets {
   display: flex;
   align-items: center;
@@ -393,6 +438,75 @@ body,
   text-align: center;
   animation: pulse 1s infinite alternate;
 }
+
+/* ---------- 소행성 방향 지정 안내 배너 (클릭 후 조준 모드) ---------- */
+.aim-guide-banner {
+  position: absolute;
+  top: clamp(86px, 12vh, 108px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 24px;
+  border-radius: 999px;
+  background: rgba(16, 20, 48, 0.94);
+  border: 2px solid #4fe3c1;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 24px rgba(79, 227, 193, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 25;
+  animation: bannerPulse 1.8s ease-in-out infinite alternate, pop 0.25s cubic-bezier(0.2, 1.4, 0.4, 1);
+  max-width: min(92vw, 680px);
+}
+.aim-guide-banner .banner-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+  animation: wiggle 2s infinite ease-in-out;
+}
+.aim-guide-banner .banner-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: clamp(15px, 1.3vw, 18px);
+  color: #e2e8f0;
+  flex-wrap: wrap;
+}
+.aim-guide-banner .banner-info strong {
+  color: #4fe3c1;
+  font-size: 1.08em;
+}
+.aim-guide-banner .banner-desc {
+  color: #cbd5e1;
+}
+.aim-guide-banner .banner-desc strong {
+  color: #ffcc4d;
+}
+.aim-guide-banner .banner-cancel-btn {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.aim-guide-banner .banner-cancel-btn:hover {
+  background: rgba(255, 50, 70, 0.4);
+  border-color: #ff3344;
+}
+
+@keyframes bannerPulse {
+  0% {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 16px rgba(79, 227, 193, 0.4);
+    border-color: #4fe3c1;
+  }
+  100% {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 28px rgba(79, 227, 193, 0.8);
+    border-color: #7affdf;
+  }
+}
+
 
 /* ---------- 하단 만약에 실험 패널 ---------- */
 .experiments {
@@ -740,10 +854,12 @@ body,
     font-size: 14px;
     padding: 4px 10px;
   }
-  .cannon-btn-label {
+  .cannon-btn-label,
+  .spawn-asteroid-btn .btn-text {
     display: none;
   }
-  .cannon-toggle-btn {
+  .cannon-toggle-btn,
+  .spawn-asteroid-btn {
     padding: 8px 12px;
   }
   .round {

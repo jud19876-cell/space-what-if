@@ -13,6 +13,8 @@ export type SimCommand =
   | { action: 'spawn_black_hole'; variant: 'sun_replace' | 'invader' | 'near_earth' | 'giant' | 'jupiter_replace' | 'vortex' }
   | { action: 'remove_all_black_holes' }
   | { action: 'launch_asteroid'; position: Vec3; velocity: Vec3; massType?: 'normal' | 'giant'; name?: string }
+  | { action: 'fire_body_towards'; bodyId: string; targetPosition: Vec3; speedAuDay?: number }
+  | { action: 'spawn_asteroid_near'; massType?: 'normal' | 'giant' }
   | { action: 'target_launch'; targetId: string; massType?: 'normal' | 'giant' }
   | { action: 'clear_asteroids' }
   | { action: 'add_body'; body: Body }
@@ -141,6 +143,47 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
         mass,
         position: [...cmd.position],
         velocity: [...cmd.velocity],
+        physicalRadius,
+        visualRadius,
+      });
+      return true;
+    }
+    case 'fire_body_towards': {
+      const b = findBody(state, cmd.bodyId);
+      if (!b) return false;
+      const dx = cmd.targetPosition[0] - b.position[0];
+      const dy = cmd.targetPosition[1] - b.position[1];
+      const dz = cmd.targetPosition[2] - b.position[2];
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (d < 1e-5) return false;
+      const speed = cmd.speedAuDay ?? 0.075; // 약 130 km/s (고속 돌진)
+      b.velocity[0] = (dx / d) * speed;
+      b.velocity[1] = (dy / d) * speed;
+      b.velocity[2] = (dz / d) * speed;
+      return true;
+    }
+    case 'spawn_asteroid_near': {
+      const isGiant = cmd.massType === 'giant';
+      const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const id = isGiant ? `giant_asteroid_${uid}` : `asteroid_${uid}`;
+      const name = isGiant ? '거대 소행성' : '소행성';
+      const mass = isGiant ? EARTH_MASS * 0.35 : EARTH_MASS * 0.04;
+      const physicalRadius = isGiant ? 3500 : 900;
+      const visualRadius = isGiant ? 0.85 : 0.42;
+
+      // 지구-화성 사이 (약 1.3 AU)에 소환하여 클릭 대기
+      const ang = Math.random() * Math.PI * 2;
+      const r = 1.35;
+      const pos: Vec3 = [Math.cos(ang) * r, Math.sin(ang) * r, 0];
+      const vCirc = Math.sqrt((G * SUN_MASS) / r);
+      const vel: Vec3 = [-Math.sin(ang) * vCirc, Math.cos(ang) * vCirc, 0];
+
+      state.bodies.push({
+        id,
+        name,
+        mass,
+        position: pos,
+        velocity: vel,
         physicalRadius,
         visualRadius,
       });
