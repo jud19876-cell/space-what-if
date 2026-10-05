@@ -162,15 +162,58 @@ body,
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 26px 16px 16px;
-  background: linear-gradient(to top, rgba(4, 6, 21, 0.9), rgba(4, 6, 21, 0));
+  padding: 16px 16px 14px;
+  background: linear-gradient(to top, rgba(4, 6, 21, 0.95), rgba(4, 6, 21, 0.6) 70%, rgba(4, 6, 21, 0));
+}
+.experiments-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
 }
 .experiments-label {
   font-size: 20px;
-  margin: 0 0 8px 6px;
   color: var(--sun);
   text-shadow: 0 0 12px rgba(255, 204, 77, 0.6);
+  white-space: nowrap;
 }
+.category-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.category-tabs::-webkit-scrollbar {
+  display: none;
+}
+.category-tab {
+  font-family: inherit;
+  font-size: 15px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+.category-tab:hover {
+  background: rgba(70, 80, 160, 0.5);
+  transform: translateY(-1px);
+}
+.category-tab.on {
+  background: linear-gradient(135deg, var(--violet), var(--pink));
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 16px rgba(255, 126, 182, 0.45);
+}
+.category-tab-bh.on {
+  background: linear-gradient(135deg, #7928ca, #ff0080);
+  border-color: rgba(255, 150, 255, 0.6);
+  box-shadow: 0 0 18px rgba(180, 40, 240, 0.65);
+}
+
 .experiments-row {
   display: flex;
   gap: 12px;
@@ -210,6 +253,20 @@ body,
 .exp-reset {
   background: linear-gradient(135deg, rgba(79, 227, 193, 0.35), rgba(79, 140, 255, 0.35));
   border-color: rgba(79, 227, 193, 0.5);
+}
+.exp-blackhole {
+  background: linear-gradient(135deg, rgba(60, 15, 100, 0.75), rgba(20, 5, 45, 0.85));
+  border-color: rgba(185, 90, 255, 0.5);
+  box-shadow: 0 4px 20px rgba(130, 20, 220, 0.3);
+}
+.exp-blackhole:hover {
+  background: linear-gradient(135deg, rgba(110, 30, 180, 0.85), rgba(45, 10, 95, 0.95));
+  border-color: rgba(220, 140, 255, 0.8);
+  box-shadow: 0 6px 28px rgba(190, 50, 255, 0.6);
+}
+.chip-bh {
+  background: linear-gradient(135deg, rgba(160, 40, 230, 0.4), rgba(255, 40, 130, 0.4)) !important;
+  border: 1px solid rgba(220, 120, 255, 0.45);
 }
 
 /* ---------- 정보 카드 ---------- */

@@ -1,15 +1,18 @@
 // 시뮬레이션 상태 + Simulation Command.
 // UI 버튼과 (앞으로의) AI 는 모두 executeCommand() 를 통해서만 상태를 바꾼다.
-import { G, dist2, stepBodies, type Body, type Vec3 } from './physics.ts';
-import { createSolarSystem, type BodyId } from './solarSystem.ts';
+import { G, dist2, stepBodies, SUN_MASS, type Body, type Vec3 } from './physics.ts';
+import { createSolarSystem, EARTH_MASS } from './solarSystem.ts';
 
 export type Speed = 1 | 10 | 100;
 
 export type SimCommand =
-  | { action: 'remove_body'; target: BodyId }
-  | { action: 'change_mass'; target: BodyId; multiplier: number }
-  | { action: 'change_velocity'; target: BodyId; multiplier: number }
-  | { action: 'move_body'; target: BodyId; near: BodyId }
+  | { action: 'remove_body'; target: string }
+  | { action: 'change_mass'; target: string; multiplier: number }
+  | { action: 'change_velocity'; target: string; multiplier: number }
+  | { action: 'move_body'; target: string; near: string }
+  | { action: 'spawn_black_hole'; variant: 'sun_replace' | 'invader' | 'near_earth' | 'giant' | 'jupiter_replace' }
+  | { action: 'remove_all_black_holes' }
+  | { action: 'add_body'; body: Body }
   | { action: 'reset' }
   | { action: 'pause' }
   | { action: 'resume' }
@@ -80,6 +83,100 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       if (![1, 10, 100].includes(cmd.speed)) return false;
       state.speed = cmd.speed;
       return true;
+    case 'add_body':
+      state.bodies = state.bodies.filter((b) => b.id !== cmd.body.id);
+      state.bodies.push(cmd.body);
+      return true;
+    case 'remove_all_black_holes':
+      state.bodies = state.bodies.filter((b) => !b.id.includes('black_hole'));
+      return true;
+    case 'spawn_black_hole': {
+      switch (cmd.variant) {
+        case 'sun_replace': {
+          const sun = findBody(state, 'sun');
+          const pos: Vec3 = sun ? [...sun.position] : [0, 0, 0];
+          const vel: Vec3 = sun ? [...sun.velocity] : [0, 0, 0];
+          const mass = sun ? sun.mass : SUN_MASS;
+          state.bodies = state.bodies.filter((b) => b.id !== 'sun' && b.id !== 'black_hole');
+          state.bodies.unshift({
+            id: 'black_hole',
+            name: '태양 블랙홀',
+            mass,
+            position: pos,
+            velocity: vel,
+            physicalRadius: 3000,
+            visualRadius: 2.4,
+          });
+          return true;
+        }
+        case 'invader': {
+          state.bodies = state.bodies.filter((b) => b.id !== 'invader_black_hole');
+          state.bodies.push({
+            id: 'invader_black_hole',
+            name: '방랑 블랙홀',
+            mass: SUN_MASS * 5,
+            position: [12.0, 9.5, 0],
+            velocity: [-0.012, -0.009, 0],
+            physicalRadius: 15000,
+            visualRadius: 3.2,
+          });
+          return true;
+        }
+        case 'giant': {
+          const sun = findBody(state, 'sun');
+          const pos: Vec3 = sun ? [...sun.position] : [0, 0, 0];
+          const vel: Vec3 = sun ? [...sun.velocity] : [0, 0, 0];
+          state.bodies = state.bodies.filter((b) => b.id !== 'sun' && b.id !== 'giant_black_hole');
+          state.bodies.unshift({
+            id: 'giant_black_hole',
+            name: '괴물 블랙홀',
+            mass: SUN_MASS * 30,
+            position: pos,
+            velocity: vel,
+            physicalRadius: 50000,
+            visualRadius: 4.5,
+          });
+          return true;
+        }
+        case 'near_earth': {
+          const earth = findBody(state, 'earth');
+          if (!earth) return false;
+          const d = 0.006;
+          const mbMass = EARTH_MASS * 1.5;
+          const vRel = Math.sqrt((G * (earth.mass + mbMass)) / d);
+          state.bodies = state.bodies.filter((b) => b.id !== 'mini_black_hole');
+          state.bodies.push({
+            id: 'mini_black_hole',
+            name: '미니 블랙홀',
+            mass: mbMass,
+            position: [earth.position[0] + d, earth.position[1], earth.position[2]],
+            velocity: [earth.velocity[0], earth.velocity[1] + vRel, earth.velocity[2]],
+            physicalRadius: 500,
+            visualRadius: 0.7,
+          });
+          return true;
+        }
+        case 'jupiter_replace': {
+          const jup = findBody(state, 'jupiter');
+          if (!jup) return false;
+          const pos: Vec3 = [...jup.position];
+          const vel: Vec3 = [...jup.velocity];
+          const mass = jup.mass;
+          state.bodies = state.bodies.filter((b) => b.id !== 'jupiter' && b.id !== 'black_hole_jupiter');
+          state.bodies.push({
+            id: 'black_hole_jupiter',
+            name: '목성 블랙홀',
+            mass,
+            position: pos,
+            velocity: vel,
+            physicalRadius: 1000,
+            visualRadius: 1.5,
+          });
+          return true;
+        }
+      }
+      return false;
+    }
   }
 
   const body = findBody(state, cmd.target);

@@ -25,9 +25,11 @@ export const AU_PER_DAY_TO_KM_S = 1.495978707e8 / 86400;
 const KM_TO_AU = 1 / 1.495978707e8;
 
 // 소프트닝: 두 천체가 겹칠 때 힘이 무한대로 커지는 것을 막는다.
-// 두 천체의 실제 반지름 합을 쓰므로, 떨어져 있을 때는 정확한 뉴턴 중력과 같다.
+// 두 천체의 실제 반지름 합을 쓰며, 블랙홀의 경우 수치 안정성을 위해 최소 30,000km 완충 반경을 둔다.
 function softening2(a: Body, b: Body): number {
-  const s = (a.physicalRadius + b.physicalRadius) * KM_TO_AU;
+  const isBh = a.id.includes('black_hole') || b.id.includes('black_hole');
+  const minKm = isBh ? 30000 : 0;
+  const s = Math.max(a.physicalRadius + b.physicalRadius, minKm) * KM_TO_AU;
   return s * s;
 }
 const BASE_DT = 0.05; // 기본 스텝 (일). 달 공전(27일)도 충분히 안정적.

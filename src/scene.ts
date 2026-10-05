@@ -36,6 +36,8 @@ interface Visual {
   trailPos: Float32Array;
   trailCount: number;
   vis: THREE.Vector3;
+  accretionDisk?: THREE.Mesh;
+  lensingRing?: THREE.Mesh;
 }
 
 export interface SpaceScene {
@@ -85,29 +87,74 @@ export function createSpaceScene(
     scene.add(ring);
   }
 
-  // 천체 메시 만들기
+  // 천체 메시 관리
   const sphereGeo = new THREE.SphereGeometry(1, 48, 32);
   const visuals = new Map<string, Visual>();
   const hitMeshes: THREE.Mesh[] = [];
-  for (const b of getState().bodies) {
-    const id = b.id as BodyId;
-    const info = BODY_INFO[id];
-    const group = new THREE.Group();
-    const mat =
-      id === 'sun'
-        ? new THREE.MeshBasicMaterial({ color: '#ffd75e' })
-        : new THREE.MeshStandardMaterial({ color: '#ffffff', map: makeTexture(id, info.color), roughness: 0.85 });
-    const sphere = new THREE.Mesh(sphereGeo, mat);
-    group.add(sphere);
 
-    if (id === 'sun') group.add(makeGlow());
-    if (id === 'saturn') {
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(1.4, 2.3, 64),
-        new THREE.MeshBasicMaterial({ color: '#e9d7a8', side: THREE.DoubleSide, transparent: true, opacity: 0.65 }),
-      );
-      ring.rotation.x = -Math.PI / 2 + 0.45;
-      sphere.add(ring);
+  function createVisualForBody(b: Body): Visual {
+    const id = b.id as BodyId;
+    const isBlackHole = b.id.includes('black_hole');
+    const info = BODY_INFO[id] ?? (isBlackHole ? BODY_INFO['black_hole'] : { emoji: '🪐', color: '#888888', lines: [] });
+    const group = new THREE.Group();
+
+    let sphere: THREE.Mesh;
+    let accretionDisk: THREE.Mesh | undefined;
+    let lensingRing: THREE.Mesh | undefined;
+
+    if (isBlackHole) {
+      // 사건의 지평선 (완전한 칠흑의 구체)
+      sphere = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: 0x010103 }));
+      group.add(sphere);
+
+      // 강착원반 (Accretion Disk)
+      const diskGeo = new THREE.RingGeometry(1.25, 3.2, 64);
+      const diskMat = new THREE.MeshBasicMaterial({
+        map: makeAccretionDiskTexture(),
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.95,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      accretionDisk = new THREE.Mesh(diskGeo, diskMat);
+      accretionDisk.rotation.x = -Math.PI / 2 + 0.35;
+      accretionDisk.rotation.z = 0.2;
+      group.add(accretionDisk);
+
+      // 중력 렌징 광자 고리 (Gravitational Lensing Halo Ring)
+      const lensGeo = new THREE.RingGeometry(1.05, 1.45, 64);
+      const lensMat = new THREE.MeshBasicMaterial({
+        map: makeAccretionDiskTexture(),
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.7,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      lensingRing = new THREE.Mesh(lensGeo, lensMat);
+      lensingRing.rotation.y = 0.4;
+      group.add(lensingRing);
+
+      // 오로라빛 보라/자주 광륜 (Halo Glow)
+      group.add(makeBlackHoleGlow());
+    } else {
+      const mat =
+        id === 'sun'
+          ? new THREE.MeshBasicMaterial({ color: '#ffd75e' })
+          : new THREE.MeshStandardMaterial({ color: '#ffffff', map: makeTexture(id, info.color), roughness: 0.85 });
+      sphere = new THREE.Mesh(sphereGeo, mat);
+      group.add(sphere);
+
+      if (id === 'sun') group.add(makeGlow());
+      if (id === 'saturn') {
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(1.4, 2.3, 64),
+          new THREE.MeshBasicMaterial({ color: '#e9d7a8', side: THREE.DoubleSide, transparent: true, opacity: 0.65 }),
+        );
+        ring.rotation.x = -Math.PI / 2 + 0.45;
+        sphere.add(ring);
+      }
     }
 
     // 클릭하기 쉽게 보이지 않는 큰 구를 덧붙인다
@@ -125,12 +172,33 @@ export function createSpaceScene(
     trailGeo.setDrawRange(0, 0);
     const trail = new THREE.Line(
       trailGeo,
-      new THREE.LineBasicMaterial({ color: info.color, transparent: true, opacity: id === 'moon' ? 0.35 : 0.7 }),
+      new THREE.LineBasicMaterial({
+        color: isBlackHole ? 0xcc44ff : info.color,
+        transparent: true,
+        opacity: id === 'moon' ? 0.35 : 0.75,
+      }),
     );
     trail.frustumCulled = false;
 
     scene.add(group, trail);
-    visuals.set(b.id, { group, sphere, hit, trail, trailPos, trailCount: 0, vis: new THREE.Vector3() });
+    const vis: Visual = {
+      group,
+      sphere,
+      hit,
+      trail,
+      trailPos,
+      trailCount: 0,
+      vis: new THREE.Vector3(),
+      accretionDisk,
+      lensingRing,
+    };
+    visuals.set(b.id, vis);
+    return vis;
+  }
+
+  // 초기 천체 메시 생성
+  for (const b of getState().bodies) {
+    createVisualForBody(b);
   }
 
   // 선택 표시 링
@@ -149,6 +217,13 @@ export function createSpaceScene(
   let raf = 0;
 
   function updateVisuals(bodies: Body[]) {
+    // 새로운 천체가 생겼으면 비주얼 등록
+    for (const b of bodies) {
+      if (!visuals.has(b.id)) {
+        createVisualForBody(b);
+      }
+    }
+
     const alive = new Set(bodies.map((b) => b.id));
     for (const [id, v] of visuals) {
       v.group.visible = alive.has(id);
@@ -156,10 +231,10 @@ export function createSpaceScene(
     }
     // 1차: 기본 위치
     for (const b of bodies) mapPoint(b.position, visuals.get(b.id)!.vis);
-    // 2차: 위성은 행성 옆에 보이도록
+    // 2차: 위성은 행성 옆에 보이도록 (블랙홀은 위성 호스트 제외)
     for (const b of bodies) {
       const host = findHost(bodies, b);
-      if (!host) continue;
+      if (!host || host.id.includes('black_hole')) continue;
       const v = visuals.get(b.id)!;
       const hv = visuals.get(host.id)!;
       const d: Vec3 = [b.position[0] - host.position[0], b.position[1] - host.position[1], b.position[2] - host.position[2]];
@@ -175,6 +250,17 @@ export function createSpaceScene(
       v.sphere.scale.setScalar(b.visualRadius);
       v.hit.scale.setScalar(Math.max(b.visualRadius * 1.6, 1.1));
       v.sphere.rotation.y += 0.01;
+
+      // 블랙홀 강착원반 & 렌징 링 회전 애니메이션
+      if (v.accretionDisk) {
+        v.accretionDisk.rotation.z += 0.03;
+        v.accretionDisk.scale.setScalar(b.visualRadius);
+      }
+      if (v.lensingRing) {
+        v.lensingRing.rotation.z -= 0.015;
+        v.lensingRing.scale.setScalar(b.visualRadius);
+      }
+
       pushTrail(v, b.id === 'moon' ? 0.04 : 0.12);
     }
     const sun = bodies.find((b) => b.id === 'sun');
@@ -289,7 +375,7 @@ export function createSpaceScene(
   };
 }
 
-// ---------- 꾸미기 (텍스처, 별, 태양 빛) ----------
+// ---------- 꾸미기 (텍스처, 별, 태양 빛, 블랙홀 강착원반) ----------
 
 function makeStars(): THREE.Points {
   const n = 3000;
@@ -325,6 +411,68 @@ function makeGlow(): THREE.Sprite {
   tex.colorSpace = THREE.SRGBColorSpace;
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false }));
   sprite.scale.setScalar(16);
+  return sprite;
+}
+
+/** 블랙홀 강착원반(Accretion Disk) 소용돌이 텍스처 */
+function makeAccretionDiskTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 512;
+  const g = c.getContext('2d')!;
+  const cx = 256;
+  const cy = 256;
+
+  // 안쪽 초고온 백색/황금색 -> 바깥쪽 자주/보라색 그라디언트
+  const grad = g.createRadialGradient(cx, cy, 60, cx, cy, 255);
+  grad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  grad.addColorStop(0.06, 'rgba(255, 255, 255, 1)');
+  grad.addColorStop(0.18, 'rgba(255, 220, 110, 0.95)');
+  grad.addColorStop(0.38, 'rgba(255, 100, 30, 0.85)');
+  grad.addColorStop(0.65, 'rgba(190, 40, 230, 0.55)');
+  grad.addColorStop(0.85, 'rgba(110, 20, 200, 0.2)');
+  grad.addColorStop(1, 'rgba(60, 0, 150, 0)');
+  g.fillStyle = grad;
+  g.beginPath();
+  g.arc(cx, cy, 255, 0, Math.PI * 2);
+  g.fill();
+
+  // 소용돌이 줄무늬 추가
+  let seed = 42;
+  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+  for (let i = 0; i < 90; i++) {
+    const angle = rnd() * Math.PI * 2;
+    const r = 80 + rnd() * 150;
+    const len = 0.2 + rnd() * 0.45;
+    g.strokeStyle = `rgba(255, ${Math.floor(160 + rnd() * 95)}, ${Math.floor(80 + rnd() * 175)}, ${0.15 + rnd() * 0.25})`;
+    g.lineWidth = 2 + rnd() * 5;
+    g.beginPath();
+    g.arc(cx, cy, r, angle, angle + len);
+    g.stroke();
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** 블랙홀 주변의 신비로운 보랏빛 중력 렌징 광륜 */
+function makeBlackHoleGlow(): THREE.Sprite {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  grad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+  grad.addColorStop(0.18, 'rgba(220, 110, 255, 0.55)');
+  grad.addColorStop(0.42, 'rgba(130, 40, 255, 0.22)');
+  grad.addColorStop(0.7, 'rgba(70, 20, 180, 0.07)');
+  grad.addColorStop(1, 'rgba(30, 0, 100, 0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 256, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false }));
+  sprite.scale.setScalar(14);
   return sprite;
 }
 

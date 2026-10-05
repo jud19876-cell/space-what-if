@@ -11,7 +11,13 @@ export type BodyId =
   | 'jupiter'
   | 'saturn'
   | 'uranus'
-  | 'neptune';
+  | 'neptune'
+  | 'black_hole'
+  | 'invader_black_hole'
+  | 'giant_black_hole'
+  | 'mini_black_hole'
+  | 'black_hole_jupiter'
+  | (string & {});
 
 export const EARTH_MASS = 5.972e24;
 const MOON_MASS = 7.342e22;
@@ -137,4 +143,9 @@ export const BODY_INFO: Record<BodyId, BodyInfo> = {
   saturn: { emoji: '🪐', color: '#e8d29a', lines: ['멋진 고리를 가진 행성이야!', '고리는 얼음과 돌 조각이야.'] },
   uranus: { emoji: '🔵', color: '#8fe0e8', lines: ['옆으로 누워서 도는 행성이야.', '아주아주 추워!'] },
   neptune: { emoji: '💙', color: '#4a6cf0', lines: ['가장 멀리 있는 행성이야.', '태양을 한 바퀴 도는 데 165년!'] },
+  black_hole: { emoji: '🕳️', color: '#b366ff', lines: ['빛조차 빠져나갈 수 없는 우주의 신비로운 천체야!', '태양과 무게가 같아서 행성들은 빨려 들어가지 않고 그대로 돌아!'] },
+  invader_black_hole: { emoji: '🕳️👾', color: '#f43f5e', lines: ['태양계 밖에서 침입한 거대한 방랑 블랙홀이야!', '강력한 중력으로 행성들의 궤도를 흔들어 놓아.'] },
+  giant_black_hole: { emoji: '🕳️🌪️', color: '#a855f7', lines: ['태양의 30배나 무거운 초대질량 괴물 블랙홀이야!', '엄청난 힘으로 주변의 모든 것을 빨아들여!'] },
+  mini_black_hole: { emoji: '🕳️✨', color: '#38bdf8', lines: ['지구 곁에 나타난 작은 미니 블랙홀이야!', '작아 보여도 지구만큼 무거운 우주의 포식자야.'] },
+  black_hole_jupiter: { emoji: '🕳️🟠', color: '#f97316', lines: ['목성이 초고밀도로 찌그러져 블랙홀이 되었어!', '목성의 달들이 여전히 그 주위를 맴돌고 있어.'] },
 };

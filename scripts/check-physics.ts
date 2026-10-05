@@ -132,5 +132,38 @@ const r0 = (b: Body) => length(b.position);
   check('Reset: 이후 진행도 처음과 똑같이 재현됨', JSON.stringify(a.bodies) === JSON.stringify(s.bodies), '100일 후 비교');
 }
 
+// 9. 블랙홀: 태양이 1x 블랙홀로 교체되어도 행성 궤도는 유지됨 (과학적 사실)
+{
+  const s = createInitialState();
+  executeCommand(s, { action: 'spawn_black_hole', variant: 'sun_replace' });
+  run(s, 365.25);
+  const bh = get(s, 'black_hole');
+  const dEarth = dist(get(s, 'earth'), bh);
+  check('블랙홀: 1x 질량 블랙홀로 교체 시 지구 궤도 유지 (<1.5% 오차)', Math.abs(dEarth - 1.0) < 0.015, `1년 후 지구 거리 ${dEarth.toFixed(4)} AU`);
+}
+
+// 10. 괴물 블랙홀 (30배): 행성들이 강하게 빨려 들어감
+{
+  const s = createInitialState();
+  executeCommand(s, { action: 'spawn_black_hole', variant: 'giant' });
+  let minD = Infinity;
+  for (let i = 0; i < 40; i++) {
+    run(s, 5);
+    minD = Math.min(minD, dist(get(s, 'earth'), get(s, 'giant_black_hole')));
+  }
+  check('괴물 블랙홀: 30배 질량에 지구가 빠르게 빨려 들어감', minD < 0.3, `최소 접근 거리 ${minD.toFixed(3)} AU`);
+}
+
+// 11. 블랙홀 생성 후 Reset 복원 검증
+{
+  const s = createInitialState();
+  executeCommand(s, { action: 'spawn_black_hole', variant: 'invader' });
+  executeCommand(s, { action: 'spawn_black_hole', variant: 'near_earth' });
+  run(s, 150);
+  executeCommand(s, { action: 'reset' });
+  const restored = s.bodies.length === 10 && !s.bodies.some((b) => b.id.includes('black_hole'));
+  check('블랙홀 후 Reset: 모든 블랙홀이 사라지고 10개 행성 원래 상태 복구', restored, `${s.bodies.length}개 천체`);
+}
+
 console.log(failed ? `\n${failed}개 실패` : '\n모든 테스트 통과');
 (globalThis as unknown as { process: { exitCode: number } }).process.exitCode = failed ? 1 : 0;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AU_PER_DAY_TO_KM_S, length } from './physics.ts';
 import { createSpaceScene, type SpaceScene } from './scene.ts';
-import { SCENARIOS, type Scenario } from './scenarios.ts';
+import { SCENARIOS, type Scenario, type ScenarioCategory } from './scenarios.ts';
 import { createInitialState, executeCommand, findBody, type SimCommand, type SimState, type Speed } from './simulation.ts';
 import { BODY_INFO, EARTH_MASS, type BodyId } from './solarSystem.ts';
 
@@ -18,6 +18,7 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [toast, setToast] = useState<{ key: number; emoji: string; text: string } | null>(null);
   const [hinted, setHinted] = useState(false);
+  const [category, setCategory] = useState<ScenarioCategory>('all');
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export default function App() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2600);
+    const t = setTimeout(() => setToast(null), 2800);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -59,6 +60,12 @@ export default function App() {
 
   const state = stateRef.current;
   const years = state.time / 365.25;
+
+  const visibleScenarios = SCENARIOS.filter((sc) => {
+    if (category === 'all') return true;
+    if (sc.id === 'reset') return true;
+    return sc.category === category;
+  });
 
   return (
     <div className="app">
@@ -93,7 +100,12 @@ export default function App() {
               </button>
             ))}
           </div>
-          <button id="btn-reset" className="btn round" onClick={() => runScenario(SCENARIOS[SCENARIOS.length - 1])} aria-label="처음으로">
+          <button
+            id="btn-reset"
+            className="btn round"
+            onClick={() => runScenario(SCENARIOS.find((s) => s.id === 'reset')!)}
+            aria-label="처음으로"
+          >
             🔄
           </button>
         </div>
@@ -101,7 +113,7 @@ export default function App() {
 
       {selected && <InfoCard state={state} id={selected} onClose={() => setSelected(null)} />}
 
-      {!hinted && !selected && <div className="hint">👆 행성을 눌러 봐!</div>}
+      {!hinted && !selected && <div className="hint">👆 행성이나 블랙홀을 눌러 봐!</div>}
 
       {toast && (
         <div className="toast" key={toast.key}>
@@ -111,10 +123,38 @@ export default function App() {
       )}
 
       <footer className="experiments">
-        <div className="experiments-label">만약에…?</div>
+        <div className="experiments-top">
+          <span className="experiments-label">만약에…?</span>
+          <div className="category-tabs" role="tablist" aria-label="실험 종류 선택">
+            <button
+              className={`category-tab ${category === 'all' ? 'on' : ''}`}
+              onClick={() => setCategory('all')}
+            >
+              ✨ 전체
+            </button>
+            <button
+              className={`category-tab ${category === 'solar' ? 'on' : ''}`}
+              onClick={() => setCategory('solar')}
+            >
+              🪐 태양계 실험
+            </button>
+            <button
+              className={`category-tab category-tab-bh ${category === 'blackhole' ? 'on' : ''}`}
+              onClick={() => setCategory('blackhole')}
+            >
+              🕳️ 블랙홀 실험
+            </button>
+          </div>
+        </div>
+
         <div className="experiments-row">
-          {SCENARIOS.map((sc) => (
-            <button key={sc.id} id={`exp-${sc.id}`} className={`btn exp ${sc.id === 'reset' ? 'exp-reset' : ''}`} onClick={() => runScenario(sc)}>
+          {visibleScenarios.map((sc) => (
+            <button
+              key={sc.id}
+              id={`exp-${sc.id}`}
+              className={`btn exp ${sc.id === 'reset' ? 'exp-reset' : ''} ${sc.category === 'blackhole' ? 'exp-blackhole' : ''}`}
+              onClick={() => runScenario(sc)}
+            >
               <span className="exp-emoji">{sc.emoji}</span>
               <span className="exp-label">{sc.label}</span>
             </button>
@@ -128,9 +168,10 @@ export default function App() {
 function InfoCard({ state, id, onClose }: { state: SimState; id: string; onClose: () => void }) {
   const body = findBody(state, id);
   if (!body) return null;
-  const info = BODY_INFO[id as BodyId];
-  const sun = findBody(state, 'sun');
-  const rv = sun && sun !== body ? sun.velocity : [0, 0, 0];
+  const isBlackHole = id.includes('black_hole');
+  const info = BODY_INFO[id as BodyId] ?? (isBlackHole ? BODY_INFO['black_hole'] : { emoji: '🪐', color: '#999999', lines: ['우주의 천체야!'] });
+  const centerBody = findBody(state, 'sun') ?? findBody(state, 'black_hole') ?? findBody(state, 'giant_black_hole');
+  const rv = centerBody && centerBody !== body ? centerBody.velocity : [0, 0, 0];
   const speed = length([body.velocity[0] - rv[0], body.velocity[1] - rv[1], body.velocity[2] - rv[2]]) * AU_PER_DAY_TO_KM_S;
   const ratio = body.mass / EARTH_MASS;
   const ratioText = ratio >= 10 ? Math.round(ratio).toLocaleString('ko-KR') : ratio >= 1 ? String(+ratio.toFixed(1)) : ratio.toFixed(2);
@@ -149,7 +190,8 @@ function InfoCard({ state, id, onClose }: { state: SimState; id: string; onClose
       ))}
       <div className="chips">
         <span className="chip">⚖️ 지구 무게의 {ratioText}배</span>
-        {id !== 'sun' && <span className="chip">💨 1초에 {Math.round(speed)}km</span>}
+        {body.id !== 'sun' && !body.id.includes('black_hole') && <span className="chip">💨 1초에 {Math.round(speed)}km</span>}
+        {isBlackHole && <span className="chip chip-bh">🕳️ 사건의 지평선</span>}
       </div>
     </aside>
   );
