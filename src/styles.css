@@ -317,6 +317,50 @@ body,
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.1);
 }
+
+/* 블랙홀이 삼킨 천체 패널 */
+.swallowed-panel {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: rgba(20, 10, 45, 0.7);
+  border: 1px solid rgba(185, 90, 255, 0.4);
+  box-shadow: inset 0 0 16px rgba(140, 30, 220, 0.2);
+}
+.swallowed-title {
+  font-size: 15px;
+  color: #ff9ee2;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.swallowed-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 85px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.swallowed-tags::-webkit-scrollbar {
+  display: none;
+}
+.swallowed-tag {
+  font-size: 14px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(180, 50, 240, 0.35);
+  border: 1px solid rgba(220, 120, 255, 0.45);
+  color: #ffffff;
+  animation: pop 0.25s ease;
+  white-space: nowrap;
+}
+.swallowed-empty {
+  font-size: 14px;
+  opacity: 0.75;
+  color: #d8b4fe;
+}
 .card-close {
   position: absolute;
   top: 10px;

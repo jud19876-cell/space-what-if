@@ -2,7 +2,7 @@
 // 여기서는 물리 상태를 읽기만 하고 바꾸지 않는다. (시간 진행 advance() 만 호출)
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { length, type Body, type Vec3 } from './physics.ts';
+import { length, type Body, type Vec3, type AbsorptionEvent } from './physics.ts';
 import { advance, findHost, type SimState } from './simulation.ts';
 import { BODY_INFO, ORBIT_RADII, type BodyId } from './solarSystem.ts';
 
@@ -50,6 +50,7 @@ export function createSpaceScene(
   container: HTMLElement,
   getState: () => SimState,
   onPick: (id: string | null) => void,
+  onAbsorb?: (ev: AbsorptionEvent) => void,
 ): SpaceScene {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -210,6 +211,44 @@ export function createSpaceScene(
   scene.add(selRing);
   let selectedId: string | null = null;
 
+  // 블랙홀 흡수 시 충격파(Shockwave Flash) 애니메이션 관리
+  const shockwaves: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; time: number; maxTime: number }[] = [];
+
+  function triggerShockwave(pos: THREE.Vector3) {
+    const geo = new THREE.RingGeometry(0.5, 1.5, 64);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xff33cc,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(pos);
+    mesh.rotation.x = -Math.PI / 2;
+    scene.add(mesh);
+    shockwaves.push({ mesh, mat, time: 0, maxTime: 0.9 });
+  }
+
+  function updateShockwaves(dt: number) {
+    for (let i = shockwaves.length - 1; i >= 0; i--) {
+      const sw = shockwaves[i];
+      sw.time += dt;
+      const progress = sw.time / sw.maxTime;
+      if (progress >= 1) {
+        scene.remove(sw.mesh);
+        sw.mesh.geometry.dispose();
+        sw.mat.dispose();
+        shockwaves.splice(i, 1);
+      } else {
+        const s = 1 + progress * 7;
+        sw.mesh.scale.set(s, s, s);
+        sw.mat.opacity = 0.95 * (1 - progress);
+      }
+    }
+  }
+
   // ---------- 매 프레임 ----------
   const tmp = new THREE.Vector3();
   const prevTarget = new THREE.Vector3();
@@ -226,8 +265,13 @@ export function createSpaceScene(
 
     const alive = new Set(bodies.map((b) => b.id));
     for (const [id, v] of visuals) {
-      v.group.visible = alive.has(id);
-      v.trail.visible = alive.has(id);
+      const isAlive = alive.has(id);
+      v.group.visible = isAlive;
+      v.trail.visible = isAlive;
+      if (!isAlive && v.trailCount > 0) {
+        v.trailCount = 0;
+        v.trail.geometry.setDrawRange(0, 0);
+      }
     }
     // 1차: 기본 위치
     for (const b of bodies) mapPoint(b.position, visuals.get(b.id)!.vis);
@@ -290,8 +334,17 @@ export function createSpaceScene(
     raf = requestAnimationFrame(frame);
     const dt = Math.min(clock.getDelta(), 0.1);
     const state = getState();
-    advance(state, dt);
+
+    advance(state, dt, (ev) => {
+      const bhVis = visuals.get(ev.blackHoleId);
+      if (bhVis) {
+        triggerShockwave(bhVis.vis);
+      }
+      onAbsorb?.(ev);
+    });
+
     updateVisuals(state.bodies);
+    updateShockwaves(dt);
 
     // 선택한 천체를 카메라가 부드럽게 따라간다
     const sel = selectedId ? state.bodies.find((b) => b.id === selectedId) : undefined;
@@ -359,6 +412,12 @@ export function createSpaceScene(
         v.trailCount = 0;
         v.trail.geometry.setDrawRange(0, 0);
       }
+      for (const sw of shockwaves) {
+        scene.remove(sw.mesh);
+        sw.mesh.geometry.dispose();
+        sw.mat.dispose();
+      }
+      shockwaves.length = 0;
     },
     setSelected(id) {
       selectedId = id;

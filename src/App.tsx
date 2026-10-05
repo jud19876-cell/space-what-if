@@ -22,10 +22,23 @@ export default function App() {
   const [, setTick] = useState(0);
 
   useEffect(() => {
-    const sc = createSpaceScene(containerRef.current!, () => stateRef.current, (id) => {
-      setSelected(id);
-      if (id) setHinted(true);
-    });
+    const sc = createSpaceScene(
+      containerRef.current!,
+      () => stateRef.current,
+      (id) => {
+        setSelected(id);
+        if (id) setHinted(true);
+      },
+      (ev) => {
+        setToast({
+          key: Date.now(),
+          emoji: '🕳️💥',
+          text: `앗! ${ev.swallowedName}이(가) ${ev.blackHoleName}에 빨려 들어가 삼켜졌어!`,
+        });
+        setSelected((cur) => (cur === ev.swallowedId ? null : cur));
+        setTick((t) => t + 1);
+      },
+    );
     sceneRef.current = sc;
     const iv = setInterval(() => setTick((t) => t + 1), 250); // 정보 카드/시간 갱신
     return () => {
@@ -38,7 +51,7 @@ export default function App() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2800);
+    const t = setTimeout(() => setToast(null), 3200);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -193,6 +206,25 @@ function InfoCard({ state, id, onClose }: { state: SimState; id: string; onClose
         {body.id !== 'sun' && !body.id.includes('black_hole') && <span className="chip">💨 1초에 {Math.round(speed)}km</span>}
         {isBlackHole && <span className="chip chip-bh">🕳️ 사건의 지평선</span>}
       </div>
+
+      {isBlackHole && (
+        <div className="swallowed-panel">
+          <div className="swallowed-title">
+            🍽️ 삼킨 천체 <strong>{state.swallowedList.length}개</strong>
+          </div>
+          <div className="swallowed-tags">
+            {state.swallowedList.length === 0 ? (
+              <span className="swallowed-empty">아직 안전해! 아무것도 삼키지 않았어.</span>
+            ) : (
+              state.swallowedList.map((s, idx) => (
+                <span key={idx} className="swallowed-tag">
+                  {s.emoji} {s.name}
+                </span>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

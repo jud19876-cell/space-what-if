@@ -142,16 +142,16 @@ const r0 = (b: Body) => length(b.position);
   check('블랙홀: 1x 질량 블랙홀로 교체 시 지구 궤도 유지 (<1.5% 오차)', Math.abs(dEarth - 1.0) < 0.015, `1년 후 지구 거리 ${dEarth.toFixed(4)} AU`);
 }
 
-// 10. 괴물 블랙홀 (30배): 행성들이 강하게 빨려 들어감
+// 10. 괴물 블랙홀 (30배): 행성들이 중심으로 빨려 들어가 삼켜짐 (흡수 소멸)
 {
   const s = createInitialState();
   executeCommand(s, { action: 'spawn_black_hole', variant: 'giant' });
-  let minD = Infinity;
   for (let i = 0; i < 40; i++) {
     run(s, 5);
-    minD = Math.min(minD, dist(get(s, 'earth'), get(s, 'giant_black_hole')));
   }
-  check('괴물 블랙홀: 30배 질량에 지구가 빠르게 빨려 들어감', minD < 0.3, `최소 접근 거리 ${minD.toFixed(3)} AU`);
+  const swallowedEarth = s.swallowedList.some((r) => r.id === 'earth');
+  const earthBody = findBody(s, 'earth');
+  check('괴물 블랙홀: 지구가 중력점프 없이 블랙홀에 흡수되어 삼켜짐', swallowedEarth && !earthBody, `삼킨 천체 ${s.swallowedList.length}개`);
 }
 
 // 11. 블랙홀 생성 후 Reset 복원 검증
@@ -161,8 +161,20 @@ const r0 = (b: Body) => length(b.position);
   executeCommand(s, { action: 'spawn_black_hole', variant: 'near_earth' });
   run(s, 150);
   executeCommand(s, { action: 'reset' });
-  const restored = s.bodies.length === 10 && !s.bodies.some((b) => b.id.includes('black_hole'));
-  check('블랙홀 후 Reset: 모든 블랙홀이 사라지고 10개 행성 원래 상태 복구', restored, `${s.bodies.length}개 천체`);
+  const restored = s.bodies.length === 10 && !s.bodies.some((b) => b.id.includes('black_hole')) && s.swallowedList.length === 0;
+  check('블랙홀 후 Reset: 모든 블랙홀과 삼킨 목록이 초기화되고 10개 행성 원래 상태 복구', restored, `${s.bodies.length}개 천체`);
+}
+
+// 12. 중력점프 방지 검증: 정지한 지구가 블랙홀로 낙하할 때 반대편으로 튕겨나가지 않고 흡수 소멸
+{
+  const s = createInitialState();
+  executeCommand(s, { action: 'spawn_black_hole', variant: 'sun_replace' });
+  executeCommand(s, { action: 'change_velocity', target: 'earth', multiplier: 0 });
+  for (let i = 0; i < 40; i++) {
+    run(s, 5);
+  }
+  const swallowedEarth = s.swallowedList.some((r) => r.id === 'earth');
+  check('중력점프 방지: 정지 낙하한 지구가 튕겨나가지 않고 사건의 지평선에 흡수됨', swallowedEarth, `지구 흡수 여부: ${swallowedEarth}`);
 }
 
 console.log(failed ? `\n${failed}개 실패` : '\n모든 테스트 통과');
