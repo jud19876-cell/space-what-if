@@ -148,4 +148,7 @@ export const BODY_INFO: Record<BodyId, BodyInfo> = {
   giant_black_hole: { emoji: '🕳️🌪️', color: '#a855f7', lines: ['태양의 30배나 무거운 초대질량 괴물 블랙홀이야!', '엄청난 힘으로 주변의 모든 것을 빨아들여!'] },
   mini_black_hole: { emoji: '🕳️✨', color: '#38bdf8', lines: ['지구 곁에 나타난 작은 미니 블랙홀이야!', '작아 보여도 지구만큼 무거운 우주의 포식자야.'] },
   black_hole_jupiter: { emoji: '🕳️🟠', color: '#f97316', lines: ['목성이 초고밀도로 찌그러져 블랙홀이 되었어!', '목성의 달들이 여전히 그 주위를 맴돌고 있어.'] },
+  asteroid: { emoji: '☄️', color: '#ff6622', lines: ['우주를 날아다니는 소행성이야!', '행성과 충돌하면 궤도를 흔들어 놓을 수 있어!'] },
+  giant_asteroid: { emoji: '💥☄️', color: '#ff2244', lines: ['행성을 산산조각 낼 수 있는 거대 소행성이야!', '엄청난 충돌 에너지로 행성을 파괴해!'] },
+  fragment: { emoji: '🪨', color: '#d0a87a', lines: ['행성이 폭발하면서 흩어진 파편이야!', '새로운 파편 조각들이 우주를 돌고 있어.'] },
 };

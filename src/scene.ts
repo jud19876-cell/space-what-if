@@ -2,7 +2,7 @@
 // 여기서는 물리 상태를 읽기만 하고 바꾸지 않는다. (시간 진행 advance() 만 호출)
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { length, type Body, type Vec3, type AbsorptionEvent } from './physics.ts';
+import { AU_PER_DAY_TO_KM_S, G, length, SUN_MASS, type Body, type Vec3, type AbsorptionEvent, type CollisionEvent } from './physics.ts';
 import { advance, findHost, type SimState } from './simulation.ts';
 import { BODY_INFO, ORBIT_RADII, type BodyId } from './solarSystem.ts';
 
@@ -11,14 +11,27 @@ import { BODY_INFO, ORBIT_RADII, type BodyId } from './solarSystem.ts';
 const DIST_K = 11;
 const DIST_R0 = 0.05;
 const SQRT_R0 = Math.sqrt(DIST_R0);
+
 export function mapRadius(rAU: number): number {
   return DIST_K * (Math.sqrt(rAU + DIST_R0) - SQRT_R0);
 }
-function mapPoint(p: Vec3, out: THREE.Vector3): THREE.Vector3 {
+
+export function mapPoint(p: Vec3, out: THREE.Vector3): THREE.Vector3 {
   const r = length(p);
   if (r < 1e-12) return out.set(0, 0, 0);
   const s = mapRadius(r) / r;
   return out.set(p[0] * s, p[2] * s, -p[1] * s); // 물리 z-up → three.js y-up
+}
+
+/** 3D 화면의 y=0 궤도 평면 좌표를 물리 AU 좌표계로 역변환 */
+export function unmapPoint(worldVec: THREE.Vector3): Vec3 {
+  const R = Math.hypot(worldVec.x, worldVec.z);
+  if (R < 1e-6) return [0, 0, 0];
+  const rSqrt = R / DIST_K + SQRT_R0;
+  const rAU = Math.max(0.01, rSqrt * rSqrt - DIST_R0);
+  const px = (worldVec.x / R) * rAU;
+  const py = (-worldVec.z / R) * rAU;
+  return [px, py, 0];
 }
 
 // 위성(달)은 실제 거리로는 행성 안에 묻혀 버리므로, 행성 기준 오프셋을 크게 늘려서 그린다.
@@ -40,10 +53,99 @@ interface Visual {
   lensingRing?: THREE.Mesh;
 }
 
+export interface AimInfo {
+  active: boolean;
+  speedKmS: number;
+  massType: 'normal' | 'giant';
+}
+
 export interface SpaceScene {
   clearTrails(): void;
   setSelected(id: string | null): void;
+  setCannonMode(active: boolean, massType?: 'normal' | 'giant'): void;
   dispose(): void;
+}
+
+// ---------- Web Audio API 효과음 합성기 (외부 파일 불필요, 100% 즉시 재생) ----------
+let audioCtx: AudioContext | null = null;
+function getAudioContext(): AudioContext | null {
+  if (typeof window === 'undefined') return null;
+  if (!audioCtx) {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (AudioCtx) audioCtx = new AudioCtx();
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
+  return audioCtx;
+}
+
+export function playLaunchSound() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(220, now);
+  osc.frequency.exponentialRampToValueAtTime(700, now + 0.1);
+  osc.frequency.exponentialRampToValueAtTime(90, now + 0.35);
+
+  gain.gain.setValueAtTime(0.25, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.4);
+}
+
+export function playImpactSound() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(150, now);
+  osc.frequency.exponentialRampToValueAtTime(30, now + 0.4);
+
+  gain.gain.setValueAtTime(0.45, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.5);
+}
+
+export function playExplosionSound() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const bufferSize = Math.floor(ctx.sampleRate * 0.65);
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.18));
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = buffer;
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(900, now);
+  filter.frequency.exponentialRampToValueAtTime(70, now + 0.6);
+
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.65, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+
+  noise.start(now);
 }
 
 export function createSpaceScene(
@@ -51,8 +153,11 @@ export function createSpaceScene(
   getState: () => SimState,
   onPick: (id: string | null) => void,
   onAbsorb?: (ev: AbsorptionEvent) => void,
+  onCollision?: (ev: CollisionEvent) => void,
+  onLaunchAsteroid?: (pos: Vec3, vel: Vec3, massType: 'normal' | 'giant') => void,
+  onAimInfo?: (info: AimInfo | null) => void,
 ): SpaceScene {
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   container.appendChild(renderer.domElement);
 
@@ -96,7 +201,9 @@ export function createSpaceScene(
   function createVisualForBody(b: Body): Visual {
     const id = b.id as BodyId;
     const isBlackHole = b.id.includes('black_hole');
-    const info = BODY_INFO[id] ?? (isBlackHole ? BODY_INFO['black_hole'] : { emoji: '🪐', color: '#888888', lines: [] });
+    const isAsteroid = b.id.includes('asteroid') || b.id.includes('fragment');
+    const isGiant = b.id.includes('giant');
+    const info = BODY_INFO[id] ?? (isBlackHole ? BODY_INFO['black_hole'] : isAsteroid ? (isGiant ? BODY_INFO['giant_asteroid'] : BODY_INFO['asteroid']) : { emoji: '🪐', color: '#888888', lines: [] });
     const group = new THREE.Group();
 
     let sphere: THREE.Mesh;
@@ -139,6 +246,17 @@ export function createSpaceScene(
 
       // 오로라빛 보라/자주 광륜 (Halo Glow)
       group.add(makeBlackHoleGlow());
+    } else if (isAsteroid) {
+      // 소행성 및 파편: 거친 암석 표면 + 타오르는 불꽃 오라
+      const mat = new THREE.MeshStandardMaterial({
+        color: isGiant ? '#ff4d4d' : '#f59e0b',
+        roughness: 0.9,
+        metalness: 0.1,
+        map: makeAsteroidTexture(isGiant),
+      });
+      sphere = new THREE.Mesh(sphereGeo, mat);
+      group.add(sphere);
+      group.add(makeAsteroidFlameGlow(isGiant));
     } else {
       const mat =
         id === 'sun'
@@ -171,12 +289,13 @@ export function createSpaceScene(
     const trailGeo = new THREE.BufferGeometry();
     trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
     trailGeo.setDrawRange(0, 0);
+    const trailColor = isBlackHole ? 0xcc44ff : isGiant ? 0xff2244 : isAsteroid ? 0xff8811 : new THREE.Color(info.color).getHex();
     const trail = new THREE.Line(
       trailGeo,
       new THREE.LineBasicMaterial({
-        color: isBlackHole ? 0xcc44ff : info.color,
+        color: trailColor,
         transparent: true,
-        opacity: id === 'moon' ? 0.35 : 0.75,
+        opacity: id === 'moon' ? 0.35 : 0.85,
       }),
     );
     trail.frustumCulled = false;
@@ -211,13 +330,13 @@ export function createSpaceScene(
   scene.add(selRing);
   let selectedId: string | null = null;
 
-  // 블랙홀 흡수 시 충격파(Shockwave Flash) 애니메이션 관리
-  const shockwaves: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; time: number; maxTime: number }[] = [];
+  // ---------- 충격파 & 폭발 파편 & 카메라 진동 시스템 ----------
+  const shockwaves: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; time: number; maxTime: number; scaleMult: number }[] = [];
 
-  function triggerShockwave(pos: THREE.Vector3) {
-    const geo = new THREE.RingGeometry(0.5, 1.5, 64);
+  function triggerShockwave(pos: THREE.Vector3, color = 0xff33cc, scaleMult = 1.0) {
+    const geo = new THREE.RingGeometry(0.5, 1.8, 64);
     const mat = new THREE.MeshBasicMaterial({
-      color: 0xff33cc,
+      color,
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 0.95,
@@ -228,7 +347,7 @@ export function createSpaceScene(
     mesh.position.copy(pos);
     mesh.rotation.x = -Math.PI / 2;
     scene.add(mesh);
-    shockwaves.push({ mesh, mat, time: 0, maxTime: 0.9 });
+    shockwaves.push({ mesh, mat, time: 0, maxTime: 0.85, scaleMult });
   }
 
   function updateShockwaves(dt: number) {
@@ -242,14 +361,146 @@ export function createSpaceScene(
         sw.mat.dispose();
         shockwaves.splice(i, 1);
       } else {
-        const s = 1 + progress * 7;
+        const s = (1 + progress * 6.5) * sw.scaleMult;
         sw.mesh.scale.set(s, s, s);
         sw.mat.opacity = 0.95 * (1 - progress);
       }
     }
   }
 
-  // ---------- 매 프레임 ----------
+  interface SparkSystem {
+    mesh: THREE.Points;
+    geo: THREE.BufferGeometry;
+    mat: THREE.PointsMaterial;
+    pos: Float32Array;
+    vel: Float32Array;
+    count: number;
+    time: number;
+    maxTime: number;
+  }
+  const sparkSystems: SparkSystem[] = [];
+
+  function triggerExplosionSparks(pos: THREE.Vector3, isGiant: boolean) {
+    const count = isGiant ? 60 : 32;
+    const posArr = new Float32Array(count * 3);
+    const velArr = new Float32Array(count * 3);
+    const colArr = new Float32Array(count * 3);
+
+    for (let i = 0; i < count; i++) {
+      posArr[i * 3] = pos.x;
+      posArr[i * 3 + 1] = pos.y;
+      posArr[i * 3 + 2] = pos.z;
+
+      const th = Math.random() * Math.PI * 2;
+      const phi = (Math.random() - 0.5) * Math.PI;
+      const speed = (isGiant ? 5.5 : 3.2) * (0.4 + Math.random() * 0.9);
+      velArr[i * 3] = Math.cos(phi) * Math.cos(th) * speed;
+      velArr[i * 3 + 1] = Math.sin(phi) * speed * 0.6;
+      velArr[i * 3 + 2] = Math.cos(phi) * Math.sin(th) * speed;
+
+      const c = new THREE.Color().setHSL(0.05 + Math.random() * 0.08, 1.0, 0.55 + Math.random() * 0.35);
+      colArr[i * 3] = c.r;
+      colArr[i * 3 + 1] = c.g;
+      colArr[i * 3 + 2] = c.b;
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colArr, 3));
+
+    const mat = new THREE.PointsMaterial({
+      size: isGiant ? 4.0 : 2.5,
+      sizeAttenuation: false,
+      vertexColors: true,
+      transparent: true,
+      opacity: 1.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const mesh = new THREE.Points(geo, mat);
+    scene.add(mesh);
+    sparkSystems.push({
+      mesh,
+      geo,
+      mat,
+      pos: posArr,
+      vel: velArr,
+      count,
+      time: 0,
+      maxTime: isGiant ? 1.3 : 0.85,
+    });
+  }
+
+  function updateSparks(dt: number) {
+    for (let i = sparkSystems.length - 1; i >= 0; i--) {
+      const sp = sparkSystems[i];
+      sp.time += dt;
+      const prog = sp.time / sp.maxTime;
+      if (prog >= 1) {
+        scene.remove(sp.mesh);
+        sp.geo.dispose();
+        sp.mat.dispose();
+        sparkSystems.splice(i, 1);
+      } else {
+        const p = sp.pos;
+        const v = sp.vel;
+        for (let k = 0; k < sp.count; k++) {
+          p[k * 3] += v[k * 3] * dt;
+          p[k * 3 + 1] += v[k * 3 + 1] * dt;
+          p[k * 3 + 2] += v[k * 3 + 2] * dt;
+        }
+        sp.geo.attributes.position.needsUpdate = true;
+        sp.mat.opacity = 1 - prog;
+      }
+    }
+  }
+
+  let shakeIntensity = 0;
+  let shakeTime = 0;
+  function startCameraShake(intensity: number) {
+    shakeIntensity = intensity;
+    shakeTime = 0.45;
+  }
+
+  // ---------- 대포 모드 & 궤적 조준 (Cannon Mode & Trajectory Prediction) ----------
+  let cannonActive = false;
+  let cannonMassType: 'normal' | 'giant' = 'normal';
+  const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+  // 조준 발사대 링
+  const muzzleRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.8, 1.15, 32),
+    new THREE.MeshBasicMaterial({ color: 0xffaa00, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }),
+  );
+  muzzleRing.rotation.x = -Math.PI / 2;
+  muzzleRing.visible = false;
+  scene.add(muzzleRing);
+
+  // 실시간 예측 궤적선 (Trajectory Line)
+  const MAX_TRAJ_PTS = 32;
+  const trajPos = new Float32Array(MAX_TRAJ_PTS * 3);
+  const trajGeo = new THREE.BufferGeometry();
+  trajGeo.setAttribute('position', new THREE.BufferAttribute(trajPos, 3));
+  trajGeo.setDrawRange(0, 0);
+  const trajLine = new THREE.Line(
+    trajGeo,
+    new THREE.LineBasicMaterial({
+      color: 0xffaa00,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+    }),
+  );
+  trajLine.frustumCulled = false;
+  trajLine.visible = false;
+  scene.add(trajLine);
+
+  let isDraggingCannon = false;
+  const cannonStart = new THREE.Vector3();
+  const cannonCurrent = new THREE.Vector3();
+
+  // ---------- 매 프레임 루프 ----------
   const tmp = new THREE.Vector3();
   const prevTarget = new THREE.Vector3();
   const clock = new THREE.Clock();
@@ -285,7 +536,7 @@ export function createSpaceScene(
       const dl = length(d);
       const s = satelliteOffset(dl) / dl;
       tmp.set(hv.vis.x + d[0] * s, hv.vis.y + d[2] * s, hv.vis.z - d[1] * s);
-      const w = Math.min(1, Math.max(0, (0.05 - dl) / 0.03)); // 멀어지면 자연스럽게 원래 위치로
+      const w = Math.min(1, Math.max(0, (0.05 - dl) / 0.03));
       v.vis.lerp(tmp, w);
     }
     for (const b of bodies) {
@@ -335,16 +586,44 @@ export function createSpaceScene(
     const dt = Math.min(clock.getDelta(), 0.1);
     const state = getState();
 
-    advance(state, dt, (ev) => {
-      const bhVis = visuals.get(ev.blackHoleId);
-      if (bhVis) {
-        triggerShockwave(bhVis.vis);
-      }
-      onAbsorb?.(ev);
-    });
+    advance(
+      state,
+      dt,
+      (ev) => {
+        const bhVis = visuals.get(ev.blackHoleId);
+        if (bhVis) {
+          triggerShockwave(bhVis.vis, 0xff33cc, 1.2);
+        }
+        onAbsorb?.(ev);
+      },
+      (colEv) => {
+        const isGiant = colEv.type === 'shatter';
+        const colPos = new THREE.Vector3();
+        mapPoint(colEv.position, colPos);
+        triggerShockwave(colPos, isGiant ? 0xff2200 : 0xff7700, isGiant ? 2.0 : 1.1);
+        triggerExplosionSparks(colPos, isGiant);
+        startCameraShake(isGiant ? 1.4 : 0.65);
+        if (isGiant) {
+          playExplosionSound();
+        } else {
+          playImpactSound();
+        }
+        onCollision?.(colEv);
+      },
+    );
 
     updateVisuals(state.bodies);
     updateShockwaves(dt);
+    updateSparks(dt);
+
+    // 충돌 시 카메라 흔들림(Camera Shake)
+    if (shakeTime > 0) {
+      shakeTime -= dt;
+      const s = shakeIntensity * (shakeTime / 0.45);
+      camera.position.x += (Math.random() - 0.5) * s;
+      camera.position.y += (Math.random() - 0.5) * s;
+      camera.position.z += (Math.random() - 0.5) * s;
+    }
 
     // 선택한 천체를 카메라가 부드럽게 따라간다
     const sel = selectedId ? state.bodies.find((b) => b.id === selectedId) : undefined;
@@ -363,32 +642,152 @@ export function createSpaceScene(
     renderer.render(scene, camera);
   }
 
-  // ---------- 크기 변경 ----------
-  const ro = new ResizeObserver(() => {
-    const w = container.clientWidth;
-    const h = container.clientHeight;
+  // ---------- 크기 변경 (화면 / 모니터 보정) ----------
+  const updateSize = () => {
+    const w = container.clientWidth || window.innerWidth;
+    const h = container.clientHeight || window.innerHeight;
+    if (w === 0 || h === 0) return;
     renderer.setSize(w, h);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
-  });
+  };
+  const ro = new ResizeObserver(updateSize);
   ro.observe(container);
+  window.addEventListener('resize', updateSize);
 
-  // ---------- 클릭 (드래그와 구분) ----------
+  // ---------- 클릭 & 대포 모드 드래그 조준 ----------
   const raycaster = new THREE.Raycaster();
   const down = { x: 0, y: 0 };
   const el = renderer.domElement;
+  const planeHit = new THREE.Vector3();
+
+  const getNDC = (e: PointerEvent) => {
+    const rect = el.getBoundingClientRect();
+    return new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+  };
+
   const onDown = (e: PointerEvent) => {
     down.x = e.clientX;
     down.y = e.clientY;
+
+    if (cannonActive) {
+      raycaster.setFromCamera(getNDC(e), camera);
+      if (raycaster.ray.intersectPlane(groundPlane, planeHit)) {
+        isDraggingCannon = true;
+        cannonStart.copy(planeHit);
+        cannonCurrent.copy(planeHit);
+        controls.enabled = false;
+
+        muzzleRing.position.copy(cannonStart);
+        muzzleRing.position.y = 0.05;
+        muzzleRing.visible = true;
+
+        trajLine.visible = true;
+        trajGeo.setDrawRange(0, 0);
+      }
+    }
   };
+
+  const onMove = (e: PointerEvent) => {
+    if (!cannonActive || !isDraggingCannon) return;
+
+    raycaster.setFromCamera(getNDC(e), camera);
+    if (!raycaster.ray.intersectPlane(groundPlane, planeHit)) return;
+
+    cannonCurrent.copy(planeHit);
+    const dragVec = cannonCurrent.clone().sub(cannonStart);
+    const dist = dragVec.length();
+
+    if (dist < 0.3) {
+      trajGeo.setDrawRange(0, 0);
+      onAimInfo?.(null);
+      return;
+    }
+
+    // 속도 계산 (AU/일)
+    const vMag = Math.max(0.008, Math.min(0.095, dist * 0.0055));
+    const dirX = dragVec.x / dist;
+    const dirZ = dragVec.z / dist;
+
+    // Three.js (x, 0, z) -> physics (vx, vy, 0)
+    // Three.js: x = px * s, z = -py * s  ==>  vx ~ dirX, vy ~ -dirZ
+    const vx = dirX * vMag;
+    const vy = -dirZ * vMag;
+    const speedKmS = vMag * AU_PER_DAY_TO_KM_S;
+
+    onAimInfo?.({ active: true, speedKmS, massType: cannonMassType });
+
+    // 실시간 예측 궤적선 계산 (Sun 중력장 28단계 적분)
+    const startP = unmapPoint(cannonStart);
+    let curPx = startP[0];
+    let curPy = startP[1];
+    let curVx = vx;
+    let curVy = vy;
+    const dtStep = 0.45;
+
+    const tmpPt = new THREE.Vector3();
+    const pArr = trajPos;
+    let ptCount = 0;
+
+    // 시작점
+    pArr[0] = cannonStart.x;
+    pArr[1] = 0.05;
+    pArr[2] = cannonStart.z;
+    ptCount++;
+
+    for (let step = 0; step < MAX_TRAJ_PTS - 1; step++) {
+      const r2 = curPx * curPx + curPy * curPy + 0.0001;
+      const r = Math.sqrt(r2);
+      const acc = (G * SUN_MASS) / (r2 * r);
+      curVx -= curPx * acc * dtStep;
+      curVy -= curPy * acc * dtStep;
+      curPx += curVx * dtStep;
+      curPy += curVy * dtStep;
+
+      mapPoint([curPx, curPy, 0], tmpPt);
+      pArr[ptCount * 3] = tmpPt.x;
+      pArr[ptCount * 3 + 1] = 0.05;
+      pArr[ptCount * 3 + 2] = tmpPt.z;
+      ptCount++;
+    }
+
+    trajGeo.setDrawRange(0, ptCount);
+    trajGeo.attributes.position.needsUpdate = true;
+  };
+
   const onUp = (e: PointerEvent) => {
+    if (cannonActive && isDraggingCannon) {
+      isDraggingCannon = false;
+      controls.enabled = true;
+      muzzleRing.visible = false;
+      trajLine.visible = false;
+      trajGeo.setDrawRange(0, 0);
+
+      const dragVec = cannonCurrent.clone().sub(cannonStart);
+      const dist = dragVec.length();
+
+      if (dist >= 0.8) {
+        const vMag = Math.max(0.008, Math.min(0.095, dist * 0.0055));
+        const dirX = dragVec.x / dist;
+        const dirZ = dragVec.z / dist;
+        const launchPos = unmapPoint(cannonStart);
+        const launchVel: Vec3 = [dirX * vMag, -dirZ * vMag, 0];
+
+        onLaunchAsteroid?.(launchPos, launchVel, cannonMassType);
+        playLaunchSound();
+        triggerShockwave(cannonStart, 0xffaa00, 0.5);
+      }
+      onAimInfo?.(null);
+      return;
+    }
+
     if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
-    const rect = el.getBoundingClientRect();
-    const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    const ndc = getNDC(e);
     raycaster.setFromCamera(ndc, camera);
     const alive = new Set(getState().bodies.map((b) => b.id));
     const hits = raycaster.intersectObjects(hitMeshes.filter((m) => alive.has(m.userData.id)), false);
-    // 겹치면 광선에 가장 가까운 천체 (지구와 달처럼 붙어 있을 때)
+
     let best: string | null = null;
     let bestD = Infinity;
     for (const h of hits) {
@@ -401,8 +800,10 @@ export function createSpaceScene(
     }
     onPick(best);
   };
+
   el.addEventListener('pointerdown', onDown);
-  el.addEventListener('pointerup', onUp);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
 
   frame();
 
@@ -418,15 +819,35 @@ export function createSpaceScene(
         sw.mat.dispose();
       }
       shockwaves.length = 0;
+      for (const sp of sparkSystems) {
+        scene.remove(sp.mesh);
+        sp.geo.dispose();
+        sp.mat.dispose();
+      }
+      sparkSystems.length = 0;
     },
     setSelected(id) {
       selectedId = id;
     },
+    setCannonMode(active, massType = 'normal') {
+      cannonActive = active;
+      cannonMassType = massType;
+      el.style.cursor = active ? 'crosshair' : 'grab';
+      if (!active) {
+        isDraggingCannon = false;
+        controls.enabled = true;
+        muzzleRing.visible = false;
+        trajLine.visible = false;
+        onAimInfo?.(null);
+      }
+    },
     dispose() {
       cancelAnimationFrame(raf);
       ro.disconnect();
+      window.removeEventListener('resize', updateSize);
       el.removeEventListener('pointerdown', onDown);
-      el.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
       controls.dispose();
       renderer.dispose();
       el.remove();
@@ -434,7 +855,7 @@ export function createSpaceScene(
   };
 }
 
-// ---------- 꾸미기 (텍스처, 별, 태양 빛, 블랙홀 강착원반) ----------
+// ---------- 꾸미기 (텍스처, 별, 태양 빛, 블랙홀 강착원반, 소행성) ----------
 
 function makeStars(): THREE.Points {
   const n = 3000;
@@ -482,7 +903,6 @@ function makeAccretionDiskTexture(): THREE.CanvasTexture {
   const cx = 256;
   const cy = 256;
 
-  // 안쪽 초고온 백색/황금색 -> 바깥쪽 자주/보라색 그라디언트
   const grad = g.createRadialGradient(cx, cy, 60, cx, cy, 255);
   grad.addColorStop(0, 'rgba(255, 255, 255, 0)');
   grad.addColorStop(0.06, 'rgba(255, 255, 255, 1)');
@@ -496,7 +916,6 @@ function makeAccretionDiskTexture(): THREE.CanvasTexture {
   g.arc(cx, cy, 255, 0, Math.PI * 2);
   g.fill();
 
-  // 소용돌이 줄무늬 추가
   let seed = 42;
   const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
   for (let i = 0; i < 90; i++) {
@@ -518,7 +937,8 @@ function makeAccretionDiskTexture(): THREE.CanvasTexture {
 /** 블랙홀 주변의 신비로운 보랏빛 중력 렌징 광륜 */
 function makeBlackHoleGlow(): THREE.Sprite {
   const c = document.createElement('canvas');
-  c.width = c.height = 256;
+  c.width = 256;
+  c.height = 256;
   const g = c.getContext('2d')!;
   const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
   grad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
@@ -532,6 +952,64 @@ function makeBlackHoleGlow(): THREE.Sprite {
   tex.colorSpace = THREE.SRGBColorSpace;
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false }));
   sprite.scale.setScalar(14);
+  return sprite;
+}
+
+/** 소행성 표면 텍스처 (크레이터 및 불타는 균열) */
+function makeAsteroidTexture(isGiant: boolean): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 256;
+  const g = c.getContext('2d')!;
+  g.fillStyle = isGiant ? '#4a1515' : '#2b231d';
+  g.fillRect(0, 0, 256, 256);
+
+  let seed = 1234;
+  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+  for (let i = 0; i < 40; i++) {
+    const cx = rnd() * 256;
+    const cy = rnd() * 256;
+    const r = 4 + rnd() * 24;
+    g.fillStyle = isGiant ? `rgba(255, ${Math.floor(rnd() * 80)}, 0, ${0.4 + rnd() * 0.4})` : `rgba(0, 0, 0, ${0.3 + rnd() * 0.4})`;
+    g.beginPath();
+    g.arc(cx, cy, r, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = isGiant ? '#ffaa00' : '#524337';
+    g.lineWidth = 2;
+    g.stroke();
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** 소행성 불꽃 오라 스프라이트 */
+function makeAsteroidFlameGlow(isGiant: boolean): THREE.Sprite {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 128;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  if (isGiant) {
+    grad.addColorStop(0, 'rgba(255, 255, 200, 0.95)');
+    grad.addColorStop(0.25, 'rgba(255, 80, 20, 0.6)');
+    grad.addColorStop(0.65, 'rgba(200, 20, 20, 0.2)');
+    grad.addColorStop(1, 'rgba(200, 0, 0, 0)');
+  } else {
+    grad.addColorStop(0, 'rgba(255, 240, 180, 0.9)');
+    grad.addColorStop(0.28, 'rgba(255, 140, 30, 0.5)');
+    grad.addColorStop(0.7, 'rgba(255, 70, 0, 0.15)');
+    grad.addColorStop(1, 'rgba(255, 50, 0, 0)');
+  }
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false }),
+  );
+  sprite.scale.setScalar(isGiant ? 3.5 : 2.0);
   return sprite;
 }
 

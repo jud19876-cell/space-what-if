@@ -1,14 +1,14 @@
 // 하단의 "만약에?" 실험 버튼. 각 실험은 Simulation Command 목록일 뿐이다.
 import type { SimCommand } from './simulation.ts';
 
-export type ScenarioCategory = 'all' | 'solar' | 'blackhole';
+export type ScenarioCategory = 'all' | 'solar' | 'blackhole' | 'asteroid';
 
 export interface Scenario {
   id: string;
   emoji: string;
   label: string;
   message: string; // 실행 후 잠깐 보여 줄 말
-  category?: 'solar' | 'blackhole';
+  category?: 'solar' | 'blackhole' | 'asteroid';
   commands: SimCommand[];
 }
 
@@ -23,6 +23,56 @@ export const SCENARIOS: Scenario[] = [
   { id: 'remove-moon', emoji: '🌙❌', label: '달 없애기', category: 'solar', message: '달이 사라졌어!', commands: [{ action: 'remove_body', target: 'moon' }] },
   { id: 'moon-jupiter', emoji: '🌙➡️🟠', label: '달을 목성으로', category: 'solar', message: '달이 목성 옆으로 이사했어!', commands: [{ action: 'move_body', target: 'moon', near: 'jupiter' }] },
   { id: 'remove-jupiter', emoji: '🟠❌', label: '목성 없애기', category: 'solar', message: '목성이 사라졌어!', commands: [{ action: 'remove_body', target: 'jupiter' }] },
+
+  // --- 소행성 충돌 & 궤도 변경 & 행성 폭발 시뮬레이션 ---
+  {
+    id: 'asteroid-earth',
+    emoji: '☄️🌍',
+    label: '지구 소행성 충돌 (궤도 변경)',
+    category: 'asteroid',
+    message: '소행성이 지구를 향해 날아갑니다! 충돌하면 충격으로 지구 궤도가 타원형으로 바뀝니다!',
+    commands: [{ action: 'target_launch', targetId: 'earth', massType: 'normal' }],
+  },
+  {
+    id: 'giant-mars',
+    emoji: '💥🔴',
+    label: '화성 대폭발 (산산조각)',
+    category: 'asteroid',
+    message: '초거대 소행성이 화성에 충돌합니다! 엄청난 대폭발과 함께 화성이 산산조각 납니다!',
+    commands: [{ action: 'target_launch', targetId: 'mars', massType: 'giant' }],
+  },
+  {
+    id: 'asteroid-jupiter',
+    emoji: '☄️🟠',
+    label: '목성 거대 소행성 충돌',
+    category: 'asteroid',
+    message: '거대한 소행성이 가스 거인 목성에 격돌합니다! 강력한 충격파를 관찰해 보세요!',
+    commands: [{ action: 'target_launch', targetId: 'jupiter', massType: 'giant' }],
+  },
+  {
+    id: 'asteroid-sun',
+    emoji: '☄️☀️',
+    label: '태양으로 특급 돌진',
+    category: 'asteroid',
+    message: '소행성이 태양 중심을 향해 초고속으로 돌진합니다!',
+    commands: [
+      {
+        action: 'launch_asteroid',
+        position: [3.2, 2.4, 0],
+        velocity: [-0.075, -0.055, 0],
+        massType: 'normal',
+        name: '돌진 소행성',
+      },
+    ],
+  },
+  {
+    id: 'clear-asteroids',
+    emoji: '🧹☄️',
+    label: '소행성/파편 치우기',
+    category: 'asteroid',
+    message: '우주 공간의 소행성과 파편들을 모두 정리했습니다!',
+    commands: [{ action: 'clear_asteroids' }],
+  },
 
   // --- 블랙홀 시뮬레이션 실험 (흡수 소멸 & 나선 낙하) ---
   {

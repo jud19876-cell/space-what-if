@@ -1,25 +1,50 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AU_PER_DAY_TO_KM_S, length } from './physics.ts';
-import { createSpaceScene, type SpaceScene } from './scene.ts';
+import { AU_PER_DAY_TO_KM_S, length, type Vec3 } from './physics.ts';
+import { createSpaceScene, type AimInfo, type SpaceScene } from './scene.ts';
 import { SCENARIOS, type Scenario, type ScenarioCategory } from './scenarios.ts';
-import { createInitialState, executeCommand, findBody, type SimCommand, type SimState, type Speed } from './simulation.ts';
+import { createInitialState, executeCommand, findBody, type SimCommand, type SimState } from './simulation.ts';
 import { BODY_INFO, EARTH_MASS, type BodyId } from './solarSystem.ts';
-
-const SPEEDS: { speed: Speed; icon: string }[] = [
-  { speed: 1, icon: '🐢' },
-  { speed: 10, icon: '🐇' },
-  { speed: 100, icon: '🚀' },
-];
 
 export default function App() {
   const stateRef = useRef<SimState>(createInitialState());
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SpaceScene | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ key: number; emoji: string; text: string } | null>(null);
+  const [toast, setToast] = useState<{ key: number; emoji: string; text: string; type?: 'normal' | 'impact' | 'explosion' } | null>(null);
   const [hinted, setHinted] = useState(false);
   const [category, setCategory] = useState<ScenarioCategory>('all');
+  const [cannonMode, setCannonMode] = useState(false);
+  const [cannonMassType, setCannonMassType] = useState<'normal' | 'giant'>('normal');
+  const [aimInfo, setAimInfo] = useState<AimInfo | null>(null);
   const [, setTick] = useState(0);
+
+  /** 모든 상태 변경은 여기서 Simulation Command 로만 한다. */
+  const runCommands = useCallback((commands: SimCommand[]) => {
+    const s = stateRef.current;
+    for (const c of commands) {
+      executeCommand(s, c);
+      if (c.action === 'reset') sceneRef.current?.clearTrails();
+    }
+    setSelected((id) => (id && findBody(s, id) ? id : null));
+    setTick((t) => t + 1);
+  }, []);
+
+  const handleLaunchAsteroid = useCallback((pos: Vec3, vel: Vec3, massType: 'normal' | 'giant') => {
+    runCommands([
+      {
+        action: 'launch_asteroid',
+        position: pos,
+        velocity: vel,
+        massType,
+      },
+    ]);
+    setToast({
+      key: Date.now(),
+      emoji: massType === 'giant' ? '💥☄️' : '☄️💨',
+      text: `${massType === 'giant' ? '거대 파괴자 소행성' : '소행성'}이 발사되었습니다! 궤적을 확인하세요!`,
+      type: 'normal',
+    });
+  }, [runCommands]);
 
   useEffect(() => {
     const sc = createSpaceScene(
@@ -34,41 +59,63 @@ export default function App() {
           key: Date.now(),
           emoji: '🕳️💥',
           text: `앗! ${ev.swallowedName}이(가) ${ev.blackHoleName}에 빨려 들어가 삼켜졌어!`,
+          type: 'normal',
         });
         setSelected((cur) => (cur === ev.swallowedId ? null : cur));
         setTick((t) => t + 1);
       },
+      (colEv) => {
+        if (colEv.type === 'shatter') {
+          setToast({
+            key: Date.now(),
+            emoji: '💥⚡',
+            text: `대폭발! ${colEv.projectileName} 충돌로 ${colEv.targetName}이(가) 산산조각 나 우주 파편이 되었습니다!`,
+            type: 'explosion',
+          });
+          setSelected((cur) => (cur === colEv.targetId ? null : cur));
+        } else {
+          setToast({
+            key: Date.now(),
+            emoji: '☄️💥',
+            text: `쾅! ${colEv.projectileName}이(가) ${colEv.targetName}에 격돌! 궤도가 흔들리며 속도가 ${colEv.velocityChange.toFixed(1)} km/s 변했습니다!`,
+            type: 'impact',
+          });
+        }
+        setTick((t) => t + 1);
+      },
+      handleLaunchAsteroid,
+      (info) => setAimInfo(info),
     );
     sceneRef.current = sc;
-    const iv = setInterval(() => setTick((t) => t + 1), 250); // 정보 카드/시간 갱신
+    const iv = setInterval(() => setTick((t) => t + 1), 250);
     return () => {
       clearInterval(iv);
       sc.dispose();
     };
-  }, []);
+  }, [handleLaunchAsteroid]);
 
-  useEffect(() => sceneRef.current?.setSelected(selected), [selected]);
+  useEffect(() => {
+    sceneRef.current?.setSelected(selected);
+  }, [selected]);
+
+  useEffect(() => {
+    sceneRef.current?.setCannonMode(cannonMode, cannonMassType);
+  }, [cannonMode, cannonMassType]);
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3200);
+    const t = setTimeout(() => setToast(null), 3600);
     return () => clearTimeout(t);
   }, [toast]);
 
-  /** 모든 상태 변경은 여기서 Simulation Command 로만 한다. (나중에 AI 도 이 함수를 쓴다) */
-  const runCommands = useCallback((commands: SimCommand[]) => {
-    const s = stateRef.current;
-    for (const c of commands) {
-      executeCommand(s, c);
-      if (c.action === 'reset') sceneRef.current?.clearTrails();
-    }
-    setSelected((id) => (id && findBody(s, id) ? id : null));
-    setTick((t) => t + 1);
-  }, []);
-
   const runScenario = (sc: Scenario) => {
     runCommands(sc.commands);
-    setToast({ key: Date.now(), emoji: sc.emoji, text: sc.message });
+    setToast({
+      key: Date.now(),
+      emoji: sc.emoji,
+      text: sc.message,
+      type: sc.category === 'asteroid' ? 'impact' : 'normal',
+    });
   };
 
   const state = stateRef.current;
@@ -80,18 +127,70 @@ export default function App() {
     return sc.category === category;
   });
 
+  // 마우스 휠 스크롤로 배속 조절 (10~100x)
+  const handleSpeedWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const step = e.shiftKey ? 10 : 5;
+    const delta = e.deltaY < 0 ? step : -step;
+    const newSpeed = Math.max(1, Math.min(100, state.speed + delta));
+    runCommands([{ action: 'set_speed', speed: newSpeed }]);
+  };
+
   return (
     <div className="app">
       <div className="space" ref={containerRef} />
 
       <header className="topbar">
-        <h1 className="title">
-          <span className="title-icon">🚀</span> 우주 실험실
-        </h1>
-        <div className="clock" title="지구 시간">
-          📅 {years < 1 ? `${Math.floor(state.time)}일` : `${years.toFixed(1)}년`}
+        <div className="brand-group">
+          <h1 className="title">
+            <span className="title-icon">🚀</span> 우주 실험실
+          </h1>
+          <div className="clock" title="지구 시간">
+            📅 {years < 1 ? `${Math.floor(state.time)}일` : `${years.toFixed(1)}년`}
+          </div>
         </div>
+
+        <div className="speed-controller-panel" onWheel={handleSpeedWheel} title="마우스 휠 스크롤로 배속을 10~100x까지 조절할 수 있습니다">
+          <div className="speed-info">
+            <span className="speed-icon">{state.speed >= 80 ? '🚀' : state.speed >= 40 ? '🏎️' : state.speed >= 10 ? '🐇' : '🐢'}</span>
+            <span className="speed-badge">{state.speed}x 배속</span>
+            <span className="speed-scroll-hint">🖱️ 휠 스크롤 조절 (10~100)</span>
+          </div>
+          <input
+            id="speed-range"
+            type="range"
+            min="1"
+            max="100"
+            step="1"
+            value={state.speed}
+            onChange={(e) => runCommands([{ action: 'set_speed', speed: Number(e.target.value) }])}
+            className="speed-range-slider"
+            aria-label="시뮬레이션 배속 조절"
+          />
+          <div className="speed-presets">
+            {[1, 10, 30, 60, 100].map((s) => (
+              <button
+                key={s}
+                className={`speed-preset-chip ${state.speed === s ? 'on' : ''}`}
+                onClick={() => runCommands([{ action: 'set_speed', speed: s }])}
+              >
+                {s}x
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="controls">
+          <button
+            id="btn-cannon"
+            className={`btn cannon-toggle-btn ${cannonMode ? 'cannon-on' : ''}`}
+            onClick={() => setCannonMode((prev) => !prev)}
+            title="소행성 대포 모드 (궤적 조준 발사)"
+          >
+            <span className="cannon-btn-icon">☄️</span>
+            <span className="cannon-btn-label">{cannonMode ? '대포 조준 중' : '소행성 대포'}</span>
+          </button>
+
           <button
             id="btn-pause"
             className={`btn round ${state.paused ? 'play' : ''}`}
@@ -100,19 +199,7 @@ export default function App() {
           >
             {state.paused ? '▶️' : '⏸️'}
           </button>
-          <div className="speed" role="group" aria-label="시간 빠르기">
-            {SPEEDS.map((s) => (
-              <button
-                key={s.speed}
-                id={`btn-speed-${s.speed}`}
-                className={`btn speed-btn ${state.speed === s.speed ? 'on' : ''}`}
-                onClick={() => runCommands([{ action: 'set_speed', speed: s.speed }])}
-              >
-                <span>{s.icon}</span>
-                <small>{s.speed}x</small>
-              </button>
-            ))}
-          </div>
+
           <button
             id="btn-reset"
             className="btn round"
@@ -124,14 +211,70 @@ export default function App() {
         </div>
       </header>
 
+      {/* 대포 모드 조준 HUD 패널 */}
+      {cannonMode && (
+        <div className="cannon-hud">
+          <div className="cannon-hud-title">
+            <span>🎯</span>
+            <strong>소행성 대포 조준기</strong>
+            <span className="cannon-hud-close" onClick={() => setCannonMode(false)}>✕</span>
+          </div>
+          <p className="cannon-hud-desc">
+            우주 공간을 <strong>클릭 & 드래그</strong>하여 발사 각도와 파워를 정하세요!
+          </p>
+          <div className="cannon-types">
+            <button
+              className={`btn cannon-type-btn ${cannonMassType === 'normal' ? 'active' : ''}`}
+              onClick={() => setCannonMassType('normal')}
+            >
+              <span>☄️ 일반 소행성</span>
+              <small>충돌 시 궤도 변경</small>
+            </button>
+            <button
+              className={`btn cannon-type-btn giant ${cannonMassType === 'giant' ? 'active' : ''}`}
+              onClick={() => setCannonMassType('giant')}
+            >
+              <span>💥 거대 파괴자 소행성</span>
+              <small>충돌 시 행성 산산조각 폭발!</small>
+            </button>
+          </div>
+          <div className="cannon-quick-targets">
+            <span className="quick-title">원클릭 표적 발사:</span>
+            <button
+              className="btn quick-target-btn"
+              onClick={() => runCommands([{ action: 'target_launch', targetId: 'earth', massType: cannonMassType }])}
+            >
+              🌍 지구
+            </button>
+            <button
+              className="btn quick-target-btn"
+              onClick={() => runCommands([{ action: 'target_launch', targetId: 'mars', massType: cannonMassType }])}
+            >
+              🔴 화성
+            </button>
+            <button
+              className="btn quick-target-btn"
+              onClick={() => runCommands([{ action: 'target_launch', targetId: 'jupiter', massType: cannonMassType }])}
+            >
+              🟠 목성
+            </button>
+          </div>
+          {aimInfo && (
+            <div className="aim-gauge-bar">
+              🚀 실시간 조준 속도: <strong>{aimInfo.speedKmS.toFixed(1)} km/s</strong> (놓으면 발사!)
+            </div>
+          )}
+        </div>
+      )}
+
       {selected && <InfoCard state={state} id={selected} onClose={() => setSelected(null)} />}
 
-      {!hinted && !selected && <div className="hint">👆 행성이나 블랙홀을 눌러 봐!</div>}
+      {!hinted && !selected && !cannonMode && <div className="hint">👆 행성이나 블랙홀을 눌러 봐! 또는 ☄️ 소행성 대포를 쏴봐!</div>}
 
       {toast && (
-        <div className="toast" key={toast.key}>
+        <div className={`toast toast-${toast.type ?? 'normal'}`} key={toast.key}>
           <span className="toast-emoji">{toast.emoji}</span>
-          {toast.text}
+          <span className="toast-content">{toast.text}</span>
         </div>
       )}
 
@@ -157,6 +300,12 @@ export default function App() {
             >
               🕳️ 블랙홀 실험
             </button>
+            <button
+              className={`category-tab category-tab-asteroid ${category === 'asteroid' ? 'on' : ''}`}
+              onClick={() => setCategory('asteroid')}
+            >
+              ☄️ 소행성 충돌 실험
+            </button>
           </div>
         </div>
 
@@ -165,7 +314,7 @@ export default function App() {
             <button
               key={sc.id}
               id={`exp-${sc.id}`}
-              className={`btn exp ${sc.id === 'reset' ? 'exp-reset' : ''} ${sc.category === 'blackhole' ? 'exp-blackhole' : ''}`}
+              className={`btn exp ${sc.id === 'reset' ? 'exp-reset' : ''} ${sc.category === 'blackhole' ? 'exp-blackhole' : ''} ${sc.category === 'asteroid' ? 'exp-asteroid' : ''}`}
               onClick={() => runScenario(sc)}
             >
               <span className="exp-emoji">{sc.emoji}</span>
@@ -182,12 +331,24 @@ function InfoCard({ state, id, onClose }: { state: SimState; id: string; onClose
   const body = findBody(state, id);
   if (!body) return null;
   const isBlackHole = id.includes('black_hole');
-  const info = BODY_INFO[id as BodyId] ?? (isBlackHole ? BODY_INFO['black_hole'] : { emoji: '🪐', color: '#999999', lines: ['우주의 천체야!'] });
+  const isAsteroid = id.includes('asteroid') || id.includes('fragment');
+  const isGiant = id.includes('giant');
+  const isFragment = id.includes('fragment');
+  const info = BODY_INFO[id as BodyId] ?? (
+    isBlackHole
+      ? BODY_INFO['black_hole']
+      : isFragment
+      ? BODY_INFO['fragment']
+      : isAsteroid
+      ? (isGiant ? BODY_INFO['giant_asteroid'] : BODY_INFO['asteroid'])
+      : { emoji: '🪐', color: '#999999', lines: ['우주의 천체야!'] }
+  );
+
   const centerBody = findBody(state, 'sun') ?? findBody(state, 'black_hole') ?? findBody(state, 'giant_black_hole');
   const rv = centerBody && centerBody !== body ? centerBody.velocity : [0, 0, 0];
   const speed = length([body.velocity[0] - rv[0], body.velocity[1] - rv[1], body.velocity[2] - rv[2]]) * AU_PER_DAY_TO_KM_S;
   const ratio = body.mass / EARTH_MASS;
-  const ratioText = ratio >= 10 ? Math.round(ratio).toLocaleString('ko-KR') : ratio >= 1 ? String(+ratio.toFixed(1)) : ratio.toFixed(2);
+  const ratioText = ratio >= 10 ? Math.round(ratio).toLocaleString('ko-KR') : ratio >= 0.01 ? String(+ratio.toFixed(2)) : ratio.toExponential(2);
 
   return (
     <aside className="card" style={{ ['--accent' as string]: info.color }}>
@@ -205,6 +366,8 @@ function InfoCard({ state, id, onClose }: { state: SimState; id: string; onClose
         <span className="chip">⚖️ 지구 무게의 {ratioText}배</span>
         {body.id !== 'sun' && !body.id.includes('black_hole') && <span className="chip">💨 1초에 {Math.round(speed)}km</span>}
         {isBlackHole && <span className="chip chip-bh">🕳️ 사건의 지평선</span>}
+        {isAsteroid && <span className="chip chip-ast">☄️ 소행성 충돌체</span>}
+        {isFragment && <span className="chip chip-frag">💥 행성 폭발 파편</span>}
       </div>
 
       {isBlackHole && (

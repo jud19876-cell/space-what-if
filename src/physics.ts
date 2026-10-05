@@ -1,4 +1,4 @@
-// N-body 중력 계산 + 블랙홀 조석 붕괴 및 사건의 지평선 흡수(Event Horizon Infall)
+// N-body 중력 계산 + 블랙홀 흡수 + 소행성 충돌 및 궤도 변경 & 행성 산산조각 폭발
 // 단위: 거리 = AU, 시간 = 일(day), 질량 = kg
 // 화면 표시 크기/거리와는 완전히 분리되어 있다. (화면 변환은 scene.ts)
 
@@ -19,6 +19,16 @@ export interface AbsorptionEvent {
   blackHoleName: string;
   swallowedId: string;
   swallowedName: string;
+}
+
+export interface CollisionEvent {
+  targetId: string;
+  targetName: string;
+  projectileId: string;
+  projectileName: string;
+  position: Vec3;
+  type: 'impact' | 'shatter'; // impact: 궤도 변경 충돌, shatter: 행성 산산조각 폭발
+  velocityChange: number; // km/s
 }
 
 // 만유인력 상수 G 를 AU^3 / (kg * day^2) 로 변환한 값.
@@ -47,14 +57,23 @@ export function getBlackHoleCaptureRadius(bh: Body): number {
   const isMini = bh.id.includes('mini');
   if (isMini) return 0.003; // 약 45만 km
   const massRatio = Math.max(0.1, bh.mass / SUN_MASS);
-  // 1 M_sun -> 0.055 AU (수성 0.387 AU보다 훨씬 안쪽, 행성 공전 안전 유지)
-  // 30 M_sun -> 약 0.36 AU (내행성들을 사건의 지평선으로 흡수)
   return 0.055 * Math.pow(massRatio, 0.55);
 }
 
 /** 블랙홀 상대론적 조석 붕괴 및 소용돌이 나선 낙하 영역 (ISCO / Accretion Basin, AU) */
 export function getBlackHoleInspiralRadius(bh: Body): number {
   return getBlackHoleCaptureRadius(bh) * 3.4;
+}
+
+/** 천체 충돌 유효 감지 반경 (AU) */
+export function getCollisionRadius(b: Body): number {
+  if (b.id.includes('black_hole')) {
+    return getBlackHoleCaptureRadius(b);
+  }
+  if (b.id === 'sun') return 0.08;
+  if (b.id === 'jupiter' || b.id === 'saturn') return 0.045;
+  if (b.id.includes('asteroid') || b.id.includes('fragment')) return 0.012;
+  return Math.max(0.02, b.visualRadius * 0.035);
 }
 
 /** 모든 천체의 가속도와, 가장 빠른 상호작용 시간 규모(tmin)를 계산한다. O(N^2) */
@@ -79,7 +98,7 @@ function computeAccelerations(bodies: Body[]): { acc: Float64Array; tmin: number
       let fa = G * b.mass * invR3;
       let fb = G * a.mass * invR3;
 
-      // 블랙홀 시공간 왜곡: 조석 유인 반경 안으로 들어오면 일반 상대론적 나선 낙하(Inspiral)를 위해 인력 강화
+      // 블랙홀 시공간 왜곡
       if (isBhA && !isBhB) {
         const rInsp = getBlackHoleInspiralRadius(a);
         if (r < rInsp) {
@@ -112,20 +131,23 @@ function computeAccelerations(bodies: Body[]): { acc: Float64Array; tmin: number
 }
 
 /**
- * Velocity Verlet(Leapfrog) 적분 + 블랙홀 조석 제동 및 흡수 소멸 처리.
- * 블랙홀로 낙하 시 튕겨나가는 '중력점프'를 완전히 제거하고 나선형으로 빨려 들어가 삼켜집니다.
+ * Velocity Verlet(Leapfrog) 적분 + 블랙홀 흡수 + 소행성 충돌 및 궤도 변경/행성 산산조각 폭발
  */
 export function stepBodies(
   bodies: Body[],
   days: number,
   maxSteps = 20000,
   onAbsorb?: (ev: AbsorptionEvent) => void,
+  onCollision?: (ev: CollisionEvent) => void,
 ): number {
   if (bodies.length === 0 || days <= 0) return 0;
   let { acc, tmin } = computeAccelerations(bodies);
   let t = 0;
   let steps = 0;
+
   const absorbedSet = new Set<string>();
+  const destroyedSet = new Set<string>();
+  const spawnedFragments: Body[] = [];
 
   while (t < days && steps < maxSteps) {
     const dt = Math.min(BASE_DT, ETA * tmin, days - t);
@@ -142,7 +164,7 @@ export function stepBodies(
       p[2] += v[2] * dt;
     }
 
-    // 블랙홀 조석 제동 (중력점프 방지) 및 사건의 지평선 흡수 검사
+    // 1. 블랙홀 조석 제동 및 흡수 검사
     for (let i = 0; i < bodies.length; i++) {
       const bh = bodies[i];
       if (!bh.id.includes('black_hole') || absorbedSet.has(bh.id)) continue;
@@ -152,14 +174,13 @@ export function stepBodies(
       for (let j = 0; j < bodies.length; j++) {
         if (i === j) continue;
         const p = bodies[j];
-        if (p.id.includes('black_hole') || absorbedSet.has(p.id)) continue;
+        if (p.id.includes('black_hole') || absorbedSet.has(p.id) || destroyedSet.has(p.id)) continue;
 
         const dx = p.position[0] - bh.position[0];
         const dy = p.position[1] - bh.position[1];
         const dz = p.position[2] - bh.position[2];
         const r = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-        // 1. 사건의 지평선 통과: 완전히 흡수되어 삼켜짐 (Absorb)
         if (r <= rCap) {
           absorbedSet.add(p.id);
           bh.mass += p.mass;
@@ -173,14 +194,12 @@ export function stepBodies(
           continue;
         }
 
-        // 2. 조석 제동: 탈출하려는 외향 속도를 소용돌이 강착으로 전환 (중력점프 제거)
         if (r < rInsp) {
           const vxRel = p.velocity[0] - bh.velocity[0];
           const vyRel = p.velocity[1] - bh.velocity[1];
           const vzRel = p.velocity[2] - bh.velocity[2];
           const radSpeed = (dx * vxRel + dy * vyRel + dz * vzRel) / r;
           if (radSpeed > 0) {
-            // 바깥으로 튕겨나가는 속도를 강착 마찰로 급격히 감쇠시켜 나선형 흡수로 유도
             const damp = Math.min(0.4 * dt, 0.45);
             p.velocity[0] -= (dx / r) * radSpeed * damp;
             p.velocity[1] -= (dy / r) * radSpeed * damp;
@@ -190,12 +209,112 @@ export function stepBodies(
       }
     }
 
-    // 흡수된 천체 즉시 제거
-    if (absorbedSet.size > 0) {
-      const remaining = bodies.filter((b) => !absorbedSet.has(b.id));
+    // 2. 소행성/파편 충돌 및 궤도 변경(운동량 전달) & 산산조각 폭발 검사
+    for (let i = 0; i < bodies.length; i++) {
+      const a = bodies[i];
+      if (destroyedSet.has(a.id) || absorbedSet.has(a.id)) continue;
+      const isAstA = a.id.includes('asteroid') || a.id.includes('fragment');
+
+      for (let j = i + 1; j < bodies.length; j++) {
+        const b = bodies[j];
+        if (destroyedSet.has(b.id) || absorbedSet.has(b.id)) continue;
+        const isAstB = b.id.includes('asteroid') || b.id.includes('fragment');
+
+        if ((isAstA && isAstB) || (!isAstA && !isAstB)) continue;
+        if (a.id.includes('black_hole') || b.id.includes('black_hole')) continue;
+
+        const projectile = isAstA ? a : b;
+        const target = isAstA ? b : a;
+        if (target.id.includes('asteroid') || target.id.includes('fragment')) continue;
+
+        const dx = b.position[0] - a.position[0];
+        const dy = b.position[1] - a.position[1];
+        const dz = b.position[2] - a.position[2];
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        const rCol = getCollisionRadius(a) + getCollisionRadius(b);
+        if (dist <= rCol) {
+          const isGiant = projectile.id.includes('giant') || projectile.mass >= target.mass * 0.12;
+
+          if (isGiant && target.id !== 'sun') {
+            // 거대 소행성 충돌: 행성이 4개의 파편으로 산산조각 폭발 (Shatter)!
+            destroyedSet.add(projectile.id);
+            destroyedSet.add(target.id);
+
+            const seed = Math.floor(Math.random() * 100000);
+            for (let k = 0; k < 4; k++) {
+              const ang = (k / 4) * Math.PI * 2 + (k % 2 === 0 ? 0.25 : -0.25);
+              const kick = 0.0035 + (k * 0.001);
+              spawnedFragments.push({
+                id: `fragment_${target.id}_${k + 1}_${seed}`,
+                name: `${target.name} 파편 ${k + 1}`,
+                mass: target.mass * 0.2,
+                position: [
+                  target.position[0] + Math.cos(ang) * 0.035,
+                  target.position[1] + Math.sin(ang) * 0.035,
+                  target.position[2],
+                ],
+                velocity: [
+                  target.velocity[0] + Math.cos(ang) * kick,
+                  target.velocity[1] + Math.sin(ang) * kick,
+                  target.velocity[2],
+                ],
+                physicalRadius: 1200,
+                visualRadius: 0.32,
+              });
+            }
+
+            onCollision?.({
+              targetId: target.id,
+              targetName: target.name,
+              projectileId: projectile.id,
+              projectileName: projectile.name,
+              position: [...target.position],
+              type: 'shatter',
+              velocityChange: 0,
+            });
+          } else {
+            // 일반 충돌: 소행성 폭발 소멸 + 목표 행성에 운동량 전달 (실제 궤도 변경)
+            destroyedSet.add(projectile.id);
+
+            const mProj = projectile.mass;
+            const mTgt = target.mass;
+            const totalM = mProj + mTgt;
+            const vxRel = projectile.velocity[0] - target.velocity[0];
+            const vyRel = projectile.velocity[1] - target.velocity[1];
+            const vzRel = projectile.velocity[2] - target.velocity[2];
+
+            const kickFactor = (mProj / totalM) * 1.35;
+            target.velocity[0] += vxRel * kickFactor;
+            target.velocity[1] += vyRel * kickFactor;
+            target.velocity[2] += vzRel * kickFactor;
+
+            const dvKmS = length([vxRel * kickFactor, vyRel * kickFactor, vzRel * kickFactor]) * AU_PER_DAY_TO_KM_S;
+
+            onCollision?.({
+              targetId: target.id,
+              targetName: target.name,
+              projectileId: projectile.id,
+              projectileName: projectile.name,
+              position: [...target.position],
+              type: 'impact',
+              velocityChange: dvKmS,
+            });
+          }
+        }
+      }
+    }
+
+    // 흡수/파괴된 천체 제거 및 파편 생성
+    const toRemove = new Set([...absorbedSet, ...destroyedSet]);
+    if (toRemove.size > 0 || spawnedFragments.length > 0) {
+      const remaining = bodies.filter((b) => !toRemove.has(b.id));
+      remaining.push(...spawnedFragments);
       bodies.length = 0;
       bodies.push(...remaining);
       absorbedSet.clear();
+      destroyedSet.clear();
+      spawnedFragments.length = 0;
       if (bodies.length <= 1) {
         t += dt;
         break;

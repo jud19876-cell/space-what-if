@@ -1,9 +1,9 @@
 // 시뮬레이션 상태 + Simulation Command.
 // UI 버튼과 (앞으로의) AI 는 모두 executeCommand() 를 통해서만 상태를 바꾼다.
-import { G, dist2, stepBodies, SUN_MASS, type Body, type Vec3, type AbsorptionEvent } from './physics.ts';
+import { G, dist2, stepBodies, SUN_MASS, length, type Body, type Vec3, type AbsorptionEvent, type CollisionEvent } from './physics.ts';
 import { createSolarSystem, EARTH_MASS, BODY_INFO, type BodyId } from './solarSystem.ts';
 
-export type Speed = 1 | 10 | 100;
+export type Speed = number; // 1 ~ 100x 자유 조절 가능
 
 export type SimCommand =
   | { action: 'remove_body'; target: string }
@@ -12,11 +12,14 @@ export type SimCommand =
   | { action: 'move_body'; target: string; near: string }
   | { action: 'spawn_black_hole'; variant: 'sun_replace' | 'invader' | 'near_earth' | 'giant' | 'jupiter_replace' | 'vortex' }
   | { action: 'remove_all_black_holes' }
+  | { action: 'launch_asteroid'; position: Vec3; velocity: Vec3; massType?: 'normal' | 'giant'; name?: string }
+  | { action: 'target_launch'; targetId: string; massType?: 'normal' | 'giant' }
+  | { action: 'clear_asteroids' }
   | { action: 'add_body'; body: Body }
   | { action: 'reset' }
   | { action: 'pause' }
   | { action: 'resume' }
-  | { action: 'set_speed'; speed: Speed };
+  | { action: 'set_speed'; speed: number };
 
 export interface SwallowedRecord {
   id: string;
@@ -32,13 +35,14 @@ export interface SimState {
   paused: boolean;
   speed: Speed;
   swallowedList: SwallowedRecord[];
+  collisions: CollisionEvent[];
 }
 
 /** 1x 에서 화면 1초 = 시뮬레이션 5일 (지구 1년 ≈ 73초) */
 export const DAYS_PER_SECOND = 5;
 
 export function createInitialState(): SimState {
-  return { bodies: createSolarSystem(), time: 0, paused: false, speed: 1, swallowedList: [] };
+  return { bodies: createSolarSystem(), time: 0, paused: false, speed: 10, swallowedList: [], collisions: [] };
 }
 
 /** 화면 시간 realSeconds 만큼 시뮬레이션을 진행한다. */
@@ -46,20 +50,30 @@ export function advance(
   state: SimState,
   realSeconds: number,
   onAbsorb?: (ev: AbsorptionEvent) => void,
+  onCollision?: (ev: CollisionEvent) => void,
 ): void {
   if (state.paused) return;
   const days = realSeconds * state.speed * DAYS_PER_SECOND;
-  state.time += stepBodies(state.bodies, days, 20000, (ev) => {
-    const info = BODY_INFO[ev.swallowedId as BodyId];
-    state.swallowedList.push({
-      id: ev.swallowedId,
-      name: ev.swallowedName,
-      emoji: info?.emoji ?? '🪐',
-      by: ev.blackHoleName,
-      time: state.time,
-    });
-    onAbsorb?.(ev);
-  });
+  state.time += stepBodies(
+    state.bodies,
+    days,
+    20000,
+    (ev) => {
+      const info = BODY_INFO[ev.swallowedId as BodyId];
+      state.swallowedList.push({
+        id: ev.swallowedId,
+        name: ev.swallowedName,
+        emoji: info?.emoji ?? '🪐',
+        by: ev.blackHoleName,
+        time: state.time,
+      });
+      onAbsorb?.(ev);
+    },
+    (ev) => {
+      state.collisions.push(ev);
+      onCollision?.(ev);
+    },
+  );
 }
 
 export function findBody(state: SimState, id: string): Body | undefined {
@@ -97,6 +111,7 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       state.bodies = createSolarSystem();
       state.time = 0;
       state.swallowedList = [];
+      state.collisions = [];
       return true;
     case 'pause':
       state.paused = true;
@@ -105,9 +120,73 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       state.paused = false;
       return true;
     case 'set_speed':
-      if (![1, 10, 100].includes(cmd.speed)) return false;
-      state.speed = cmd.speed;
+      if (typeof cmd.speed !== 'number' || isNaN(cmd.speed)) return false;
+      state.speed = Math.max(1, Math.min(100, Math.round(cmd.speed)));
       return true;
+    case 'clear_asteroids':
+      state.bodies = state.bodies.filter((b) => !b.id.includes('asteroid') && !b.id.includes('fragment'));
+      return true;
+    case 'launch_asteroid': {
+      const isGiant = cmd.massType === 'giant';
+      const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const id = isGiant ? `giant_asteroid_${uid}` : `asteroid_${uid}`;
+      const name = cmd.name ?? (isGiant ? '거대 소행성' : '소행성');
+      const mass = isGiant ? EARTH_MASS * 0.35 : EARTH_MASS * 0.04;
+      const physicalRadius = isGiant ? 3500 : 900;
+      const visualRadius = isGiant ? 0.85 : 0.42;
+
+      state.bodies.push({
+        id,
+        name,
+        mass,
+        position: [...cmd.position],
+        velocity: [...cmd.velocity],
+        physicalRadius,
+        visualRadius,
+      });
+      return true;
+    }
+    case 'target_launch': {
+      const target = findBody(state, cmd.targetId);
+      if (!target) return false;
+      const isGiant = cmd.massType === 'giant';
+      const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const id = isGiant ? `giant_asteroid_${uid}` : `asteroid_${uid}`;
+      const name = isGiant ? `거대 소행성 (${target.name} 표적)` : `소행성 (${target.name} 표적)`;
+      const mass = isGiant ? EARTH_MASS * 0.35 : EARTH_MASS * 0.04;
+      const physicalRadius = isGiant ? 3500 : 900;
+      const visualRadius = isGiant ? 0.85 : 0.42;
+
+      // 목표 행성 기준으로 0.22 AU 거리에서 상대 속도를 가지고 정확히 정면 돌진
+      const targetAngle = Math.atan2(target.position[1], target.position[0]);
+      const offsetDist = 0.22;
+      const offsetAngle = targetAngle + 0.32;
+      const launchPos: Vec3 = [
+        target.position[0] + Math.cos(offsetAngle) * offsetDist,
+        target.position[1] + Math.sin(offsetAngle) * offsetDist,
+        target.position[2],
+      ];
+
+      // 약 2.2일 만에 목표와 충돌하도록 상대 속도 부여
+      const flightDays = 2.2;
+      const relSpeed = offsetDist / flightDays;
+      const launchVel: Vec3 = [
+        target.velocity[0] - Math.cos(offsetAngle) * relSpeed,
+        target.velocity[1] - Math.sin(offsetAngle) * relSpeed,
+        target.velocity[2],
+      ];
+
+      state.bodies.push({
+        id,
+        name,
+        mass,
+        position: launchPos,
+        velocity: launchVel,
+        physicalRadius,
+        visualRadius,
+      });
+      return true;
+    }
     case 'add_body':
       state.bodies = state.bodies.filter((b) => b.id !== cmd.body.id);
       state.bodies.push(cmd.body);

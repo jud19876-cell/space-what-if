@@ -177,5 +177,39 @@ const r0 = (b: Body) => length(b.position);
   check('중력점프 방지: 정지 낙하한 지구가 튕겨나가지 않고 사건의 지평선에 흡수됨', swallowedEarth, `지구 흡수 여부: ${swallowedEarth}`);
 }
 
+// 13. 소행성 충돌: 지구에 운동량 전달되어 실제 궤도 변경(속도 변화) 확인
+{
+  const s = createInitialState();
+  const earthBefore = get(s, 'earth');
+  const vBefore = length(earthBefore.velocity);
+  executeCommand(s, { action: 'target_launch', targetId: 'earth', massType: 'normal' });
+  run(s, 10);
+  const hasImpact = s.collisions.some((c) => c.targetId === 'earth' && c.type === 'impact');
+  const earthAfter = findBody(s, 'earth');
+  const vAfter = earthAfter ? length(earthAfter.velocity) : 0;
+  const dvKmS = (Math.abs(vAfter - vBefore) * 1.495978707e8) / 86400;
+  check('소행성 충돌: 지구와 충돌 이벤트 발생 및 궤도 속도 변화', hasImpact && earthAfter !== undefined && dvKmS > 0.05, `속도 변화: ${dvKmS.toFixed(2)} km/s`);
+}
+
+// 14. 거대 소행성 충돌: 화성이 4개의 파편으로 산산조각 폭발 (Shatter)
+{
+  const s = createInitialState();
+  executeCommand(s, { action: 'target_launch', targetId: 'mars', massType: 'giant' });
+  run(s, 10);
+  const hasShatter = s.collisions.some((c) => c.targetId === 'mars' && c.type === 'shatter');
+  const fragments = s.bodies.filter((b) => b.id.includes('fragment_mars'));
+  check('거대 소행성 충돌: 화성이 산산조각 나고 4개의 파편이 궤도를 돎', hasShatter && fragments.length === 4, `생성된 파편: ${fragments.length}개`);
+}
+
+// 15. 배속 설정 (10~100x) 검증
+{
+  const s = createInitialState();
+  executeCommand(s, { action: 'set_speed', speed: 50 });
+  check('배속 설정: 50x 설정', s.speed === 50, `speed=${s.speed}`);
+  executeCommand(s, { action: 'set_speed', speed: 100 });
+  check('배속 설정: 100x 설정', s.speed === 100, `speed=${s.speed}`);
+}
+
 console.log(failed ? `\n${failed}개 실패` : '\n모든 테스트 통과');
 (globalThis as unknown as { process: { exitCode: number } }).process.exitCode = failed ? 1 : 0;
+
