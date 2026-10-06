@@ -76,6 +76,14 @@ export const SCENARIOS: Scenario[] = [
 
   // --- 블랙홀 시뮬레이션 실험 (흡수 소멸 & 나선 낙하) ---
   {
+    id: 'astronaut-spaghetti',
+    emoji: '🧑‍🚀🍝',
+    label: '우주인 낙하 (스파게티 현상)',
+    category: 'blackhole',
+    message: '우주비행사가 블랙홀로 떨어질 때 어떻게 국수가락처럼 늘어나는지 실험해 볼까요?',
+    commands: [],
+  },
+  {
     id: 'sun-to-blackhole',
     emoji: '🕳️☀️',
     label: '태양이 블랙홀로',

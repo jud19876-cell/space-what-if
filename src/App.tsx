@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import BlackHoleSpaghettiSim from './BlackHoleSpaghettiSim.tsx';
 import { AU_PER_DAY_TO_KM_S, length, type Vec3 } from './physics.ts';
 import { createSpaceScene, type AimInfo, type SpaceScene } from './scene.ts';
 import { SCENARIOS, type Scenario, type ScenarioCategory } from './scenarios.ts';
@@ -9,6 +10,7 @@ export default function App() {
   const stateRef = useRef<SimState>(createInitialState());
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SpaceScene | null>(null);
+  const [simMode, setSimMode] = useState<'solar' | 'spaghetti'>('solar');
   const [selected, setSelected] = useState<string | null>(null);
   const [toast, setToast] = useState<{ key: number; emoji: string; text: string; type?: 'normal' | 'impact' | 'explosion' } | null>(null);
   const [hinted, setHinted] = useState(false);
@@ -157,6 +159,16 @@ export default function App() {
   }, [toast]);
 
   const runScenario = (sc: Scenario) => {
+    if (sc.id === 'astronaut-spaghetti') {
+      setSimMode('spaghetti');
+      setToast({
+        key: Date.now(),
+        emoji: '🧑‍🚀🍝',
+        text: '우주비행사 블랙홀 낙하 & 스파게티화 실험실로 이동합니다!',
+        type: 'normal',
+      });
+      return;
+    }
     runCommands(sc.commands);
     setToast({
       key: Date.now(),
@@ -232,6 +244,16 @@ export default function App() {
         </div>
 
         <div className="controls">
+          <button
+            id="btn-astronaut-spaghetti"
+            className="btn astronaut-spaghetti-btn"
+            onClick={() => setSimMode('spaghetti')}
+            title="우주비행사가 블랙홀에 빠질 때 일어나는 스파게티 현상 관찰하기"
+          >
+            <span>🧑‍🚀🍝</span>
+            <span className="btn-text">우주인 스파게티 실험</span>
+          </button>
+
           <button
             id="btn-spawn-ready"
             className="btn spawn-asteroid-btn"
@@ -414,6 +436,11 @@ export default function App() {
           ))}
         </div>
       </footer>
+
+      {/* 우주비행사 블랙홀 낙하 & 스파게티화 전용 시뮬레이션 모드 */}
+      {simMode === 'spaghetti' && (
+        <BlackHoleSpaghettiSim onBackToSolar={() => setSimMode('solar')} />
+      )}
     </div>
   );
 }

@@ -232,6 +232,31 @@ body,
   flex-shrink: 0;
 }
 
+.astronaut-spaghetti-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 16px;
+  background: linear-gradient(135deg, rgba(255, 140, 0, 0.35), rgba(160, 40, 240, 0.35));
+  border: 1px solid rgba(255, 170, 50, 0.6);
+  box-shadow: 0 4px 16px rgba(255, 140, 0, 0.3);
+  font-weight: 500;
+  white-space: nowrap;
+  animation: astronautGlow 2.4s ease-in-out infinite alternate;
+}
+.astronaut-spaghetti-btn:hover {
+  background: linear-gradient(135deg, rgba(255, 140, 0, 0.6), rgba(160, 40, 240, 0.6));
+  border-color: #ffaa33;
+  box-shadow: 0 0 24px rgba(255, 150, 0, 0.7);
+  transform: translateY(-2px);
+}
+@keyframes astronautGlow {
+  0% { box-shadow: 0 0 10px rgba(255, 140, 0, 0.3); border-color: rgba(255, 170, 50, 0.5); }
+  100% { box-shadow: 0 0 22px rgba(255, 140, 0, 0.7), 0 0 14px rgba(180, 50, 255, 0.5); border-color: #ffcc44; }
+}
+
 .spawn-asteroid-btn {
   display: flex;
   align-items: center;
@@ -855,11 +880,13 @@ body,
     padding: 4px 10px;
   }
   .cannon-btn-label,
-  .spawn-asteroid-btn .btn-text {
+  .spawn-asteroid-btn .btn-text,
+  .astronaut-spaghetti-btn .btn-text {
     display: none;
   }
   .cannon-toggle-btn,
-  .spawn-asteroid-btn {
+  .spawn-asteroid-btn,
+  .astronaut-spaghetti-btn {
     padding: 8px 12px;
   }
   .round {
@@ -872,3 +899,517 @@ body,
     height: 84px;
   }
 }
+
+/* ==========================================================================
+   우주비행사 블랙홀 낙하 & 스파게티화(Spaghettification) 전용 시뮬레이터 스타일
+   ========================================================================== */
+.spaghetti-sim-root {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  z-index: 100;
+  background: #03040c;
+  overflow: hidden;
+  font-family: inherit;
+  color: var(--text);
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.spaghetti-canvas-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.spaghetti-canvas-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  cursor: grab;
+}
+.spaghetti-canvas-container canvas:active {
+  cursor: grabbing;
+}
+
+/* 상단 헤더 */
+.spaghetti-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: clamp(10px, 1.6vh, 18px) clamp(14px, 2vw, 28px);
+  background: linear-gradient(to bottom, rgba(3, 4, 14, 0.94), rgba(3, 4, 14, 0.4) 75%, transparent);
+  z-index: 20;
+  pointer-events: none;
+}
+.spaghetti-header > * {
+  pointer-events: auto;
+}
+
+.btn-back-solar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 15px;
+  background: rgba(30, 40, 90, 0.75);
+  border: 1px solid rgba(130, 160, 255, 0.45);
+  color: #e2e8f0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.btn-back-solar:hover {
+  background: rgba(50, 70, 150, 0.9);
+  border-color: #8b7bff;
+  box-shadow: 0 0 20px rgba(139, 123, 255, 0.6);
+}
+
+.spaghetti-title-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 22px;
+  border-radius: 999px;
+  background: rgba(18, 22, 50, 0.85);
+  border: 1px solid rgba(255, 140, 50, 0.45);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 16px rgba(255, 120, 0, 0.25);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.spaghetti-title-badge .badge-emoji {
+  font-size: 28px;
+  animation: wiggle 2.5s infinite ease-in-out;
+}
+.spaghetti-title-badge h1 {
+  margin: 0;
+  font-size: clamp(17px, 1.6vw, 21px);
+  color: #ffaa33;
+  letter-spacing: -0.3px;
+}
+.spaghetti-title-badge .badge-sub {
+  display: block;
+  font-size: 11px;
+  color: #cbd5e1;
+  opacity: 0.85;
+}
+
+.btn-noodle-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 500;
+  background: rgba(255, 170, 40, 0.18);
+  border: 1px solid rgba(255, 170, 40, 0.5);
+  color: #ffcc44;
+}
+.btn-noodle-toggle:hover {
+  background: rgba(255, 170, 40, 0.35);
+  border-color: #ffaa00;
+  box-shadow: 0 0 18px rgba(255, 170, 40, 0.5);
+}
+.btn-noodle-toggle.active {
+  background: linear-gradient(135deg, #ff9900, #ff3300);
+  border-color: #ffffff;
+  color: #ffffff;
+  box-shadow: 0 0 24px rgba(255, 100, 0, 0.8);
+  animation: pulse 1.2s infinite alternate;
+}
+
+/* 좌측 듀얼 시계 & 스파게티 게이지 HUD */
+.spaghetti-hud-clocks {
+  position: absolute;
+  top: 90px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(88vw, 290px);
+  z-index: 15;
+  pointer-events: none;
+}
+.spaghetti-hud-clocks > * {
+  pointer-events: auto;
+}
+
+.clock-card {
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(14, 18, 44, 0.82);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.clock-card.earth {
+  border-left: 4px solid #4fe3c1;
+}
+.clock-card.astronaut {
+  border-left: 4px solid #ff7722;
+}
+
+.clock-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #cbd5e1;
+  margin-bottom: 2px;
+}
+.clock-time {
+  font-family: 'Courier New', monospace, sans-serif;
+  font-size: 24px;
+  font-weight: bold;
+  color: #4fe3c1;
+  letter-spacing: 1px;
+}
+.clock-time.frozen {
+  color: #ff3344;
+  text-shadow: 0 0 12px rgba(255, 50, 70, 0.9);
+  animation: pulse 0.7s infinite alternate;
+}
+.clock-meta {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+.clock-meta strong {
+  color: #f1f5f9;
+}
+
+.stretch-meter-card {
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(14, 18, 44, 0.85);
+  border: 1px solid rgba(255, 160, 50, 0.35);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.meter-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #e2e8f0;
+  margin-bottom: 6px;
+}
+.stretch-val {
+  color: #ffaa33;
+  font-size: 15px;
+}
+.meter-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.15s ease, background-color 0.2s ease;
+  box-shadow: 0 0 10px rgba(255, 120, 0, 0.6);
+}
+.meter-comment {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #fed7aa;
+  line-height: 1.35;
+}
+
+.redshift-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(10, 14, 32, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 12px;
+  color: #cbd5e1;
+}
+.redshift-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* 중앙 상단: 현재 단계 배너 & 친절한 설명 카드 */
+.spaghetti-stage-banner {
+  position: absolute;
+  top: clamp(80px, 11vh, 98px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92vw, 620px);
+  padding: 14px 22px;
+  border-radius: 20px;
+  background: rgba(14, 18, 48, 0.92);
+  border: 2px solid #8b7bff;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.65), 0 0 24px rgba(139, 123, 255, 0.35);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  text-align: center;
+  z-index: 15;
+  pointer-events: none;
+  animation: pop 0.25s ease;
+}
+.spaghetti-stage-banner.stage-1 { border-color: #4fe3c1; box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(79, 227, 193, 0.35); }
+.spaghetti-stage-banner.stage-2 { border-color: #ffcc44; box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(255, 204, 68, 0.35); }
+.spaghetti-stage-banner.stage-3 { border-color: #ff8822; box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 26px rgba(255, 136, 34, 0.55); }
+.spaghetti-stage-banner.stage-4 { border-color: #ff3344; box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 28px rgba(255, 51, 68, 0.6); }
+.spaghetti-stage-banner.stage-5 { border-color: #c084fc; box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 32px rgba(192, 132, 252, 0.8); animation: bannerPulse 1.2s infinite alternate; }
+
+.stage-badge-tag {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 13px;
+  color: #f1f5f9;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.stage-title {
+  margin: 2px 0 6px;
+  font-size: clamp(17px, 1.8vw, 22px);
+  color: #ffeedd;
+}
+.stage-desc {
+  margin: 0;
+  font-size: clamp(14px, 1.4vw, 16px);
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+/* 하단 통합 컨트롤러 패널 */
+.spaghetti-controls-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: clamp(12px, 2vh, 18px) clamp(16px, 2.5vw, 36px) max(14px, env(safe-area-inset-bottom));
+  background: linear-gradient(to top, rgba(3, 4, 14, 0.98), rgba(3, 4, 14, 0.8) 75%, transparent);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stage-steps-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.steps-title {
+  font-size: 13px;
+  color: #94a3b8;
+}
+.step-btn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.step-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.step-btn.active {
+  background: rgba(139, 123, 255, 0.35);
+  border-color: #8b7bff;
+  box-shadow: 0 0 14px rgba(139, 123, 255, 0.5);
+  font-weight: bold;
+}
+.step-btn.highlight.active {
+  background: linear-gradient(135deg, rgba(255, 140, 0, 0.6), rgba(255, 60, 40, 0.6));
+  border-color: #ffaa33;
+  box-shadow: 0 0 18px rgba(255, 120, 0, 0.6);
+}
+.step-btn.warp.active {
+  background: linear-gradient(135deg, rgba(160, 40, 240, 0.7), rgba(255, 80, 180, 0.7));
+  border-color: #e879f9;
+  box-shadow: 0 0 20px rgba(232, 121, 249, 0.8);
+}
+
+.controls-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.play-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-play-pause {
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: bold;
+  background: linear-gradient(135deg, #ff7700, #ff2244);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 18px rgba(255, 80, 0, 0.4);
+  white-space: nowrap;
+}
+.btn-play-pause:hover {
+  background: linear-gradient(135deg, #ff9922, #ff4466);
+  box-shadow: 0 0 24px rgba(255, 100, 0, 0.7);
+}
+.btn-play-pause.playing {
+  background: linear-gradient(135deg, #2bd38f, #1a9e8f);
+  box-shadow: 0 4px 18px rgba(43, 211, 143, 0.4);
+}
+.btn-reset-sim {
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.slider-group {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+.slider-labels strong {
+  color: #ffaa33;
+  font-size: 14px;
+}
+.spaghetti-distance-slider {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  outline: none;
+  background: linear-gradient(to right, #ff2244 0%, #ff8822 30%, #ffcc44 60%, #4fe3c1 100%);
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.spaghetti-distance-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.9), 0 0 16px #ff7700;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.spaghetti-distance-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+}
+
+.view-and-speed-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cam-view-chips,
+.speed-chips {
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.cam-chip,
+.speed-chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.cam-chip:hover,
+.speed-chip:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+.cam-chip.active,
+.speed-chip.active {
+  background: linear-gradient(135deg, var(--violet), var(--pink));
+  color: #fff;
+  font-weight: bold;
+  box-shadow: 0 2px 10px rgba(139, 123, 255, 0.5);
+}
+
+/* 반응형 모바일 조정 */
+@media (max-width: 900px) {
+  .spaghetti-hud-clocks {
+    position: static;
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 0 12px;
+    margin-top: 80px;
+    z-index: 10;
+  }
+  .clock-card,
+  .stretch-meter-card {
+    flex: 1;
+    min-width: 140px;
+  }
+  .spaghetti-stage-banner {
+    top: auto;
+    bottom: 140px;
+  }
+}
+
+@media (max-width: 600px) {
+  .spaghetti-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .spaghetti-title-badge {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+  .controls-main-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .play-group {
+    justify-content: center;
+  }
+  .view-and-speed-group {
+    justify-content: center;
+  }
+}
+
