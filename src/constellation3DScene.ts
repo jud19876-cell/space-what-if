@@ -151,16 +151,7 @@ export function createConstellation3DScene(
   );
   scene.add(bgPoints);
 
-  // 2. 지구 위치 마커 (초록색 빛나는 관측소 링)
-  const earthMarker = new THREE.Group();
-  earthMarker.position.set(0, 0, -CAM_EARTH_DIST + 1);
-  const earthRingGeo = new THREE.RingGeometry(1.2, 1.4, 32);
-  const earthRingMat = new THREE.MeshBasicMaterial({ color: 0x4fe3c1, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
-  const earthRing = new THREE.Mesh(earthRingGeo, earthRingMat);
-  earthMarker.add(earthRing);
-  scene.add(earthMarker);
-
-  // 3. 별자리 메쉬 그룹
+  // 2. 별자리 메쉬 그룹
   const constellationGroup = new THREE.Group();
   scene.add(constellationGroup);
 

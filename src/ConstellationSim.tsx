@@ -23,7 +23,7 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
   const [showArt, setShowArt] = useState(true);
   const [showGuides, setShowGuides] = useState(true);
   const [selectedStar, setSelectedStar] = useState<StarData | null>(null);
-  const [isStoryExpanded, setIsStoryExpanded] = useState(true);
+  const [isStoryExpanded, setIsStoryExpanded] = useState(false); // 기본적으로 접혀서 화면 가림 방지
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -148,26 +148,7 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
         </div>
       </div>
 
-      {/* 화면 중앙 상태 힌트 배너 */}
-      <div className={`constellation-hint-badge ${viewMode === 'space3d' ? 'space' : 'earth'}`}>
-        {viewMode === 'earth' ? (
-          <>
-            <span className="badge-icon">🦂👻</span>
-            <span>
-              <strong>지구 밤하늘 시점:</strong> 왜 옛날 사람들은 이 별들을 <strong>{activeConstellation.name}</strong>로 보았을까요? 별들에 겹쳐진 <strong>은은한 네온 고스트 실루엣</strong>을 확인해 보세요!
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="badge-icon">🚀✨</span>
-            <span>
-              <strong>3D 입체 우주 시점:</strong> 마우스나 터치로 돌려보세요! 평면 그림과 달리 별들이 앞뒤로 수백 광년씩 깊숙이 떨어져 있어요!
-            </span>
-          </>
-        )}
-      </div>
-
-      {/* 우측 상단/플로팅: 6살 아이를 위한 별자리 동화 스토리 카드 (반응형 비율 & 화면 가림 방지 접기) */}
+      {/* 우측 상단/플로팅: 별자리 동화 스토리 카드 (기본 접힘, 클릭 시만 오픈) */}
       <aside className={`constellation-story-panel ${isStoryExpanded ? 'expanded' : 'collapsed'}`}>
         {!isStoryExpanded ? (
           <button
@@ -177,7 +158,7 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
           >
             <span className="pill-emoji">{activeConstellation.emoji}</span>
             <span className="pill-text">{activeConstellation.name} 이야기</span>
-            <span className="pill-arrow">📖 펼치기 ▼</span>
+            <span className="pill-arrow">📖 보기 ▼</span>
           </button>
         ) : (
           <>
@@ -193,9 +174,9 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
                   e.stopPropagation();
                   setIsStoryExpanded(false);
                 }}
-                title="별자리를 크게 보기 위해 이야기 접기"
+                title="별자리를 크게 감상하기 위해 이야기 닫기"
               >
-                ▲ 접기
+                ✕ 닫기
               </button>
             </div>
 

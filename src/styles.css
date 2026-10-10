@@ -1652,48 +1652,6 @@ body,
   color: #ffffff;
 }
 
-/* 화면 상단 안내 힌트 뱃지 */
-.constellation-hint-badge {
-  position: absolute;
-  top: clamp(142px, 18vh, 160px);
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 22px;
-  border-radius: 999px;
-  font-size: clamp(13px, 1.2vw, 15px);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
-  z-index: 15;
-  pointer-events: none;
-  animation: pop 0.25s ease;
-  max-width: min(92vw, 680px);
-  text-align: center;
-}
-.constellation-hint-badge.earth {
-  background: rgba(20, 30, 70, 0.88);
-  border: 1px solid rgba(130, 160, 255, 0.4);
-  color: #e2e8f0;
-}
-.constellation-hint-badge.earth strong {
-  color: #4fe3c1;
-}
-.constellation-hint-badge.space {
-  background: rgba(16, 36, 50, 0.9);
-  border: 1.5px solid #10b981;
-  color: #e2e8f0;
-  box-shadow: 0 0 24px rgba(16, 185, 129, 0.4);
-}
-.constellation-hint-badge.space strong {
-  color: #6ee7b7;
-}
-.constellation-hint-badge .badge-icon {
-  font-size: 20px;
-  flex-shrink: 0;
-}
 
 /* 우측: 6세 아이를 위한 별자리 동화 스토리 패널 (반응형 비율 & 화면 가림 방지) */
 .constellation-story-panel {
@@ -2048,9 +2006,7 @@ body,
     bottom: 80px;
     width: auto;
   }
-  .constellation-hint-badge {
-    top: 130px;
-  }
+
 }
 
 
