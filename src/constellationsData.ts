@@ -708,3 +708,65 @@ export const CONSTELLATIONS: ConstellationData[] = [
     silhouetteType: 'lion'
   }
 ];
+
+export type SeasonKey = 'spring' | 'summer' | 'autumn' | 'winter';
+
+export interface SeasonConstellationGuide {
+  seasonKey: SeasonKey;
+  seasonName: string;
+  seasonEmoji: string;
+  angleRad: number; // 봄: 0, 여름: PI/2, 가을: PI, 겨울: 3PI/2
+  headline: string;
+  description: string;
+}
+
+export const SEASON_GUIDES: Record<string, SeasonConstellationGuide> = {
+  scorpius: {
+    seasonKey: 'summer',
+    seasonName: '여름',
+    seasonEmoji: '☀️',
+    angleRad: Math.PI * 0.5,
+    headline: '전갈자리는 대표적인 한여름 밤하늘의 왕!',
+    description: '지구가 여름 위치에 있을 때 밤하늘 방향이 전갈자리를 향해요! 반대로 겨울에는 태양이 전갈자리 앞을 가려서 볼 수 없답니다.',
+  },
+  orion: {
+    seasonKey: 'winter',
+    seasonName: '겨울',
+    seasonEmoji: '❄️',
+    angleRad: Math.PI * 1.5,
+    headline: '오리온자리는 대표적인 한겨울 밤하늘의 주인공!',
+    description: '지구가 겨울 위치에 오면 밤하늘 방향에 오리온자리가 웅장하게 떠올라요! 여름에는 태양 뒤에 숨어 있어서 전갈자리와 절대 마주치지 않아요.',
+  },
+  ursa_major: {
+    seasonKey: 'spring',
+    seasonName: '봄',
+    seasonEmoji: '🌸',
+    angleRad: 0,
+    headline: '큰곰자리(북두칠성)는 봄철 밤하늘 가장 높이 솟아올라요!',
+    description: '지구가 봄 궤도에 있을 때 북쪽 하늘 높은 곳에서 국자 모양 북두칠성이 밝고 선명하게 보여요.',
+  },
+  cassiopeia: {
+    seasonKey: 'autumn',
+    seasonName: '가을',
+    seasonEmoji: '🍁',
+    angleRad: Math.PI,
+    headline: '카시오페이아자리는 가을철 밤하늘의 여왕 왕관!',
+    description: '지구가 가을 궤도를 지날 때 가을 밤하늘 높은 곳에서 빛나는 W자 여왕의 왕관을 볼 수 있어요.',
+  },
+  cygnus: {
+    seasonKey: 'summer',
+    seasonName: '여름',
+    seasonEmoji: '☀️',
+    angleRad: Math.PI * 0.5,
+    headline: '백조자리는 여름철 은하수를 날아가는 은빛 백조!',
+    description: '여름철 밤하늘, 은하수를 따라 거문고자리, 독수리자리와 함께 [여름철 대삼각형]을 이루며 아름답게 날아갑니다.',
+  },
+  leo: {
+    seasonKey: 'spring',
+    seasonName: '봄',
+    seasonEmoji: '🌸',
+    angleRad: 0,
+    headline: '사자자리는 따뜻한 봄밤을 알리는 봄의 전령사!',
+    description: '지구가 봄 위치에 있을 때 머리와 심장별 레굴루스가 으르렁거리며 봄밤 하늘의 중앙을 장식해요.',
+  },
+};

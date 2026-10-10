@@ -2,13 +2,16 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { type ConstellationData, type StarData } from './constellationsData.ts';
 import { generateGhostCanvas } from './constellationGhostArt.ts';
+import { generateEarthCanvas, generateSunCanvas } from './earthGlobeTexture.ts';
 
-export type ConstellationViewMode = 'earth' | 'space3d' | 'top';
+export type ConstellationViewMode = 'earth' | 'space3d' | 'top' | 'season_orbit';
 
 export interface ConstellationScene {
   setConstellation(constellation: ConstellationData): void;
   setViewMode(mode: ConstellationViewMode): void;
   resetView(): void;
+  setSeasonAngle(angleRad: number): void;
+  setSeasonAutoPlay(play: boolean): void;
   setShowArt(show: boolean): void;
   setShowGuides(show: boolean): void;
   setSelectedStar(starId: string | null): void;
@@ -173,6 +176,203 @@ export function createConstellation3DScene(
   let ghostMat: THREE.MeshBasicMaterial | null = null;
   scene.add(guideGroup);
   scene.add(artGroup);
+
+  // 3D 텍스트 라벨 스프라이트 생성기
+  function makeLabelSprite(
+    text: string,
+    bgColor = 'rgba(8, 15, 38, 0.88)',
+    textColor = '#ffffff',
+    borderColor = '#38bdf8',
+    scaleX = 8,
+    scaleY = 2
+  ): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.clearRect(0, 0, 512, 128);
+    ctx.fillStyle = bgColor;
+    ctx.beginPath();
+    ctx.roundRect(12, 12, 488, 104, 28);
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = borderColor;
+    ctx.stroke();
+
+    ctx.fillStyle = textColor;
+    ctx.font = 'bold 36px "Apple SD Gothic Neo", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 256, 64);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(scaleX, scaleY, 1);
+    return sprite;
+  }
+
+  // 3. 단독 3D 지구 모형 그룹 (지구 관측소 뷰 & 거리감 측정용)
+  const earthGlobeGroup = new THREE.Group();
+  scene.add(earthGlobeGroup);
+
+  const earthTex = new THREE.CanvasTexture(generateEarthCanvas());
+  earthTex.colorSpace = THREE.SRGBColorSpace;
+  const earthGeo = new THREE.SphereGeometry(3.6, 32, 32);
+  const earthMat = new THREE.MeshStandardMaterial({
+    map: earthTex,
+    roughness: 0.55,
+    metalness: 0.1,
+  });
+  const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+  earthMesh.position.set(0, -2.2, -38);
+  earthGlobeGroup.add(earthMesh);
+
+  // 대기권 은은한 푸른 후광
+  const atmoGeo = new THREE.SphereGeometry(3.85, 32, 32);
+  const atmoMat = new THREE.MeshBasicMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0.22,
+    side: THREE.BackSide,
+  });
+  const atmoMesh = new THREE.Mesh(atmoGeo, atmoMat);
+  atmoMesh.position.set(0, -2.2, -38);
+  earthGlobeGroup.add(atmoMesh);
+
+  // 지구 표면 천문대 돔 (관측소 위치)
+  const domeMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.4, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xfacc15 })
+  );
+  domeMesh.position.set(0, 1.4, -38);
+  earthGlobeGroup.add(domeMesh);
+
+  // 천문대에서 우주 별자리를 향해 뻗어나가는 레이저 거리 측정 빔
+  const beamPts = [new THREE.Vector3(0, 1.4, -38), new THREE.Vector3(0, 0, 16)];
+  const beamGeo = new THREE.BufferGeometry().setFromPoints(beamPts);
+  const beamMat = new THREE.LineDashedMaterial({
+    color: 0x4fe3c1,
+    dashSize: 1.5,
+    gapSize: 0.8,
+    transparent: true,
+    opacity: 0.7,
+  });
+  const beamLine = new THREE.Line(beamGeo, beamMat);
+  beamLine.computeLineDistances();
+  earthGlobeGroup.add(beamLine);
+
+  // 지구 및 별자리 거리 3D 라벨 배지
+  const earthLabelSprite = makeLabelSprite('🌍 지구 관측소 (0 광년)', 'rgba(10, 24, 60, 0.9)', '#ffffff', '#4fe3c1', 9, 2.25);
+  earthLabelSprite.position.set(0, 2.6, -38);
+  earthGlobeGroup.add(earthLabelSprite);
+
+  const starDistanceLabel = makeLabelSprite('✨ 별자리 (우주 깊은 곳: 58+ 광년)', 'rgba(20, 15, 50, 0.9)', '#fde047', '#eab308', 11, 2.75);
+  starDistanceLabel.position.set(0, 1.8, 16);
+  earthGlobeGroup.add(starDistanceLabel);
+
+  // 4. 태양 & 지구 4계절 공전 시뮬레이션 그룹
+  const seasonOrbitGroup = new THREE.Group();
+  seasonOrbitGroup.visible = false;
+  scene.add(seasonOrbitGroup);
+
+  const SUN_Z = -42;
+  const ORBIT_R = 18;
+
+  // 태양 중심체
+  const sunGroup = new THREE.Group();
+  sunGroup.position.set(0, 0, SUN_Z);
+  seasonOrbitGroup.add(sunGroup);
+
+  const sunTex = new THREE.CanvasTexture(generateSunCanvas());
+  sunTex.colorSpace = THREE.SRGBColorSpace;
+  const sunMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(4.8, 32, 32),
+    new THREE.MeshBasicMaterial({ map: sunTex })
+  );
+  sunGroup.add(sunMesh);
+
+  const sunLight = new THREE.PointLight(0xfff7ed, 2.5, 160);
+  sunGroup.add(sunLight);
+
+  const sunLabel = makeLabelSprite('☀️ 태양 (태양계 중심)', 'rgba(80, 20, 10, 0.9)', '#fef08a', '#ea580c', 9, 2.25);
+  sunLabel.position.set(0, 6.2, 0);
+  sunGroup.add(sunLabel);
+
+  // 지구 공전 궤도 원형 링
+  const orbitPts: THREE.Vector3[] = [];
+  for (let i = 0; i <= 96; i++) {
+    const a = (i / 96) * Math.PI * 2;
+    orbitPts.push(new THREE.Vector3(ORBIT_R * Math.cos(a), 0, SUN_Z + ORBIT_R * Math.sin(a)));
+  }
+  const orbitGeo = new THREE.BufferGeometry().setFromPoints(orbitPts);
+  const orbitLine = new THREE.Line(
+    orbitGeo,
+    new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.55 })
+  );
+  seasonOrbitGroup.add(orbitLine);
+
+  // 4계절 궤도 위치 마커 스프라이트
+  const springMarker = makeLabelSprite('🌸 봄 (3~5월)', 'rgba(30, 15, 45, 0.9)', '#f472b6', '#f472b6', 7, 1.75);
+  springMarker.position.set(ORBIT_R + 1, 1.2, SUN_Z);
+  seasonOrbitGroup.add(springMarker);
+
+  const summerMarker = makeLabelSprite('☀️ 여름 (6~8월: 별자리 정면!)', 'rgba(10, 40, 30, 0.9)', '#4ade80', '#22c55e', 11, 2.75);
+  summerMarker.position.set(0, 1.2, SUN_Z + ORBIT_R + 1);
+  seasonOrbitGroup.add(summerMarker);
+
+  const autumnMarker = makeLabelSprite('🍁 가을 (9~11월)', 'rgba(50, 25, 10, 0.9)', '#fb923c', '#ea580c', 7, 1.75);
+  autumnMarker.position.set(-ORBIT_R - 1, 1.2, SUN_Z);
+  seasonOrbitGroup.add(autumnMarker);
+
+  const winterMarker = makeLabelSprite('❄️ 겨울 (12~2월: 태양 반대편!)', 'rgba(10, 25, 55, 0.9)', '#60a5fa', '#3b82f6', 11, 2.75);
+  winterMarker.position.set(0, 1.2, SUN_Z - ORBIT_R - 1);
+  seasonOrbitGroup.add(winterMarker);
+
+  // 공전하는 3D 지구 모델 & 밤하늘 시야 콘
+  const orbitingEarthGroup = new THREE.Group();
+  seasonOrbitGroup.add(orbitingEarthGroup);
+
+  const orbEarthMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(1.8, 24, 24),
+    new THREE.MeshStandardMaterial({ map: earthTex, roughness: 0.55 })
+  );
+  orbitingEarthGroup.add(orbEarthMesh);
+
+  const orbEarthLabel = makeLabelSprite('🌍 공전하는 지구', 'rgba(10, 24, 60, 0.9)', '#ffffff', '#38bdf8', 7, 1.75);
+  orbEarthLabel.position.set(0, 2.6, 0);
+  orbitingEarthGroup.add(orbEarthLabel);
+
+  // 밤하늘 시야 빔 콘 (태양 반대편 어두운 밤하늘 쪽으로 뻗어나가는 신비로운 푸른 빛 콘)
+  const coneGeo = new THREE.ConeGeometry(5.5, 20, 24, 1, true);
+  const coneMat = new THREE.MeshBasicMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0.28,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const nightCone = new THREE.Mesh(coneGeo, coneMat);
+  seasonOrbitGroup.add(nightCone);
+
+  let seasonAngle = Math.PI * 0.5; // 기본 여름 위치 (별자리가 잘 보이는 방향)
+  let seasonAutoPlay = false;
+
+  function updateSeasonOrbit(angle: number) {
+    const x = ORBIT_R * Math.cos(angle);
+    const z = SUN_Z + ORBIT_R * Math.sin(angle);
+    orbitingEarthGroup.position.set(x, 0, z);
+
+    // 밤하늘 시선 방향: 태양(0, 0, SUN_Z)에서 지구(x, 0, z)를 향하는 외향 벡터
+    const dirX = Math.cos(angle);
+    const dirZ = Math.sin(angle);
+
+    nightCone.position.set(x + dirX * 10, 0, z + dirZ * 10);
+    nightCone.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), new THREE.Vector3(dirX, 0, dirZ));
+  }
 
   // 선택 링
   const selectRingGeo = new THREE.RingGeometry(1.1, 1.3, 32);
@@ -348,21 +548,27 @@ export function createConstellation3DScene(
   function getModeDefaults(mode: ConstellationViewMode): { pos: THREE.Vector3; look: THREE.Vector3 } {
     const isNarrow = container.clientWidth < 950;
     if (mode === 'earth') {
-      const offX = isNarrow ? 0 : 1.6;
-      const offY = isNarrow ? -1.0 : 0;
+      // 지구 위에서 별자리를 올려다보는 시점: 지구 모형이 아래쪽에 보이고 우주 별자리가 위에 펼쳐짐!
+      const offX = isNarrow ? 0 : 1.2;
       return {
-        pos: new THREE.Vector3(offX, offY, -CAM_EARTH_DIST),
-        look: new THREE.Vector3(offX, offY, 16),
+        pos: new THREE.Vector3(offX, 1.8, -48),
+        look: new THREE.Vector3(offX, 0.6, 16),
       };
     } else if (mode === 'space3d') {
       return {
         pos: new THREE.Vector3(34, 20, -6),
         look: new THREE.Vector3(0, 0, 16),
       };
-    } else {
+    } else if (mode === 'top') {
       return {
-        pos: new THREE.Vector3(0, 52, 16),
+        pos: new THREE.Vector3(0, 56, 16),
         look: new THREE.Vector3(0, 0, 16),
+      };
+    } else {
+      // season_orbit 모드: 태양과 지구 공전 궤도, 밤하늘 시야 콘을 함께 조망하는 시점
+      return {
+        pos: new THREE.Vector3(20, 30, -66),
+        look: new THREE.Vector3(0, 0, -30),
       };
     }
   }
@@ -373,13 +579,24 @@ export function createConstellation3DScene(
     controls.enableRotate = true; // 모든 모드에서 자유 회전 허용!
     controls.enableZoom = true;
     controls.enablePan = true;
+
+    if (mode === 'season_orbit') {
+      earthGlobeGroup.visible = false;
+      seasonOrbitGroup.visible = true;
+      updateSeasonOrbit(seasonAngle);
+      playWarpChime();
+    } else {
+      earthGlobeGroup.visible = true;
+      seasonOrbitGroup.visible = false;
+      if (mode === 'earth') playStarChime(440);
+      else if (mode === 'space3d') playWarpChime();
+      else playStarChime(660);
+    }
+
     const { pos, look } = getModeDefaults(mode);
     targetCamPos.copy(pos);
     targetCamLook.copy(look);
     isAnimatingCamera = true;
-    if (mode === 'earth') playStarChime(440);
-    else if (mode === 'space3d') playWarpChime();
-    else playStarChime(660);
   }
 
   function resetView() {
@@ -471,6 +688,17 @@ export function createConstellation3DScene(
       ghostMat.opacity = breath;
     }
 
+    // 3D 지구 자전 및 공전 애니메이션
+    earthMesh.rotation.y += 0.003;
+    orbEarthMesh.rotation.y += 0.008;
+
+    if (viewMode === 'season_orbit' && seasonAutoPlay) {
+      seasonAngle = (seasonAngle + 0.004) % (Math.PI * 2);
+      updateSeasonOrbit(seasonAngle);
+    }
+
+    beamMat.opacity = 0.55 + Math.sin(Date.now() * 0.005) * 0.25;
+
     guideGroup.visible = showGuides;
     artGroup.visible = showArt;
 
@@ -508,6 +736,13 @@ export function createConstellation3DScene(
     },
     resetView() {
       resetView();
+    },
+    setSeasonAngle(angleRad: number) {
+      seasonAngle = angleRad;
+      updateSeasonOrbit(seasonAngle);
+    },
+    setSeasonAutoPlay(play: boolean) {
+      seasonAutoPlay = play;
     },
     setShowArt(show: boolean) {
       showArt = show;

@@ -6,7 +6,9 @@ import {
 } from './constellation3DScene.ts';
 import {
   CONSTELLATIONS,
+  SEASON_GUIDES,
   type ConstellationData,
+  type SeasonKey,
   type StarData,
 } from './constellationsData.ts';
 
@@ -24,6 +26,10 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
   const [showGuides, setShowGuides] = useState(true);
   const [selectedStar, setSelectedStar] = useState<StarData | null>(null);
   const [isStoryExpanded, setIsStoryExpanded] = useState(false); // 기본적으로 접혀서 화면 가림 방지
+
+  // 4계절 지구 공전 시뮬레이션 상태
+  const [activeSeason, setActiveSeason] = useState<SeasonKey>('summer');
+  const [seasonAutoPlay, setSeasonAutoPlay] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -44,11 +50,23 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
     setActiveConstellation(c);
     setSelectedStar(null);
     sceneRef.current?.setConstellation(c);
+    const guide = SEASON_GUIDES[c.id];
+    if (guide && viewMode === 'season_orbit') {
+      setActiveSeason(guide.seasonKey);
+      sceneRef.current?.setSeasonAngle(guide.angleRad);
+    }
   };
 
   const handleViewModeChange = (mode: ConstellationViewMode) => {
     setViewMode(mode);
     sceneRef.current?.setViewMode(mode);
+    if (mode === 'season_orbit') {
+      const guide = SEASON_GUIDES[activeConstellation.id];
+      if (guide) {
+        setActiveSeason(guide.seasonKey);
+        sceneRef.current?.setSeasonAngle(guide.angleRad);
+      }
+    }
   };
 
   const handleToggleArt = () => {
@@ -70,6 +88,19 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
 
   const handleResetView = () => {
     sceneRef.current?.resetView();
+  };
+
+  const handleSelectSeason = (seasonKey: SeasonKey, angleRad: number) => {
+    setActiveSeason(seasonKey);
+    setSeasonAutoPlay(false);
+    sceneRef.current?.setSeasonAutoPlay(false);
+    sceneRef.current?.setSeasonAngle(angleRad);
+  };
+
+  const handleToggleSeasonPlay = () => {
+    const next = !seasonAutoPlay;
+    setSeasonAutoPlay(next);
+    sceneRef.current?.setSeasonAutoPlay(next);
   };
 
   return (
@@ -105,10 +136,10 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
           <button
             className={`btn-view-toggle ${viewMode === 'earth' ? 'active' : ''}`}
             onClick={() => handleViewModeChange('earth')}
-            title="지구에서 보는 2D 평면 별자리 모양"
+            title="지구 모형 위 관측소에서 별자리를 바라보는 원근 거리감 시점"
           >
-            <span>🌍 지구에서 보기</span>
-            <small>평면 별자리</small>
+            <span>🌍 지구 관측 뷰</span>
+            <small>지구 위에서 보기</small>
           </button>
 
           <button
@@ -127,6 +158,15 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
           >
             <span>🗺️ 거리 지도 뷰</span>
             <small>위에서 보기</small>
+          </button>
+
+          <button
+            className={`btn-view-toggle highlight-gold ${viewMode === 'season_orbit' ? 'active' : ''}`}
+            onClick={() => handleViewModeChange('season_orbit')}
+            title="지구가 태양을 공전하면서 계절마다 별자리가 다르게 보이는 이유 확인하기"
+          >
+            <span>🌞 계절 공전 뷰</span>
+            <small>4계절 별자리 비밀</small>
           </button>
 
           <button
@@ -264,6 +304,87 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
             </div>
 
             <p className="star-desc">{selectedStar.description}</p>
+          </div>
+        </div>
+      )}
+
+      {/* 4계절 지구 공전 뷰 인터랙티브 컨트롤 독 */}
+      {viewMode === 'season_orbit' && (
+        <div className="season-control-dock">
+          <div className="season-dock-header">
+            <div className="season-dock-title-wrap">
+              <span className="dock-badge">🌞 4계절 지구 공전 & 별자리 비밀</span>
+              <h4>지구가 태양을 돌며 밤하늘을 바라보는 방향이 달라져요!</h4>
+            </div>
+            <button
+              className={`btn-season-play ${seasonAutoPlay ? 'playing' : ''}`}
+              onClick={handleToggleSeasonPlay}
+              title={seasonAutoPlay ? '자동 공전 멈춤' : '지구가 태양을 공전하는 모습 자동 재생'}
+            >
+              <span>{seasonAutoPlay ? '⏸ 공전 멈춤' : '▶ 자동 공전 시작'}</span>
+            </button>
+          </div>
+
+          <div className="season-tabs">
+            <button
+              className={`season-tab-btn spring ${activeSeason === 'spring' ? 'active' : ''}`}
+              onClick={() => handleSelectSeason('spring', 0)}
+            >
+              <span className="s-emoji">🌸</span>
+              <span className="s-name">봄</span>
+              <small className="s-months">3~5월</small>
+            </button>
+            <button
+              className={`season-tab-btn summer ${activeSeason === 'summer' ? 'active' : ''}`}
+              onClick={() => handleSelectSeason('summer', Math.PI * 0.5)}
+            >
+              <span className="s-emoji">☀️</span>
+              <span className="s-name">여름</span>
+              <small className="s-months">6~8월</small>
+            </button>
+            <button
+              className={`season-tab-btn autumn ${activeSeason === 'autumn' ? 'active' : ''}`}
+              onClick={() => handleSelectSeason('autumn', Math.PI)}
+            >
+              <span className="s-emoji">🍁</span>
+              <span className="s-name">가을</span>
+              <small className="s-months">9~11월</small>
+            </button>
+            <button
+              className={`season-tab-btn winter ${activeSeason === 'winter' ? 'active' : ''}`}
+              onClick={() => handleSelectSeason('winter', Math.PI * 1.5)}
+            >
+              <span className="s-emoji">❄️</span>
+              <span className="s-name">겨울</span>
+              <small className="s-months">12~2월</small>
+            </button>
+          </div>
+
+          <div className="season-status-card">
+            {activeSeason === SEASON_GUIDES[activeConstellation.id]?.seasonKey ? (
+              <div className="status-badge match">
+                <div className="badge-header">
+                  <span className="badge-icon">✨</span>
+                  <strong>지금이 바로 {activeConstellation.name}의 계절이에요!</strong>
+                </div>
+                <p>
+                  지구의 어두운 밤하늘 방향(푸른 시야 콘)이 {activeConstellation.name}를 똑바로 향하고 있어요! 밤새도록 하늘 높이 밝게 반짝입니다.
+                </p>
+              </div>
+            ) : (
+              <div className="status-badge hidden">
+                <div className="badge-header">
+                  <span className="badge-icon">☀️</span>
+                  <strong>지금은 태양 뒤편에 가려져 밤에 보이지 않아요!</strong>
+                </div>
+                <p>
+                  지구가 태양 반대편으로 돌아 {activeConstellation.name}는 낮 하늘 쪽에 떠 있어요. 태양 빛이 너무 눈부셔서 보이지 않아요!
+                </p>
+              </div>
+            )}
+            <div className="season-tip">
+              <span>💡 {SEASON_GUIDES[activeConstellation.id]?.description}</span>
+            </div>
           </div>
         </div>
       )}
