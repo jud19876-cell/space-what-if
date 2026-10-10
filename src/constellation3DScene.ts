@@ -8,6 +8,7 @@ export type ConstellationViewMode = 'earth' | 'space3d' | 'top';
 export interface ConstellationScene {
   setConstellation(constellation: ConstellationData): void;
   setViewMode(mode: ConstellationViewMode): void;
+  resetView(): void;
   setShowArt(show: boolean): void;
   setShowGuides(show: boolean): void;
   setSelectedStar(starId: string | null): void;
@@ -115,8 +116,16 @@ export function createConstellation3DScene(
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.target.set(0, 0, 16); // 별자리 중간 깊이를 중심축으로 회전
-  controls.minDistance = 10;
-  controls.maxDistance = 220;
+  controls.minDistance = 4;
+  controls.maxDistance = 280;
+  controls.enablePan = true;
+  controls.screenSpacePanning = true;
+
+  let isAnimatingCamera = false;
+  controls.addEventListener('start', () => {
+    // 사용자가 직접 화면을 터치/드래그/휠 스크롤하면 자동 카메라 이동 즉시 중단
+    isAnimatingCamera = false;
+  });
 
   // 조명
   scene.add(new THREE.AmbientLight(0xffffff, 0.5));
@@ -336,31 +345,52 @@ export function createConstellation3DScene(
     artGroup.add(ghostMesh);
   }
 
+  function getModeDefaults(mode: ConstellationViewMode): { pos: THREE.Vector3; look: THREE.Vector3 } {
+    const isNarrow = container.clientWidth < 950;
+    if (mode === 'earth') {
+      const offX = isNarrow ? 0 : 1.6;
+      const offY = isNarrow ? -1.0 : 0;
+      return {
+        pos: new THREE.Vector3(offX, offY, -CAM_EARTH_DIST),
+        look: new THREE.Vector3(offX, offY, 16),
+      };
+    } else if (mode === 'space3d') {
+      return {
+        pos: new THREE.Vector3(34, 20, -6),
+        look: new THREE.Vector3(0, 0, 16),
+      };
+    } else {
+      return {
+        pos: new THREE.Vector3(0, 52, 16),
+        look: new THREE.Vector3(0, 0, 16),
+      };
+    }
+  }
+
   // 뷰 모드 업데이트
   function applyViewMode(mode: ConstellationViewMode) {
     viewMode = mode;
-    const isNarrow = container.clientWidth < 950;
-    if (mode === 'earth') {
-      // 지구에서 똑바로 바라보는 2D 정렬 시점 (우측 설명창과의 여백을 고려해 우주가 시원하게 보이도록 오프셋)
-      const offX = isNarrow ? 0 : 1.6;
-      const offY = isNarrow ? -1.0 : 0;
-      targetCamPos.set(offX, offY, -CAM_EARTH_DIST);
-      targetCamLook.set(offX, offY, 16);
-      controls.enableRotate = false; // 정렬 상태 유지
-      playStarChime(440);
-    } else if (mode === 'space3d') {
-      // 비스듬한 3D 우주 시점: 앞뒤 깊이 거리가 확 드러남!
-      targetCamPos.set(34, 20, -6);
-      targetCamLook.set(0, 0, 16);
-      controls.enableRotate = true; // 자유 회전 가능
-      playWarpChime();
-    } else if (mode === 'top') {
-      // 위에서 내려다보는 거리 지도 뷰
-      targetCamPos.set(0, 52, 16);
-      targetCamLook.set(0, 0, 16);
-      controls.enableRotate = true;
-      playStarChime(660);
-    }
+    controls.enableRotate = true; // 모든 모드에서 자유 회전 허용!
+    controls.enableZoom = true;
+    controls.enablePan = true;
+    const { pos, look } = getModeDefaults(mode);
+    targetCamPos.copy(pos);
+    targetCamLook.copy(look);
+    isAnimatingCamera = true;
+    if (mode === 'earth') playStarChime(440);
+    else if (mode === 'space3d') playWarpChime();
+    else playStarChime(660);
+  }
+
+  function resetView() {
+    controls.enableRotate = true;
+    controls.enableZoom = true;
+    controls.enablePan = true;
+    const { pos, look } = getModeDefaults(viewMode);
+    targetCamPos.copy(pos);
+    targetCamLook.copy(look);
+    isAnimatingCamera = true;
+    playStarChime(520);
   }
 
   rebuildConstellation();
@@ -409,9 +439,16 @@ export function createConstellation3DScene(
   function animate() {
     animId = requestAnimationFrame(animate);
 
-    // 카메라 부드러운 전환 이동
-    camera.position.lerp(targetCamPos, 0.06);
-    controls.target.lerp(targetCamLook, 0.06);
+    // 카메라 부드러운 전환 이동 (버튼 클릭 전환 시에만 lerp 작동하고 완료되거나 사용자 조작 시 멈춤)
+    if (isAnimatingCamera) {
+      camera.position.lerp(targetCamPos, 0.08);
+      controls.target.lerp(targetCamLook, 0.08);
+      if (camera.position.distanceTo(targetCamPos) < 0.15 && controls.target.distanceTo(targetCamLook) < 0.15) {
+        camera.position.copy(targetCamPos);
+        controls.target.copy(targetCamLook);
+        isAnimatingCamera = false;
+      }
+    }
     controls.update();
 
     // 별빛 펄스 애니메이션 & 카메라 바라보기
@@ -468,6 +505,9 @@ export function createConstellation3DScene(
     },
     setViewMode(mode: ConstellationViewMode) {
       applyViewMode(mode);
+    },
+    resetView() {
+      resetView();
     },
     setShowArt(show: boolean) {
       showArt = show;

@@ -68,6 +68,10 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
     sceneRef.current?.setSelectedStar(star.id);
   };
 
+  const handleResetView = () => {
+    sceneRef.current?.resetView();
+  };
+
   return (
     <div className="constellation-sim-root">
       {/* 3D 캔버스 영역 */}
@@ -123,6 +127,15 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
           >
             <span>🗺️ 거리 지도 뷰</span>
             <small>위에서 보기</small>
+          </button>
+
+          <button
+            className="btn-view-toggle btn-reset-origin"
+            onClick={handleResetView}
+            title="자유롭게 확대/축소/이동한 시점을 원래 원점 위치로 되돌립니다"
+          >
+            <span>🎯 원점 복귀</span>
+            <small>시점 리셋</small>
           </button>
         </div>
 
