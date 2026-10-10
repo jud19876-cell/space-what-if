@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import BlackHoleSpaghettiSim from './BlackHoleSpaghettiSim.tsx';
+import ConstellationSim from './ConstellationSim.tsx';
 import { AU_PER_DAY_TO_KM_S, length, type Vec3 } from './physics.ts';
 import { createSpaceScene, type AimInfo, type SpaceScene } from './scene.ts';
 import { SCENARIOS, type Scenario, type ScenarioCategory } from './scenarios.ts';
@@ -10,7 +11,7 @@ export default function App() {
   const stateRef = useRef<SimState>(createInitialState());
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SpaceScene | null>(null);
-  const [simMode, setSimMode] = useState<'solar' | 'spaghetti'>('solar');
+  const [simMode, setSimMode] = useState<'solar' | 'spaghetti' | 'constellation'>('solar');
   const [selected, setSelected] = useState<string | null>(null);
   const [toast, setToast] = useState<{ key: number; emoji: string; text: string; type?: 'normal' | 'impact' | 'explosion' } | null>(null);
   const [hinted, setHinted] = useState(false);
@@ -169,6 +170,16 @@ export default function App() {
       });
       return;
     }
+    if (sc.id.startsWith('constellation-')) {
+      setSimMode('constellation');
+      setToast({
+        key: Date.now(),
+        emoji: '✨🔭',
+        text: `${sc.label} 실감형 3D 탐험실로 이동합니다!`,
+        type: 'normal',
+      });
+      return;
+    }
     runCommands(sc.commands);
     setToast({
       key: Date.now(),
@@ -244,6 +255,16 @@ export default function App() {
         </div>
 
         <div className="controls">
+          <button
+            id="btn-constellation-sim"
+            className="btn constellation-nav-btn"
+            onClick={() => setSimMode('constellation')}
+            title="3D 입체 별자리 탐험 (평면 vs 실제 3D 거리 비교)"
+          >
+            <span>✨🦂</span>
+            <span className="btn-text">3D 별자리 탐험</span>
+          </button>
+
           <button
             id="btn-astronaut-spaghetti"
             className="btn astronaut-spaghetti-btn"
@@ -419,6 +440,12 @@ export default function App() {
             >
               ☄️ 소행성 충돌 실험
             </button>
+            <button
+              className={`category-tab category-tab-constellation ${category === 'constellation' ? 'on' : ''}`}
+              onClick={() => setCategory('constellation')}
+            >
+              ✨ 3D 별자리
+            </button>
           </div>
         </div>
 
@@ -427,7 +454,7 @@ export default function App() {
             <button
               key={sc.id}
               id={`exp-${sc.id}`}
-              className={`btn exp ${sc.id === 'reset' ? 'exp-reset' : ''} ${sc.category === 'blackhole' ? 'exp-blackhole' : ''} ${sc.category === 'asteroid' ? 'exp-asteroid' : ''}`}
+              className={`btn exp ${sc.id === 'reset' ? 'exp-reset' : ''} ${sc.category === 'blackhole' ? 'exp-blackhole' : ''} ${sc.category === 'asteroid' ? 'exp-asteroid' : ''} ${sc.category === 'constellation' ? 'exp-constellation' : ''}`}
               onClick={() => runScenario(sc)}
             >
               <span className="exp-emoji">{sc.emoji}</span>
@@ -440,6 +467,11 @@ export default function App() {
       {/* 우주비행사 블랙홀 낙하 & 스파게티화 전용 시뮬레이션 모드 */}
       {simMode === 'spaghetti' && (
         <BlackHoleSpaghettiSim onBackToSolar={() => setSimMode('solar')} />
+      )}
+
+      {/* 3D 입체 별자리 탐험 전용 시뮬레이션 모드 */}
+      {simMode === 'constellation' && (
+        <ConstellationSim onBackToSolar={() => setSimMode('solar')} />
       )}
     </div>
   );

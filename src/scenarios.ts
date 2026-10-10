@@ -1,14 +1,14 @@
 // 하단의 "만약에?" 실험 버튼. 각 실험은 Simulation Command 목록일 뿐이다.
 import type { SimCommand } from './simulation.ts';
 
-export type ScenarioCategory = 'all' | 'solar' | 'blackhole' | 'asteroid';
+export type ScenarioCategory = 'all' | 'solar' | 'blackhole' | 'asteroid' | 'constellation';
 
 export interface Scenario {
   id: string;
   emoji: string;
   label: string;
   message: string; // 실행 후 잠깐 보여 줄 말
-  category?: 'solar' | 'blackhole' | 'asteroid';
+  category?: 'solar' | 'blackhole' | 'asteroid' | 'constellation';
   commands: SimCommand[];
 }
 
@@ -138,6 +138,32 @@ export const SCENARIOS: Scenario[] = [
     category: 'blackhole',
     message: '모든 블랙홀이 사라졌어!',
     commands: [{ action: 'remove_all_black_holes' }],
+  },
+
+  // --- 3D 입체 별자리 탐험 실험 (평면 vs 실제 3D 깊이 거리) ---
+  {
+    id: 'constellation-scorpius',
+    emoji: '🦂✨',
+    label: '전갈자리 3D 탐험',
+    category: 'constellation',
+    message: '지구에서 본 전갈자리와 3D 우주에서 본 실제 깊이 거리를 비교해 볼까요?',
+    commands: [],
+  },
+  {
+    id: 'constellation-orion',
+    emoji: '🏹✨',
+    label: '오리온자리 3D 탐험',
+    category: 'constellation',
+    message: '오리온의 허리띠 삼태성은 우주에서 얼마나 멀리 떨어져 있을까요?',
+    commands: [],
+  },
+  {
+    id: 'constellation-ursa',
+    emoji: '🐻✨',
+    label: '큰곰자리(북두칠성) 3D',
+    category: 'constellation',
+    message: '하늘에 뜬 우주 큰 국자 북두칠성의 진짜 3D 입체 거리를 탐험해 봐요!',
+    commands: [],
   },
 
   // --- 리셋 ---

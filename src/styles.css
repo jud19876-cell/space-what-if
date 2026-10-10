@@ -232,6 +232,31 @@ body,
   flex-shrink: 0;
 }
 
+.constellation-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 16px;
+  background: linear-gradient(135deg, rgba(79, 227, 193, 0.35), rgba(59, 130, 246, 0.35));
+  border: 1px solid rgba(79, 227, 193, 0.65);
+  box-shadow: 0 4px 16px rgba(79, 227, 193, 0.3);
+  font-weight: 500;
+  white-space: nowrap;
+  animation: constellationGlow 2.5s ease-in-out infinite alternate;
+}
+.constellation-nav-btn:hover {
+  background: linear-gradient(135deg, rgba(79, 227, 193, 0.65), rgba(59, 130, 246, 0.65));
+  border-color: #6ee7b7;
+  box-shadow: 0 0 24px rgba(79, 227, 193, 0.7);
+  transform: translateY(-2px);
+}
+@keyframes constellationGlow {
+  0% { box-shadow: 0 0 10px rgba(79, 227, 193, 0.3); border-color: rgba(79, 227, 193, 0.5); }
+  100% { box-shadow: 0 0 24px rgba(79, 227, 193, 0.8), 0 0 16px rgba(96, 165, 250, 0.6); border-color: #a7f3d0; }
+}
+
 .astronaut-spaghetti-btn {
   display: flex;
   align-items: center;
@@ -592,6 +617,11 @@ body,
   background: linear-gradient(135deg, #ea580c, #dc2626);
   box-shadow: 0 0 18px rgba(234, 88, 12, 0.6);
 }
+.category-tab-constellation.on {
+  background: linear-gradient(135deg, #059669, #2563eb);
+  box-shadow: 0 0 18px rgba(5, 150, 105, 0.6);
+  border-color: #6ee7b7;
+}
 
 .experiments-row {
   display: flex;
@@ -650,6 +680,15 @@ body,
   background: linear-gradient(135deg, rgba(180, 60, 20, 0.85), rgba(90, 25, 15, 0.95));
   border-color: rgba(255, 170, 70, 0.8);
   box-shadow: 0 6px 24px rgba(255, 100, 20, 0.5);
+}
+.exp-constellation {
+  background: linear-gradient(135deg, rgba(5, 150, 105, 0.35), rgba(37, 99, 235, 0.35));
+  border-color: rgba(52, 211, 153, 0.5);
+}
+.exp-constellation:hover {
+  background: linear-gradient(135deg, rgba(5, 150, 105, 0.6), rgba(37, 99, 235, 0.6));
+  border-color: #34d399;
+  box-shadow: 0 6px 24px rgba(52, 211, 153, 0.6);
 }
 
 /* ---------- 정보 카드 ---------- */
@@ -881,12 +920,14 @@ body,
   }
   .cannon-btn-label,
   .spawn-asteroid-btn .btn-text,
-  .astronaut-spaghetti-btn .btn-text {
+  .astronaut-spaghetti-btn .btn-text,
+  .constellation-nav-btn .btn-text {
     display: none;
   }
   .cannon-toggle-btn,
   .spawn-asteroid-btn,
-  .astronaut-spaghetti-btn {
+  .astronaut-spaghetti-btn,
+  .constellation-nav-btn {
     padding: 8px 12px;
   }
   .round {
@@ -1412,4 +1453,525 @@ body,
     justify-content: center;
   }
 }
+
+/* ==========================================================================
+   3D 입체 별자리 탐험 (Constellation 3D Simulator) 전용 스타일
+   ========================================================================== */
+.constellation-sim-root {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  z-index: 100;
+  background: #02030f;
+  overflow: hidden;
+  font-family: inherit;
+  color: var(--text);
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.constellation-canvas-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.constellation-canvas-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  cursor: grab;
+}
+.constellation-canvas-container canvas:active {
+  cursor: grabbing;
+}
+
+/* 상단 헤더 & 별자리 탭 바 */
+.constellation-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: clamp(10px, 1.6vh, 18px) clamp(14px, 2vw, 28px);
+  background: linear-gradient(to bottom, rgba(2, 3, 15, 0.94), rgba(2, 3, 15, 0.4) 75%, transparent);
+  z-index: 20;
+  pointer-events: none;
+}
+.constellation-header > * {
+  pointer-events: auto;
+}
+
+.constellation-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  max-width: min(80vw, 760px);
+  padding: 4px 6px;
+  border-radius: 999px;
+  background: rgba(14, 20, 52, 0.85);
+  border: 1px solid rgba(130, 160, 255, 0.25);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.constellation-tabs-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.constellation-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #cbd5e1;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+.constellation-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+.constellation-tab-btn.active {
+  background: linear-gradient(135deg, #059669, #2563eb);
+  color: #ffffff;
+  font-weight: bold;
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 16px rgba(37, 99, 235, 0.6);
+}
+.c-tab-emoji {
+  font-size: 18px;
+}
+
+/* 중앙 상단 2D 평면 ↔ 3D 입체 전환 바 */
+.constellation-mode-bar {
+  position: absolute;
+  top: clamp(74px, 10vh, 88px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 20;
+  pointer-events: auto;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.view-mode-pill {
+  display: flex;
+  background: rgba(14, 20, 54, 0.9);
+  padding: 4px;
+  border-radius: 999px;
+  border: 2px solid rgba(79, 227, 193, 0.5);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(79, 227, 193, 0.25);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.btn-view-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 18px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #cbd5e1;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.btn-view-toggle small {
+  font-size: 11px;
+  opacity: 0.8;
+  margin-top: 1px;
+}
+.btn-view-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+.btn-view-toggle.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  font-weight: bold;
+}
+.btn-view-toggle.highlight.active {
+  background: linear-gradient(135deg, #10b981, #3b82f6);
+  color: #ffffff;
+  box-shadow: 0 0 22px rgba(16, 185, 129, 0.7);
+  animation: pulse 1.4s infinite alternate;
+}
+
+.aux-toggles {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-aux-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(14, 20, 50, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #cbd5e1;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.2s ease;
+}
+.btn-aux-toggle:hover {
+  background: rgba(40, 55, 110, 0.85);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.btn-aux-toggle.active {
+  background: rgba(79, 227, 193, 0.25);
+  border-color: #4fe3c1;
+  color: #ffffff;
+}
+
+/* 화면 상단 안내 힌트 뱃지 */
+.constellation-hint-badge {
+  position: absolute;
+  top: clamp(142px, 18vh, 160px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 22px;
+  border-radius: 999px;
+  font-size: clamp(13px, 1.2vw, 15px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  z-index: 15;
+  pointer-events: none;
+  animation: pop 0.25s ease;
+  max-width: min(92vw, 680px);
+  text-align: center;
+}
+.constellation-hint-badge.earth {
+  background: rgba(20, 30, 70, 0.88);
+  border: 1px solid rgba(130, 160, 255, 0.4);
+  color: #e2e8f0;
+}
+.constellation-hint-badge.earth strong {
+  color: #4fe3c1;
+}
+.constellation-hint-badge.space {
+  background: rgba(16, 36, 50, 0.9);
+  border: 1.5px solid #10b981;
+  color: #e2e8f0;
+  box-shadow: 0 0 24px rgba(16, 185, 129, 0.4);
+}
+.constellation-hint-badge.space strong {
+  color: #6ee7b7;
+}
+.constellation-hint-badge .badge-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+/* 우측: 6세 아이를 위한 별자리 동화 스토리 패널 */
+.constellation-story-panel {
+  position: absolute;
+  top: 90px;
+  right: 20px;
+  width: min(92vw, 360px);
+  border-radius: 20px;
+  background: rgba(10, 14, 38, 0.9);
+  border: 1.5px solid rgba(130, 160, 255, 0.35);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.65), 0 0 24px rgba(79, 130, 255, 0.2);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  z-index: 15;
+  overflow: hidden;
+  transition: max-height 0.3s ease, border-color 0.2s ease;
+}
+.constellation-story-panel:hover {
+  border-color: rgba(130, 160, 255, 0.6);
+}
+
+.story-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  user-select: none;
+}
+.story-header:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.story-emoji {
+  font-size: 28px;
+  flex-shrink: 0;
+  animation: wiggle 2.8s infinite ease-in-out;
+}
+.story-title-group {
+  flex: 1;
+}
+.story-title-group h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #ffcc44;
+  letter-spacing: -0.2px;
+}
+.story-tagline {
+  font-size: 11px;
+  color: #94a3b8;
+  display: block;
+}
+.story-toggle-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #cbd5e1;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.story-content {
+  padding: 14px 18px;
+  max-height: 64vh;
+  overflow-y: auto;
+}
+.story-content::-webkit-scrollbar {
+  width: 5px;
+}
+.story-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+}
+
+.story-paragraphs p {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #e2e8f0;
+}
+.story-paragraphs p:last-child {
+  margin-bottom: 12px;
+}
+
+.story-funfact {
+  margin: 12px 0 16px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(79, 227, 193, 0.12);
+  border: 1px solid rgba(79, 227, 193, 0.35);
+}
+.fact-badge {
+  font-size: 12px;
+  font-weight: bold;
+  color: #4fe3c1;
+  display: block;
+  margin-bottom: 4px;
+}
+.story-funfact p {
+  margin: 0;
+  font-size: 12.5px;
+  color: #f1f5f9;
+  line-height: 1.5;
+}
+
+/* 별 목록 칩들 */
+.stars-quick-list {
+  border-top: 1px dashed rgba(255, 255, 255, 0.15);
+  padding-top: 12px;
+}
+.stars-list-title {
+  font-size: 12px;
+  color: #cbd5e1;
+  margin-bottom: 8px;
+}
+.stars-chips-container {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.star-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-left-width: 4px;
+  color: #e2e8f0;
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+.star-chip:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.star-chip.active {
+  background: rgba(79, 227, 193, 0.22);
+  border-color: #4fe3c1;
+  color: #ffffff;
+  font-weight: bold;
+}
+.star-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.star-name {
+  flex: 1;
+}
+.star-ly {
+  color: #ffaa33;
+  font-size: 11.5px;
+}
+
+/* 선택된 별 상세 팝업 카드 (좌측 하단) */
+.selected-star-card {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  width: min(92vw, 380px);
+  padding: 16px 20px;
+  border-radius: 20px;
+  background: rgba(10, 14, 40, 0.94);
+  border: 2px solid #ffcc44;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7), 0 0 28px rgba(255, 204, 68, 0.35);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  z-index: 25;
+  animation: pop 0.22s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+.star-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.star-title-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.star-color-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: 0 0 10px currentColor;
+  margin-right: 2px;
+}
+.star-title-wrap h4 {
+  margin: 0;
+  font-size: 18px;
+  color: #ffffff;
+}
+.star-bayer {
+  font-size: 12px;
+  color: #94a3b8;
+}
+.star-card-close {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #cbd5e1;
+  font-size: 14px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.star-card-close:hover {
+  background: rgba(255, 50, 70, 0.4);
+  color: #fff;
+}
+
+.star-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.metric-box {
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.metric-lbl {
+  font-size: 11px;
+  color: #94a3b8;
+  display: block;
+}
+.metric-val {
+  font-size: 16px;
+  color: #ffaa33;
+  display: block;
+  margin: 2px 0;
+}
+.metric-note {
+  font-size: 10.5px;
+  color: #cbd5e1;
+  display: block;
+}
+
+.star-desc {
+  margin: 0;
+  font-size: 13.5px;
+  color: #e2e8f0;
+  line-height: 1.5;
+}
+
+/* 반응형 모바일 조정 */
+@media (max-width: 900px) {
+  .constellation-story-panel {
+    top: auto;
+    bottom: 20px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-height: 48vh;
+  }
+  .selected-star-card {
+    left: 12px;
+    right: 12px;
+    bottom: 80px;
+    width: auto;
+  }
+  .constellation-hint-badge {
+    top: 130px;
+  }
+}
+
 
