@@ -131,10 +131,10 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
           <button
             className={`btn-aux-toggle ${showArt ? 'active' : ''}`}
             onClick={handleToggleArt}
-            title="별자리 캐릭터 그림 켜기/끄기"
+            title="신비로운 네온 고스트 별자리 그림 켜기/끄기"
           >
-            <span>🎨</span>
-            <span>그림 {showArt ? '켜짐' : '꺼짐'}</span>
+            <span>👻</span>
+            <span>고스트 그림 {showArt ? '켜짐' : '꺼짐'}</span>
           </button>
 
           <button
@@ -152,70 +152,89 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
       <div className={`constellation-hint-badge ${viewMode === 'space3d' ? 'space' : 'earth'}`}>
         {viewMode === 'earth' ? (
           <>
-            <span className="badge-icon">🌍👀</span>
+            <span className="badge-icon">🦂👻</span>
             <span>
-              <strong>지구의 밤하늘 시점:</strong> 모든 별이 같은 거리에 평면으로 붙어 있는 것처럼 보여요! 오른쪽 <strong>[3D 입체로 보기]</strong>를 눌러보세요!
+              <strong>지구 밤하늘 시점:</strong> 왜 옛날 사람들은 이 별들을 <strong>{activeConstellation.name}</strong>로 보았을까요? 별들에 겹쳐진 <strong>은은한 네온 고스트 실루엣</strong>을 확인해 보세요!
             </span>
           </>
         ) : (
           <>
             <span className="badge-icon">🚀✨</span>
             <span>
-              <strong>3D 입체 우주 시점:</strong> 마우스나 손가락으로 화면을 돌려보세요! 별들이 앞뒤로 수백 광년씩 깊숙이 떨어져 있어요!
+              <strong>3D 입체 우주 시점:</strong> 마우스나 터치로 돌려보세요! 평면 그림과 달리 별들이 앞뒤로 수백 광년씩 깊숙이 떨어져 있어요!
             </span>
           </>
         )}
       </div>
 
-      {/* 우측 상단/플로팅: 6살 아이를 위한 별자리 동화 스토리 카드 */}
+      {/* 우측 상단/플로팅: 6살 아이를 위한 별자리 동화 스토리 카드 (반응형 비율 & 화면 가림 방지 접기) */}
       <aside className={`constellation-story-panel ${isStoryExpanded ? 'expanded' : 'collapsed'}`}>
-        <div className="story-header" onClick={() => setIsStoryExpanded((prev) => !prev)}>
-          <span className="story-emoji">{activeConstellation.emoji}</span>
-          <div className="story-title-group">
-            <h3>{activeConstellation.story.title}</h3>
-            <span className="story-tagline">{activeConstellation.story.tagline}</span>
-          </div>
-          <button className="story-toggle-btn" aria-label="접기/펼치기">
-            {isStoryExpanded ? '▲' : '▼'}
+        {!isStoryExpanded ? (
+          <button
+            className="story-collapsed-pill"
+            onClick={() => setIsStoryExpanded(true)}
+            title="별자리 이야기 펼치기"
+          >
+            <span className="pill-emoji">{activeConstellation.emoji}</span>
+            <span className="pill-text">{activeConstellation.name} 이야기</span>
+            <span className="pill-arrow">📖 펼치기 ▼</span>
           </button>
-        </div>
-
-        {isStoryExpanded && (
-          <div className="story-content">
-            <div className="story-paragraphs">
-              {activeConstellation.story.paragraphs.map((p, idx) => (
-                <p key={idx}>{p}</p>
-              ))}
-            </div>
-
-            <div className="story-funfact">
-              <span className="fact-badge">💡 신기한 우주 비밀!</span>
-              <p>{activeConstellation.story.funFact}</p>
-            </div>
-
-            {/* 별 목록 퀵 셀렉터 */}
-            <div className="stars-quick-list">
-              <div className="stars-list-title">
-                <span>별을 클릭해 거리를 확인해 보세요:</span>
+        ) : (
+          <>
+            <div className="story-header" onClick={() => setIsStoryExpanded(false)}>
+              <span className="story-emoji">{activeConstellation.emoji}</span>
+              <div className="story-title-group">
+                <h3>{activeConstellation.story.title}</h3>
+                <span className="story-tagline">{activeConstellation.story.tagline}</span>
               </div>
-              <div className="stars-chips-container">
-                {activeConstellation.stars.map((s) => (
-                  <button
-                    key={s.id}
-                    className={`star-chip ${selectedStar?.id === s.id ? 'active' : ''}`}
-                    onClick={() => handlePickStarFromList(s)}
-                    style={{
-                      borderLeftColor: s.color,
-                    }}
-                  >
-                    <span className="star-dot" style={{ backgroundColor: s.color }} />
-                    <span className="star-name">{s.name.split(' ')[0]}</span>
-                    <strong className="star-ly">{s.distanceLy}광년</strong>
-                  </button>
+              <button
+                className="story-toggle-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsStoryExpanded(false);
+                }}
+                title="별자리를 크게 보기 위해 이야기 접기"
+              >
+                ▲ 접기
+              </button>
+            </div>
+
+            <div className="story-content">
+              <div className="story-paragraphs">
+                {activeConstellation.story.paragraphs.map((p, idx) => (
+                  <p key={idx}>{p}</p>
                 ))}
               </div>
+
+              <div className="story-funfact">
+                <span className="fact-badge">💡 신기한 우주 비밀!</span>
+                <p>{activeConstellation.story.funFact}</p>
+              </div>
+
+              {/* 별 목록 퀵 셀렉터 (2열 그리드로 공간 절약 및 높은 가독성) */}
+              <div className="stars-quick-list">
+                <div className="stars-list-title">
+                  <span>별을 클릭해 3D 거리를 확인해 보세요:</span>
+                </div>
+                <div className="stars-chips-container">
+                  {activeConstellation.stars.map((s) => (
+                    <button
+                      key={s.id}
+                      className={`star-chip ${selectedStar?.id === s.id ? 'active' : ''}`}
+                      onClick={() => handlePickStarFromList(s)}
+                      style={{
+                        borderLeftColor: s.color,
+                      }}
+                    >
+                      <span className="star-dot" style={{ backgroundColor: s.color }} />
+                      <span className="star-name">{s.name.split(' ')[0]}</span>
+                      <strong className="star-ly">{s.distanceLy}광년</strong>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
+          </>
         )}
       </aside>
 

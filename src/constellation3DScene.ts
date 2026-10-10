@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { type ConstellationData, type StarData } from './constellationsData.ts';
+import { generateGhostCanvas } from './constellationGhostArt.ts';
 
 export type ConstellationViewMode = 'earth' | 'space3d' | 'top';
 
@@ -168,6 +169,8 @@ export function createConstellation3DScene(
   let connectionLineMesh: THREE.LineSegments | null = null;
   let guideGroup: THREE.Group = new THREE.Group();
   let artGroup: THREE.Group = new THREE.Group();
+  let ghostMesh: THREE.Mesh | null = null;
+  let ghostMat: THREE.MeshBasicMaterial | null = null;
   scene.add(guideGroup);
   scene.add(artGroup);
 
@@ -303,65 +306,55 @@ export function createConstellation3DScene(
     buildConstellationArt();
   }
 
-  // 별자리 캐릭터 실루엣 3D 곡선
+  // 별자리 캐릭터 네온 고스트 실루엣 일러스트 생성
   function buildConstellationArt() {
-    const artPts: THREE.Vector3[] = [];
-    const color = 0x66aaff;
-
-    if (currentConstellation.silhouetteType === 'scorpion') {
-      // 전갈 몸통 & 집게발 아치 곡선
-      const antares = starMeshes.get('antares')?.pos3D ?? new THREE.Vector3(0, 0, 10);
-      const acrab = starMeshes.get('acrab')?.pos3D ?? new THREE.Vector3(-4, 8, 8);
-      const shaula = starMeshes.get('shaula')?.pos3D ?? new THREE.Vector3(8, -8, 12);
-
-      // 집게발 둥근 곡선
-      const curveL = new THREE.CatmullRomCurve3([
-        antares,
-        new THREE.Vector3(antares.x - 3, antares.y + 4, antares.z - 2),
-        acrab,
-        new THREE.Vector3(acrab.x - 2, acrab.y + 2, acrab.z),
-      ]);
-      artPts.push(...curveL.getPoints(24));
-
-      // 꼬리 독침 아치
-      const curveTail = new THREE.CatmullRomCurve3([
-        antares,
-        new THREE.Vector3(antares.x + 3, antares.y - 4, antares.z + 1),
-        new THREE.Vector3(shaula.x - 2, shaula.y - 3, shaula.z),
-        shaula,
-      ]);
-      artPts.push(...curveTail.getPoints(24));
-    } else if (currentConstellation.silhouetteType === 'hunter') {
-      // 오리온 방패 및 활 곡선
-      const belt = starMeshes.get('alnilam')?.pos3D ?? new THREE.Vector3(0, 0, 15);
-      const curveBow = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(belt.x + 6, belt.y + 6, belt.z),
-        new THREE.Vector3(belt.x + 7, belt.y, belt.z),
-        new THREE.Vector3(belt.x + 6, belt.y - 6, belt.z),
-      ]);
-      artPts.push(...curveBow.getPoints(20));
+    while (artGroup.children.length > 0) {
+      artGroup.remove(artGroup.children[0]);
+    }
+    if (ghostMesh) {
+      ghostMesh.geometry.dispose();
+      ghostMat?.map?.dispose();
+      ghostMat?.dispose();
+      ghostMesh = null;
+      ghostMat = null;
     }
 
-    if (artPts.length > 0) {
-      const artGeo = new THREE.BufferGeometry().setFromPoints(artPts);
-      const artMat = new THREE.LineBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.35,
-        blending: THREE.AdditiveBlending,
-      });
-      const artLine = new THREE.Line(artGeo, artMat);
-      artGroup.add(artLine);
-    }
+    // 1. 고스트 캔버스 텍스처 생성 (1024x1024 네온 실루엣)
+    const canvas = generateGhostCanvas(currentConstellation.id);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = true;
+
+    // 2. 3D 깊이 Z = 16 기준 평면 크기 (skyPos [-6, 6] 범위 = 12 * 2.8 * k)
+    const planeSize = 12 * 2.8 * ((CAM_EARTH_DIST + 16) / CAM_EARTH_DIST);
+    const ghostGeo = new THREE.PlaneGeometry(planeSize, planeSize);
+    ghostMat = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.88,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    ghostMesh = new THREE.Mesh(ghostGeo, ghostMat);
+    ghostMesh.position.set(0, 0, 16);
+    ghostMesh.renderOrder = 3;
+    artGroup.add(ghostMesh);
   }
 
   // 뷰 모드 업데이트
   function applyViewMode(mode: ConstellationViewMode) {
     viewMode = mode;
+    const isNarrow = container.clientWidth < 950;
     if (mode === 'earth') {
-      // 지구에서 똑바로 바라보는 2D 정렬 시점
-      targetCamPos.set(0, 0, -CAM_EARTH_DIST);
-      targetCamLook.set(0, 0, 16);
+      // 지구에서 똑바로 바라보는 2D 정렬 시점 (우측 설명창과의 여백을 고려해 우주가 시원하게 보이도록 오프셋)
+      const offX = isNarrow ? 0 : 1.6;
+      const offY = isNarrow ? -1.0 : 0;
+      targetCamPos.set(offX, offY, -CAM_EARTH_DIST);
+      targetCamLook.set(offX, offY, 16);
       controls.enableRotate = false; // 정렬 상태 유지
       playStarChime(440);
     } else if (mode === 'space3d') {
@@ -444,6 +437,12 @@ export function createConstellation3DScene(
       selectRing.scale.setScalar(1 + Math.sin(time * 3) * 0.12);
     }
 
+    // 신비로운 고스트 별자리 실루엣 숨결 펄스 애니메이션
+    if (ghostMat) {
+      const breath = 0.78 + Math.sin(time * 1.8) * 0.15;
+      ghostMat.opacity = breath;
+    }
+
     guideGroup.visible = showGuides;
     artGroup.visible = showArt;
 
@@ -457,6 +456,13 @@ export function createConstellation3DScene(
     camera.aspect = container.clientWidth / container.clientHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(container.clientWidth, container.clientHeight);
+    if (viewMode === 'earth') {
+      const isNarrow = container.clientWidth < 950;
+      const offX = isNarrow ? 0 : 1.6;
+      const offY = isNarrow ? -1.0 : 0;
+      targetCamPos.set(offX, offY, -CAM_EARTH_DIST);
+      targetCamLook.set(offX, offY, 16);
+    }
   };
   window.addEventListener('resize', onResize);
 
@@ -493,6 +499,11 @@ export function createConstellation3DScene(
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', onResize);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      if (ghostMesh) {
+        ghostMesh.geometry.dispose();
+        ghostMat?.map?.dispose();
+        ghostMat?.dispose();
+      }
       renderer.dispose();
       if (renderer.domElement.parentNode) {
         renderer.domElement.parentNode.removeChild(renderer.domElement);

@@ -1695,31 +1695,80 @@ body,
   flex-shrink: 0;
 }
 
-/* 우측: 6세 아이를 위한 별자리 동화 스토리 패널 */
+/* 우측: 6세 아이를 위한 별자리 동화 스토리 패널 (반응형 비율 & 화면 가림 방지) */
 .constellation-story-panel {
   position: absolute;
-  top: 90px;
-  right: 20px;
-  width: min(92vw, 360px);
-  border-radius: 20px;
-  background: rgba(10, 14, 38, 0.9);
+  top: clamp(70px, 9vh, 90px);
+  right: clamp(12px, 1.8vw, 24px);
+  z-index: 15;
+  transition: all 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.constellation-story-panel.collapsed {
+  width: auto;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.constellation-story-panel.expanded {
+  width: clamp(260px, 24vw, 340px);
+  border-radius: 18px;
+  background: rgba(9, 13, 35, 0.88);
   border: 1.5px solid rgba(130, 160, 255, 0.35);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.65), 0 0 24px rgba(79, 130, 255, 0.2);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  z-index: 15;
   overflow: hidden;
-  transition: max-height 0.3s ease, border-color 0.2s ease;
 }
-.constellation-story-panel:hover {
+.constellation-story-panel.expanded:hover {
   border-color: rgba(130, 160, 255, 0.6);
+}
+
+/* 접힌 상태의 미니멀 플로팅 캡슐 버튼 */
+.story-collapsed-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(10, 15, 42, 0.92);
+  border: 1.5px solid #4fe3c1;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65), 0 0 16px rgba(79, 227, 193, 0.4);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: clamp(12px, 0.9vw, 13.5px);
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.story-collapsed-pill:hover {
+  transform: translateY(-2px) scale(1.02);
+  background: rgba(16, 26, 60, 0.96);
+  border-color: #6ee7b7;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.75), 0 0 22px rgba(79, 227, 193, 0.6);
+}
+.story-collapsed-pill .pill-emoji {
+  font-size: 18px;
+  animation: wiggle 2.5s infinite ease-in-out;
+}
+.story-collapsed-pill .pill-text {
+  letter-spacing: -0.2px;
+}
+.story-collapsed-pill .pill-arrow {
+  font-size: 11px;
+  color: #ffcc44;
 }
 
 .story-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 18px;
+  padding: clamp(10px, 1.2vh, 14px) clamp(12px, 1.2vw, 16px);
   background: rgba(255, 255, 255, 0.05);
   cursor: pointer;
   user-select: none;
@@ -1728,110 +1777,132 @@ body,
   background: rgba(255, 255, 255, 0.08);
 }
 .story-emoji {
-  font-size: 28px;
+  font-size: clamp(22px, 1.8vw, 28px);
   flex-shrink: 0;
   animation: wiggle 2.8s infinite ease-in-out;
 }
 .story-title-group {
   flex: 1;
+  min-width: 0;
 }
 .story-title-group h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: clamp(13px, 1.05vw, 15.5px);
   color: #ffcc44;
   letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .story-tagline {
-  font-size: 11px;
+  font-size: clamp(10px, 0.8vw, 11px);
   color: #94a3b8;
   display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .story-toggle-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: #cbd5e1;
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 8px;
   cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.story-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
 }
 
 .story-content {
-  padding: 14px 18px;
-  max-height: 64vh;
+  padding: clamp(10px, 1.2vh, 14px) clamp(12px, 1.2vw, 16px);
+  max-height: clamp(280px, 54vh, 480px);
   overflow-y: auto;
 }
 .story-content::-webkit-scrollbar {
-  width: 5px;
+  width: 4px;
 }
 .story-content::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.25);
   border-radius: 999px;
 }
 
 .story-paragraphs p {
-  margin: 0 0 10px;
-  font-size: 13.5px;
+  margin: 0 0 8px;
+  font-size: clamp(11.5px, 0.86vw, 13px);
   line-height: 1.6;
   color: #e2e8f0;
 }
 .story-paragraphs p:last-child {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .story-funfact {
-  margin: 12px 0 16px;
-  padding: 10px 14px;
+  margin: 10px 0 12px;
+  padding: 8px 12px;
   border-radius: 12px;
   background: rgba(79, 227, 193, 0.12);
   border: 1px solid rgba(79, 227, 193, 0.35);
 }
 .fact-badge {
-  font-size: 12px;
+  font-size: clamp(10.5px, 0.8vw, 11.5px);
   font-weight: bold;
   color: #4fe3c1;
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 .story-funfact p {
   margin: 0;
-  font-size: 12.5px;
+  font-size: clamp(11px, 0.82vw, 12px);
   color: #f1f5f9;
   line-height: 1.5;
 }
 
-/* 별 목록 칩들 */
+/* 별 목록 칩들 (2열 그리드로 공간 절약 및 높은 가독성) */
 .stars-quick-list {
   border-top: 1px dashed rgba(255, 255, 255, 0.15);
-  padding-top: 12px;
+  padding-top: 10px;
 }
 .stars-list-title {
-  font-size: 12px;
+  font-size: clamp(10.5px, 0.8vw, 11.5px);
   color: #cbd5e1;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 .stars-chips-container {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 5px;
-  max-height: 180px;
+  max-height: 140px;
   overflow-y: auto;
+}
+.stars-chips-container::-webkit-scrollbar {
+  width: 3px;
+}
+.stars-chips-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
 }
 .star-chip {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 8px;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-left-width: 4px;
+  border-left-width: 3px;
   color: #e2e8f0;
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: clamp(10.5px, 0.8vw, 11.5px);
   cursor: pointer;
   text-align: left;
   transition: all 0.15s ease;
+  min-width: 0;
 }
 .star-chip:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -1843,17 +1914,21 @@ body,
   font-weight: bold;
 }
 .star-dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 .star-name {
   flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .star-ly {
   color: #ffaa33;
-  font-size: 11.5px;
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 /* 선택된 별 상세 팝업 카드 (좌측 하단) */
@@ -1953,15 +2028,19 @@ body,
   line-height: 1.5;
 }
 
-/* 반응형 모바일 조정 */
+/* 반응형 모바일 및 좁은 화면 조정 */
 @media (max-width: 900px) {
   .constellation-story-panel {
     top: auto;
     bottom: 20px;
     right: 12px;
+    left: auto;
+  }
+  .constellation-story-panel.expanded {
     left: 12px;
+    right: 12px;
     width: auto;
-    max-height: 48vh;
+    max-height: 45vh;
   }
   .selected-star-card {
     left: 12px;
