@@ -1,6 +1,7 @@
 // 은하 대충돌 & 심우주 N-Body 천체물리 엔진
-// 두 거대 나선은하(우리은하 & 안드로스/안드로메다)의 상호 중력 섭동, 조석 꼬리(Tidal Tails),
-// 성운 가스 구름 및 초대질량 블랙홀의 은하 포식 현상을 정밀 시뮬레이션한다.
+// "우선 태양계에 우리은하에서 그 근방에 있는것들로 표현해"
+// 기본 상태: 우리은하(태양계 오리온자리 팔 표기) 및 국부은하군(안드로메다 M31, 삼각형자리 M33, 대마젤란은하 LMC, 소마젤란은하 SMC)
+// 조건 트리거: 두 은하 정면 충돌, 조석 꼬리 스침, 괴물 블랙홀 포식, 위성은하 흡수 등
 
 export interface GalacticCore {
   id: string;
@@ -18,36 +19,39 @@ export interface GalaxyParticles {
   vel: Float32Array;      // [vx, vy, vz] * count
   color: Float32Array;    // [r, g, b] * count
   size: Float32Array;     // [size] * count
-  galaxyId: Uint8Array;   // 0: 우리은하, 1: 안드로스은하, 2: 포획/가스
+  galaxyId: Uint8Array;   // 0: 우리은하, 1: 안드로메다, 2: 삼각형자리, 3: 대마젤란, 4: 소마젤란, 5: 블랙홀
   isGas: Uint8Array;      // 0: 별(Star), 1: 성운 가스 구름(Nebula Gas Cloud)
   alive: Uint8Array;      // 1: 생존, 0: 블랙홀 흡수
   count: number;
 }
 
 export type GalaxyScenarioType =
+  | 'local_group'   // 🌌 [기본] 우리은하 & 국부은하군 (태양계 위치 표기 + 인근 은하 군집 평형)
   | 'head_on'       // 💥 정면 관통 대충돌 (고리 은하 형성)
   | 'grazing'       // 🌀 조석 꼬리 스침 충돌 (더듬이/생쥐 은하)
   | 'supermassive'  // 🕳️ 초대질량 괴물 블랙홀 [가르간튀아]의 은하 쌍포식
   | 'binary_dance'  // 💫 쌍은하 안정적 공전 군무
-  | 'cannibalism';  // 🪐 거대 은하의 왜소은하 포식 합병
+  | 'cannibalism';  // 🪐 거대 은하의 위성은하(대/소마젤란) 포식 합병
 
 export interface GalaxySimState {
   cores: GalacticCore[];
   particles: GalaxyParticles;
+  solarSystemPos: [number, number, number]; // 우리은하 내 태양계 실시간 3D 위치
+  solarAngleRad: number;
   timeMyr: number;        // 경과 시간 (백만 년, Myr)
   paused: boolean;
   speed: number;          // 1x ~ 50x
   scenario: GalaxyScenarioType;
-  distanceKpc: number;    // 두 은하 중심핵 간의 실시간 거리 (kpc)
+  distanceKpc: number;    // 주 은하 간 실시간 거리 (kpc)
   swallowedCount: number; // 블랙홀에 흡수된 별 수
   tidalDistortion: number;// 조석 변형률 (0.0 ~ 1.0)
 }
 
-const G_GALACTIC = 1.2;     // 은하 단위계 중력 상수
+const G_GALACTIC = 1.2;              // 은하 단위계 중력 상수
 const CORE_SOFTENING2 = 4.0 * 4.0;   // 중심핵 연화 거리 제곱 (kpc^2)
 const STAR_SOFTENING2 = 2.5 * 2.5;   // 별 연화 거리 제곱 (kpc^2)
 
-/** 은하 초기화 헬퍼: 3D 회전 행렬 생성 (경사각 및 방위각) */
+/** 3D 회전 행렬 생성 (경사각 및 방위각) */
 function makeRotationMatrix(tiltXDeg: number, tiltYDeg: number, tiltZDeg: number) {
   const rx = (tiltXDeg * Math.PI) / 180;
   const ry = (tiltYDeg * Math.PI) / 180;
@@ -57,7 +61,6 @@ function makeRotationMatrix(tiltXDeg: number, tiltYDeg: number, tiltZDeg: number
   const cy = Math.cos(ry), sy = Math.sin(ry);
   const cz = Math.cos(rz), sz = Math.sin(rz);
 
-  // Z * Y * X
   return [
     cy * cz, cz * sx * sy - cx * sz, cx * cz * sy + sx * sz,
     cy * sz, cx * cz + sx * sy * sz, -cz * sx + cx * sy * sz,
@@ -74,8 +77,7 @@ function applyRotation(mat: number[], v: [number, number, number]): [number, num
 }
 
 /**
- * 대규모 나선은하 생성기
- * 로그 나선팔 밀도파와 암흑물질 헤일로 평탄 회전 곡선(Flat Rotation Curve) 적용
+ * 대규모 나선 및 왜소은하 입자 생성기
  */
 export function createSpiralGalaxyParticles(
   coreMass: number,
@@ -102,39 +104,33 @@ export function createSpiralGalaxyParticles(
 
   const totalCount = starCount + gasCount;
   const arms = 2; // 2개의 주 나선팔
-  const pitchAngle = 0.28; // 나선팔 감김각
+  const pitchAngle = 0.28;
 
   for (let i = 0; i < totalCount; i++) {
     const isThisGas = i >= starCount;
-    // 반경 분포: 중심 밀집 지수 분포 (Exponential Disk)
     const u = Math.random();
-    const r = Math.max(1.8, Math.min(radiusKpc, -Math.log(1 - u * 0.96) * (radiusKpc * 0.32)));
+    const r = Math.max(1.5, Math.min(radiusKpc, -Math.log(1 - u * 0.96) * (radiusKpc * 0.32)));
 
-    // 나선팔 각도 + 퍼짐 오차
     const armIdx = i % arms;
     const baseTheta = (armIdx * 2 * Math.PI) / arms;
     const spiralTheta = baseTheta + Math.log(r / 1.5) / pitchAngle;
     const spread = (Math.random() - 0.5) * (0.45 + r * 0.015);
     const theta = spiralTheta + spread;
 
-    // 수직 원반 두께 (Thin Disk)
     const zThickness = (Math.random() - 0.5) * (0.8 + r * 0.04);
-
     const localP: [number, number, number] = [Math.cos(theta) * r, Math.sin(theta) * r, zThickness];
 
-    // 평탄한 암흑물질 헤일로 공전 속도 (플러머 코어 + 헤일로 잠재력)
+    // 암흑물질 헤일로 평탄 회전 곡선
     const vPlummer2 = (G_GALACTIC * coreMass * r * r) / Math.pow(r * r + 16.0, 1.5);
     const vHalo2 = (G_GALACTIC * coreMass * 0.85 * r * r) / (r * r + 36.0);
     const vCirc = Math.sqrt(Math.max(0.1, vPlummer2 + vHalo2));
 
-    // 공전 속도 벡터 (수직 접선 방향 + 미세 분산)
     const localV: [number, number, number] = [
-      -Math.sin(theta) * vCirc + (Math.random() - 0.5) * 0.3,
-      Math.cos(theta) * vCirc + (Math.random() - 0.5) * 0.3,
-      (Math.random() - 0.5) * 0.2,
+      -Math.sin(theta) * vCirc + (Math.random() - 0.5) * 0.25,
+      Math.cos(theta) * vCirc + (Math.random() - 0.5) * 0.25,
+      (Math.random() - 0.5) * 0.15,
     ];
 
-    // 은하 고유 회전각 적용 후 전체 은하 중심 및 속도 합산
     const worldP = applyRotation(rotMat, localP);
     const worldV = applyRotation(rotMat, localV);
 
@@ -145,21 +141,18 @@ export function createSpiralGalaxyParticles(
     isGas.push(isThisGas ? 1 : 0);
 
     if (isThisGas) {
-      // 성운 가스 구름: 더 크고 부드러우며 신비로운 색상
       sz.push(3.5 + Math.random() * 3.5);
       const mix = Math.random();
       col.push(
-        armColor[0] * mix + baseColor[0] * (1 - mix) + (Math.random() - 0.5) * 0.15,
-        armColor[1] * mix + baseColor[1] * (1 - mix) + (Math.random() - 0.5) * 0.15,
-        armColor[2] * mix + baseColor[2] * (1 - mix) + (Math.random() - 0.5) * 0.15,
+        armColor[0] * mix + baseColor[0] * (1 - mix) + (Math.random() - 0.5) * 0.1,
+        armColor[1] * mix + baseColor[1] * (1 - mix) + (Math.random() - 0.5) * 0.1,
+        armColor[2] * mix + baseColor[2] * (1 - mix) + (Math.random() - 0.5) * 0.1,
       );
     } else {
-      // 별: 은하 중심부는 밝은 금빛/백색, 외곽 나선팔은 찬란한 성운색
       const rRatio = r / radiusKpc;
-      sz.push(0.7 + Math.random() * 1.6);
-      if (rRatio < 0.22) {
-        // 중심 은하 팽대부 별무리 (밝은 백금색)
-        col.push(1.0, 0.95, 0.82);
+      sz.push(0.7 + Math.random() * 1.5);
+      if (rRatio < 0.2) {
+        col.push(1.0, 0.95, 0.82); // 중심 팽대부
       } else {
         const mix = Math.random();
         col.push(
@@ -174,7 +167,7 @@ export function createSpiralGalaxyParticles(
   return { pos, vel, col, sz, gid, isGas };
 }
 
-/** 은하 시나리오별 초기 물리 상태 생성 */
+/** 시나리오별 초기 물리 상태 생성 (기본: 국부은하군 평형 모드) */
 export function createGalaxyScenario(scenario: GalaxyScenarioType): GalaxySimState {
   const cores: GalacticCore[] = [];
   let allPos: number[] = [];
@@ -184,103 +177,156 @@ export function createGalaxyScenario(scenario: GalaxyScenarioType): GalaxySimSta
   let allGid: number[] = [];
   let allIsGas: number[] = [];
 
-  const starN = 1400; // 은하당 별 수
-  const gasN = 250;   // 은하당 성운 가스 구름 수
-
   switch (scenario) {
+    case 'local_group': {
+      // 🌌 [기본] 우리은하 및 국부은하군 (Local Group Cosmic Neighborhood)
+      // 1. 우리은하 (Milky Way Galaxy) - 태양계가 위치한 중심 은하
+      cores.push({
+        id: 'core_milkyway',
+        name: '우리은하 (궁수자리 A*)',
+        mass: 3200,
+        pos: [0, 0, 0],
+        vel: [0, 0, 0],
+        radius: 3.8,
+        color: '#38bdf8',
+      });
+      const gMilkyWay = createSpiralGalaxyParticles(
+        3200, [0, 0, 0], [0, 0, 0], 0, 1400, 250, 32,
+        0, 0, 0, [0.25, 0.75, 1.0], [1.0, 0.88, 0.4],
+      );
+
+      // 2. 안드로메다 은하 (Andromeda Galaxy M31) - 약 230 kpc 거리에 위치
+      cores.push({
+        id: 'core_andromeda',
+        name: '안드로메다 은하 (M31)',
+        mass: 3500,
+        pos: [210, 40, -30],
+        vel: [-0.9, -0.3, 0.1],
+        radius: 4.0,
+        color: '#c084fc',
+      });
+      const gAndromeda = createSpiralGalaxyParticles(
+        3500, [210, 40, -30], [-0.9, -0.3, 0.1], 1, 1400, 250, 35,
+        45, 25, 10, [0.85, 0.3, 0.95], [0.45, 0.2, 1.0],
+      );
+
+      // 3. 삼각형자리 은하 (Triangulum Galaxy M33)
+      cores.push({
+        id: 'core_triangulum',
+        name: '삼각형자리 은하 (M33)',
+        mass: 800,
+        pos: [150, -85, 35],
+        vel: [-0.5, 0.7, -0.2],
+        radius: 2.3,
+        color: '#2dd4bf',
+      });
+      const gTriangulum = createSpiralGalaxyParticles(
+        800, [150, -85, 35], [-0.5, 0.7, -0.2], 2, 450, 80, 20,
+        -25, 30, -15, [0.2, 0.9, 0.7], [0.4, 0.7, 1.0],
+      );
+
+      // 4. 대마젤란은하 (Large Magellanic Cloud LMC) - 우리은하 위성은하
+      cores.push({
+        id: 'core_lmc',
+        name: '대마젤란은하 (LMC)',
+        mass: 500,
+        pos: [-45, -38, 12],
+        vel: [1.6, -1.1, 0.4],
+        radius: 1.9,
+        color: '#fbbf24',
+      });
+      const gLMC = createSpiralGalaxyParticles(
+        500, [-45, -38, 12], [1.6, -1.1, 0.4], 3, 300, 60, 15,
+        30, -20, 10, [1.0, 0.65, 0.2], [1.0, 0.9, 0.4],
+      );
+
+      // 5. 소마젤란은하 (Small Magellanic Cloud SMC)
+      cores.push({
+        id: 'core_smc',
+        name: '소마젤란은하 (SMC)',
+        mass: 250,
+        pos: [-58, -52, -10],
+        vel: [1.3, -0.8, 0.3],
+        radius: 1.5,
+        color: '#60a5fa',
+      });
+      const gSMC = createSpiralGalaxyParticles(
+        250, [-58, -52, -10], [1.3, -0.8, 0.3], 4, 200, 40, 12,
+        15, 25, -20, [0.4, 0.6, 1.0], [0.7, 0.85, 1.0],
+      );
+
+      allPos = [...gMilkyWay.pos, ...gAndromeda.pos, ...gTriangulum.pos, ...gLMC.pos, ...gSMC.pos];
+      allVel = [...gMilkyWay.vel, ...gAndromeda.vel, ...gTriangulum.vel, ...gLMC.vel, ...gSMC.vel];
+      allCol = [...gMilkyWay.col, ...gAndromeda.col, ...gTriangulum.col, ...gLMC.col, ...gSMC.col];
+      allSz = [...gMilkyWay.sz, ...gAndromeda.sz, ...gTriangulum.sz, ...gLMC.sz, ...gSMC.sz];
+      allGid = [...gMilkyWay.gid, ...gAndromeda.gid, ...gTriangulum.gid, ...gLMC.gid, ...gSMC.gid];
+      allIsGas = [...gMilkyWay.isGas, ...gAndromeda.isGas, ...gTriangulum.isGas, ...gLMC.isGas, ...gSMC.isGas];
+      break;
+    }
+
     case 'head_on': {
-      // 💥 정면 관통 대충돌 (거리 220 kpc, 정면 돌진 속도 14.5)
+      // 💥 정면 관통 대충돌 (거리 200 kpc, 고속 돌진 충돌)
       cores.push(
         {
           id: 'core_milkyway',
           name: '우리은하 중심핵',
           mass: 2800,
-          pos: [-100, 0, 0],
-          vel: [7.2, 0, 0],
+          pos: [-95, 0, 0],
+          vel: [7.5, 0, 0],
           radius: 3.5,
           color: '#38bdf8',
         },
         {
-          id: 'core_andros',
-          name: '안드로스 은하 중심핵',
+          id: 'core_andromeda',
+          name: '안드로메다 중심핵',
           mass: 3200,
-          pos: [100, 0, 0],
-          vel: [-7.2, 0, 0],
+          pos: [95, 0, 0],
+          vel: [-7.5, 0, 0],
           radius: 3.8,
           color: '#c084fc',
         },
       );
-
-      // 우리은하 (에메랄드-시안-골드)
-      const g1 = createSpiralGalaxyParticles(
-        2800, [-100, 0, 0], [7.2, 0, 0], 0, starN, gasN, 32,
-        0, 0, 0, [0.2, 0.7, 1.0], [1.0, 0.85, 0.35],
-      );
-      // 안드로스 은하 (마젠타-퍼플-바이올렛) - 원반 45도 기울어짐
-      const g2 = createSpiralGalaxyParticles(
-        3200, [100, 0, 0], [-7.2, 0, 0], 1, starN, gasN, 34,
-        45, 20, 15, [0.85, 0.25, 0.95], [0.45, 0.2, 1.0],
-      );
-
-      allPos = [...g1.pos, ...g2.pos];
-      allVel = [...g1.vel, ...g2.vel];
-      allCol = [...g1.col, ...g2.col];
-      allSz = [...g1.sz, ...g2.sz];
-      allGid = [...g1.gid, ...g2.gid];
-      allIsGas = [...g1.isGas, ...g2.isGas];
+      const g1 = createSpiralGalaxyParticles(2800, [-95, 0, 0], [7.5, 0, 0], 0, 1500, 250, 32, 0, 0, 0, [0.2, 0.7, 1.0], [1.0, 0.85, 0.35]);
+      const g2 = createSpiralGalaxyParticles(3200, [95, 0, 0], [-7.5, 0, 0], 1, 1500, 250, 34, 45, 20, 15, [0.85, 0.25, 0.95], [0.45, 0.2, 1.0]);
+      allPos = [...g1.pos, ...g2.pos]; allVel = [...g1.vel, ...g2.vel]; allCol = [...g1.col, ...g2.col]; allSz = [...g1.sz, ...g2.sz]; allGid = [...g1.gid, ...g2.gid]; allIsGas = [...g1.isGas, ...g2.isGas];
       break;
     }
 
     case 'grazing': {
-      // 🌀 조석 꼬리 스침 충돌 (더듬이 은하 / 생쥐 은하)
-      // 충돌 모수가 있어 스쳐 지나가며 거대한 조석 다리와 나선 꼬리를 형성
+      // 🌀 조석 꼬리 스침 충돌
       cores.push(
         {
           id: 'core_milkyway',
           name: '우리은하 중심핵',
           mass: 3000,
-          pos: [-120, -35, 0],
-          vel: [6.8, 2.2, 0],
+          pos: [-115, -35, 0],
+          vel: [7.0, 2.4, 0],
           radius: 3.5,
           color: '#38bdf8',
         },
         {
-          id: 'core_andros',
-          name: '안드로스 은하 중심핵',
+          id: 'core_andromeda',
+          name: '안드로메다 중심핵',
           mass: 3200,
-          pos: [120, 35, 0],
-          vel: [-6.8, -2.2, 0],
+          pos: [115, 35, 0],
+          vel: [-7.0, -2.4, 0],
           radius: 3.8,
           color: '#e879f9',
         },
       );
-
-      const g1 = createSpiralGalaxyParticles(
-        3000, [-120, -35, 0], [6.8, 2.2, 0], 0, starN, gasN, 35,
-        15, 10, 0, [0.25, 0.75, 1.0], [0.95, 0.9, 0.4],
-      );
-      const g2 = createSpiralGalaxyParticles(
-        3200, [120, 35, 0], [-6.8, -2.2, 0], 1, starN, gasN, 36,
-        -35, 40, 25, [0.95, 0.35, 0.85], [0.65, 0.2, 1.0],
-      );
-
-      allPos = [...g1.pos, ...g2.pos];
-      allVel = [...g1.vel, ...g2.vel];
-      allCol = [...g1.col, ...g2.col];
-      allSz = [...g1.sz, ...g2.sz];
-      allGid = [...g1.gid, ...g2.gid];
-      allIsGas = [...g1.isGas, ...g2.isGas];
+      const g1 = createSpiralGalaxyParticles(3000, [-115, -35, 0], [7.0, 2.4, 0], 0, 1500, 250, 35, 15, 10, 0, [0.25, 0.75, 1.0], [0.95, 0.9, 0.4]);
+      const g2 = createSpiralGalaxyParticles(3200, [115, 35, 0], [-7.0, -2.4, 0], 1, 1500, 250, 36, -35, 40, 25, [0.95, 0.35, 0.85], [0.65, 0.2, 1.0]);
+      allPos = [...g1.pos, ...g2.pos]; allVel = [...g1.vel, ...g2.vel]; allCol = [...g1.col, ...g2.col]; allSz = [...g1.sz, ...g2.sz]; allGid = [...g1.gid, ...g2.gid]; allIsGas = [...g1.isGas, ...g2.isGas];
       break;
     }
 
     case 'supermassive': {
       // 🕳️ 초대질량 괴물 블랙홀 [가르간튀아]의 은하 쌍포식
-      // 중앙에 초거대 질량(12,000)의 괴물 블랙홀이 위치하여 두 은하를 동시에 심연으로 삼킴
       cores.push(
         {
           id: 'gargantua_monster',
           name: '초대질량 괴물 블랙홀 [가르간튀아]',
-          mass: 12500,
+          mass: 14000,
           pos: [0, 0, 0],
           vel: [0, 0, 0],
           radius: 7.5,
@@ -291,43 +337,29 @@ export function createGalaxyScenario(scenario: GalaxyScenarioType): GalaxySimSta
           id: 'core_milkyway',
           name: '우리은하 중심핵',
           mass: 2500,
-          pos: [-110, 30, 0],
-          vel: [3.8, -4.5, 0],
+          pos: [-105, 30, 0],
+          vel: [4.0, -4.6, 0],
           radius: 3.2,
           color: '#38bdf8',
         },
         {
-          id: 'core_andros',
-          name: '안드로스 은하 중심핵',
+          id: 'core_andromeda',
+          name: '안드로메다 중심핵',
           mass: 2800,
-          pos: [110, -30, 0],
-          vel: [-3.8, 4.5, 0],
+          pos: [105, -30, 0],
+          vel: [-4.0, 4.6, 0],
           radius: 3.5,
           color: '#f43f5e',
         },
       );
-
-      const g1 = createSpiralGalaxyParticles(
-        2500, [-110, 30, 0], [3.8, -4.5, 0], 0, starN, gasN, 30,
-        20, 15, -10, [0.3, 0.8, 1.0], [0.3, 1.0, 0.7],
-      );
-      const g2 = createSpiralGalaxyParticles(
-        2800, [110, -30, 0], [-3.8, 4.5, 0], 1, starN, gasN, 32,
-        -25, -20, 15, [1.0, 0.35, 0.5], [1.0, 0.7, 0.2],
-      );
-
-      allPos = [...g1.pos, ...g2.pos];
-      allVel = [...g1.vel, ...g2.vel];
-      allCol = [...g1.col, ...g2.col];
-      allSz = [...g1.sz, ...g2.sz];
-      allGid = [...g1.gid, ...g2.gid];
-      allIsGas = [...g1.isGas, ...g2.isGas];
+      const g1 = createSpiralGalaxyParticles(2500, [-105, 30, 0], [4.0, -4.6, 0], 0, 1400, 250, 30, 20, 15, -10, [0.3, 0.8, 1.0], [0.3, 1.0, 0.7]);
+      const g2 = createSpiralGalaxyParticles(2800, [105, -30, 0], [-4.0, 4.6, 0], 1, 1400, 250, 32, -25, -20, 15, [1.0, 0.35, 0.5], [1.0, 0.7, 0.2]);
+      allPos = [...g1.pos, ...g2.pos]; allVel = [...g1.vel, ...g2.vel]; allCol = [...g1.col, ...g2.col]; allSz = [...g1.sz, ...g2.sz]; allGid = [...g1.gid, ...g2.gid]; allIsGas = [...g1.isGas, ...g2.isGas];
       break;
     }
 
     case 'binary_dance': {
-      // 💫 안정적 쌍은하 공전 군무
-      // 두 은하가 충돌하지 않고 안정적인 케플러 타원 궤도로 영구히 춤추며 공전
+      // 💫 안정적 쌍은하 군무
       cores.push(
         {
           id: 'core_milkyway',
@@ -339,8 +371,8 @@ export function createGalaxyScenario(scenario: GalaxyScenarioType): GalaxySimSta
           color: '#38bdf8',
         },
         {
-          id: 'core_andros',
-          name: '안드로스 은하 중심핵',
+          id: 'core_andromeda',
+          name: '안드로메다 중심핵',
           mass: 3000,
           pos: [85, 0, 0],
           vel: [0, -4.8, 0],
@@ -348,63 +380,47 @@ export function createGalaxyScenario(scenario: GalaxyScenarioType): GalaxySimSta
           color: '#c084fc',
         },
       );
-
-      const g1 = createSpiralGalaxyParticles(
-        3000, [-85, 0, 0], [0, 4.8, 0], 0, starN, gasN, 28,
-        0, 0, 0, [0.3, 0.75, 1.0], [1.0, 0.85, 0.3],
-      );
-      const g2 = createSpiralGalaxyParticles(
-        3000, [85, 0, 0], [0, -4.8, 0], 1, starN, gasN, 28,
-        25, 0, 0, [0.85, 0.35, 0.95], [0.55, 0.3, 1.0],
-      );
-
-      allPos = [...g1.pos, ...g2.pos];
-      allVel = [...g1.vel, ...g2.vel];
-      allCol = [...g1.col, ...g2.col];
-      allSz = [...g1.sz, ...g2.sz];
-      allGid = [...g1.gid, ...g2.gid];
-      allIsGas = [...g1.isGas, ...g2.isGas];
+      const g1 = createSpiralGalaxyParticles(3000, [-85, 0, 0], [0, 4.8, 0], 0, 1400, 250, 28, 0, 0, 0, [0.3, 0.75, 1.0], [1.0, 0.85, 0.3]);
+      const g2 = createSpiralGalaxyParticles(3000, [85, 0, 0], [0, -4.8, 0], 1, 1400, 250, 28, 25, 0, 0, [0.85, 0.35, 0.95], [0.55, 0.3, 1.0]);
+      allPos = [...g1.pos, ...g2.pos]; allVel = [...g1.vel, ...g2.vel]; allCol = [...g1.col, ...g2.col]; allSz = [...g1.sz, ...g2.sz]; allGid = [...g1.gid, ...g2.gid]; allIsGas = [...g1.isGas, ...g2.isGas];
       break;
     }
 
     case 'cannibalism': {
-      // 🪐 왜소은하 포식 합병 (거대 은하 대 1/5 소형 은하)
+      // 🪐 왜소은하(마젤란) 조석 포식 합병
       cores.push(
         {
           id: 'core_milkyway',
           name: '거대 우리은하',
           mass: 4500,
-          pos: [-40, -10, 0],
-          vel: [0.8, 0.5, 0],
+          pos: [-35, -10, 0],
+          vel: [0.8, 0.4, 0],
           radius: 4.5,
           color: '#38bdf8',
         },
         {
-          id: 'core_dwarf',
-          name: '왜소은하 안드로스 주니어',
-          mass: 750,
-          pos: [110, 35, 0],
-          vel: [-5.2, -3.2, 0],
-          radius: 2.0,
-          color: '#fb923c',
+          id: 'core_lmc',
+          name: '대마젤란은하',
+          mass: 650,
+          pos: [75, 40, 0],
+          vel: [-4.6, -3.2, 0],
+          radius: 2.1,
+          color: '#fbbf24',
+        },
+        {
+          id: 'core_smc',
+          name: '소마젤란은하',
+          mass: 300,
+          pos: [110, 65, 0],
+          vel: [-5.4, -4.0, 0],
+          radius: 1.6,
+          color: '#60a5fa',
         },
       );
-
-      const g1 = createSpiralGalaxyParticles(
-        4500, [-40, -10, 0], [0.8, 0.5, 0], 0, Math.floor(starN * 1.3), Math.floor(gasN * 1.3), 42,
-        0, 0, 0, [0.25, 0.75, 1.0], [0.4, 0.95, 0.7],
-      );
-      const g2 = createSpiralGalaxyParticles(
-        750, [110, 35, 0], [-5.2, -3.2, 0], 1, Math.floor(starN * 0.4), Math.floor(gasN * 0.4), 16,
-        40, -30, 20, [1.0, 0.5, 0.2], [1.0, 0.85, 0.3],
-      );
-
-      allPos = [...g1.pos, ...g2.pos];
-      allVel = [...g1.vel, ...g2.vel];
-      allCol = [...g1.col, ...g2.col];
-      allSz = [...g1.sz, ...g2.sz];
-      allGid = [...g1.gid, ...g2.gid];
-      allIsGas = [...g1.isGas, ...g2.isGas];
+      const g1 = createSpiralGalaxyParticles(4500, [-35, -10, 0], [0.8, 0.4, 0], 0, 1600, 300, 42, 0, 0, 0, [0.25, 0.75, 1.0], [0.4, 0.95, 0.7]);
+      const g2 = createSpiralGalaxyParticles(650, [75, 40, 0], [-4.6, -3.2, 0], 1, 400, 80, 18, 35, -20, 15, [1.0, 0.65, 0.2], [1.0, 0.9, 0.4]);
+      const g3 = createSpiralGalaxyParticles(300, [110, 65, 0], [-5.4, -4.0, 0], 2, 250, 50, 14, 20, 15, -20, [0.4, 0.6, 1.0], [0.7, 0.85, 1.0]);
+      allPos = [...g1.pos, ...g2.pos, ...g3.pos]; allVel = [...g1.vel, ...g2.vel, ...g3.vel]; allCol = [...g1.col, ...g2.col, ...g3.col]; allSz = [...g1.sz, ...g2.sz, ...g3.sz]; allGid = [...g1.gid, ...g2.gid, ...g3.gid]; allIsGas = [...g1.isGas, ...g2.isGas, ...g3.isGas];
       break;
     }
   }
@@ -430,9 +446,21 @@ export function createGalaxyScenario(scenario: GalaxyScenarioType): GalaxySimSta
     cores[0].pos[2] - cores[1].pos[2],
   );
 
+  // 우리은하 중심 기준 태양계 초기 위치 (오리온자리 팔 R=8.5 kpc)
+  const mwCore = cores.find((c) => c.id.includes('milkyway')) ?? cores[0];
+  const rSun = 8.5;
+  const solarAngleRad = 0.8;
+  const solarSystemPos: [number, number, number] = [
+    mwCore.pos[0] + Math.cos(solarAngleRad) * rSun,
+    mwCore.pos[1] + Math.sin(solarAngleRad) * rSun,
+    mwCore.pos[2] + 0.1,
+  ];
+
   return {
     cores,
     particles,
+    solarSystemPos,
+    solarAngleRad,
     timeMyr: 0,
     paused: false,
     speed: 10,
@@ -444,21 +472,18 @@ export function createGalaxyScenario(scenario: GalaxyScenarioType): GalaxySimSta
 }
 
 /**
- * 실시간 N-Body 은하 중력 적분기 (Leapfrog / Velocity-Verlet)
- * - 중심핵 상호 중력 가속도 계산
- * - 수천 개의 별과 성운 가스 구름에 작용하는 복합 조석 중력장 계산
- * - 블랙홀 사건의 지평선 흡수 및 조석 섭동률 산출
+ * 실시간 N-Body 은하 중력 적분기
  */
 export function stepGalaxySystem(state: GalaxySimState, dtSec: number): void {
   if (state.paused) return;
 
-  const dt = dtSec * (state.speed * 0.12); // 적분 시간 간격
-  state.timeMyr += dt * 3.5; // 실제 백만 년(Myr) 시간 경과
+  const dt = dtSec * (state.speed * 0.12);
+  state.timeMyr += dt * 3.5;
 
   const cores = state.cores;
   const nCores = cores.length;
 
-  // 1. 중심핵 간의 상호 중력 가속도 계산
+  // 1. 중심핵 간 상호 중력 가속도
   const coreAcc: [number, number, number][] = cores.map(() => [0, 0, 0]);
 
   for (let i = 0; i < nCores; i++) {
@@ -485,7 +510,7 @@ export function stepGalaxySystem(state: GalaxySimState, dtSec: number): void {
     }
   }
 
-  // 중심핵 위치 및 속도 전진
+  // 중심핵 위치 전진
   for (let i = 0; i < nCores; i++) {
     const c = cores[i];
     c.vel[0] += coreAcc[i][0] * dt;
@@ -497,14 +522,23 @@ export function stepGalaxySystem(state: GalaxySimState, dtSec: number): void {
     c.pos[2] += c.vel[2] * dt;
   }
 
-  // 두 주 은하 간 거리 갱신
+  // 거리 갱신
   if (nCores >= 2) {
     const cA = cores[0].isBlackHole && nCores >= 3 ? cores[1] : cores[0];
     const cB = cores[0].isBlackHole && nCores >= 3 ? cores[2] : cores[1];
     state.distanceKpc = Math.hypot(cA.pos[0] - cB.pos[0], cA.pos[1] - cB.pos[1], cA.pos[2] - cB.pos[2]);
   }
 
-  // 2. 수천 개의 별과 가스 구름에 대한 조석 중력 가속도 계산
+  // 우리은하 내 태양계 위치 공전 갱신
+  const mwCore = cores.find((c) => c.id.includes('milkyway')) ?? cores[0];
+  const rSun = 8.5;
+  const omegaSun = Math.sqrt((G_GALACTIC * mwCore.mass) / (rSun * rSun * rSun)) * 0.8;
+  state.solarAngleRad += omegaSun * dt;
+  state.solarSystemPos[0] = mwCore.pos[0] + Math.cos(state.solarAngleRad) * rSun;
+  state.solarSystemPos[1] = mwCore.pos[1] + Math.sin(state.solarAngleRad) * rSun;
+  state.solarSystemPos[2] = mwCore.pos[2] + 0.1;
+
+  // 2. 별과 가스 구름에 대한 조석 중력 가속도
   const p = state.particles;
   const pos = p.pos;
   const vel = p.vel;
@@ -533,7 +567,6 @@ export function stepGalaxySystem(state: GalaxySimState, dtSec: number): void {
       const dz = core.pos[2] - pz;
       const r2 = dx * dx + dy * dy + dz * dz;
 
-      // 블랙홀 사건의 지평선 흡수 검증
       if (core.isBlackHole && r2 < core.radius * core.radius * 1.3) {
         alive[i] = 0;
         state.swallowedCount++;
@@ -556,12 +589,10 @@ export function stepGalaxySystem(state: GalaxySimState, dtSec: number): void {
     pos[idx + 1] += vel[idx + 1] * dt;
     pos[idx + 2] += vel[idx + 2] * dt;
 
-    // 조석 변형률 추적용
     totalDisplacement += Math.abs(ax) + Math.abs(ay);
     activeStarCount++;
   }
 
-  // 조석 변형률 (Tidal Distortion Index) 0.0 ~ 1.0 정규화
   if (activeStarCount > 0) {
     const rawTide = (totalDisplacement / activeStarCount) * 1.5;
     state.tidalDistortion = Math.min(1.0, Math.max(0.05, rawTide));

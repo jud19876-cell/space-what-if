@@ -1,6 +1,7 @@
 // 은하 대충돌 & 심우주 실시간 3D 그래픽 씬 (Three.js)
-// "광원에 구름처럼, 우주전체로 도는 느낌"의 에테르풍 성운 가스 구름과
-// 수천 개의 별무리, 찬란한 은하 중심핵 광원, 조석 꼬리(Tidal Tails) 및 블랙홀을 렌더링한다.
+// "우선 태양계에 우리은하에서 그 근방에 있는것들로 표현해"
+// 우리은하 오리온 팔 내 태양계(Solar System) 위치 핀 마커 및
+// 국부은하군(안드로메다, 삼각형자리, 대/소 마젤란 은하) 렌더링
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -12,7 +13,15 @@ import {
   type GalaxySimState,
 } from './galaxyCollisionPhysics.ts';
 
-export type GalaxyCameraView = 'overview' | 'milkyway' | 'andros' | 'collision' | 'blackhole';
+export type GalaxyCameraView =
+  | 'overview'      // 국부은하군 전체 조망
+  | 'solarsystem'   // ☀️ 우리들의 태양계 (오리온 팔)
+  | 'milkyway'      // 🌌 우리은하 중심핵 (궁수자리 A*)
+  | 'andromeda'     // 💜 안드로메다 은하 (M31)
+  | 'triangulum'    // 💎 삼각형자리 은하 (M33)
+  | 'magellanic'    // 🪐 대/소 마젤란은하 (LMC/SMC)
+  | 'collision'     // 💥 충돌면 락온
+  | 'blackhole';    // 🕳️ 가르간튀아 심연
 
 export interface GalaxyScene {
   setScenario(scenario: GalaxyScenarioType): void;
@@ -26,7 +35,7 @@ export interface GalaxyScene {
   dispose(): void;
 }
 
-/** 부드러운 성운 가스 구름 절차적 텍스처 (방사형 소프트 가우시안 글로우) */
+/** 부드러운 성운 가스 구름 절차적 텍스처 */
 function makeNebulaCloudTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 128;
@@ -95,9 +104,69 @@ function makeAccretionDiskTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+/** 태양계 위치 표시 라벨 스프라이트 */
+function makeSolarSystemSprite(): THREE.Sprite {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 128;
+  const g = c.getContext('2d')!;
+
+  g.fillStyle = 'rgba(15, 23, 42, 0.85)';
+  g.strokeStyle = '#f59e0b';
+  g.lineWidth = 4;
+  g.beginPath();
+  g.roundRect(10, 10, 492, 108, 24);
+  g.fill();
+  g.stroke();
+
+  g.fillStyle = '#fbbf24';
+  g.font = 'bold 36px sans-serif';
+  g.textAlign = 'center';
+  g.fillText('☀️ 우리들의 태양계 (Solar System)', 256, 54);
+
+  g.fillStyle = '#cbd5e1';
+  g.font = '24px sans-serif';
+  g.fillText('📍 오리온 팔 (은하 중심에서 26,000광년)', 256, 94);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(18, 4.5, 1);
+  return sprite;
+}
+
+/** 은하 중심핵 3D 이름표 라벨 스프라이트 */
+function makeCoreLabelSprite(name: string, color: string): THREE.Sprite {
+  const c = document.createElement('canvas');
+  c.width = 440;
+  c.height = 96;
+  const g = c.getContext('2d')!;
+
+  g.fillStyle = 'rgba(10, 15, 32, 0.82)';
+  g.strokeStyle = color;
+  g.lineWidth = 3;
+  g.beginPath();
+  g.roundRect(6, 6, 428, 84, 18);
+  g.fill();
+  g.stroke();
+
+  g.fillStyle = '#ffffff';
+  g.font = 'bold 30px sans-serif';
+  g.textAlign = 'center';
+  g.fillText(name, 220, 54);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(18, 4.0, 1);
+  return sprite;
+}
+
 export function createGalaxyScene(
   container: HTMLElement,
-  initialScenario: GalaxyScenarioType,
+  initialScenario: GalaxyScenarioType = 'local_group',
   onStateUpdate?: (state: GalaxySimState) => void,
 ): GalaxyScene {
   let simState = createGalaxyScenario(initialScenario);
@@ -108,26 +177,26 @@ export function createGalaxyScene(
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#03030d');
-  scene.fog = new THREE.FogExp2(0x03030d, 0.0006);
+  scene.fog = new THREE.FogExp2(0x03030d, 0.0005);
 
-  const camera = new THREE.PerspectiveCamera(52, 1, 0.5, 5000);
-  camera.position.set(0, 160, 280);
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 5000);
+  camera.position.set(0, 220, 360);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
-  controls.minDistance = 15;
-  controls.maxDistance = 1800;
+  controls.minDistance = 8;
+  controls.maxDistance = 2200;
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 
-  // 1. 심우주 배경 별무리 (Deep Space Background Stars)
+  // 1. 심우주 배경 별무리
   const bgStarGeo = new THREE.BufferGeometry();
-  const bgCount = 2000;
+  const bgCount = 2200;
   const bgPos = new Float32Array(bgCount * 3);
   const bgCol = new Float32Array(bgCount * 3);
   for (let i = 0; i < bgCount; i++) {
-    const r = 900 + Math.random() * 800;
+    const r = 900 + Math.random() * 900;
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(Math.random() * 2 - 1);
     bgPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
@@ -149,7 +218,46 @@ export function createGalaxyScene(
   });
   scene.add(new THREE.Points(bgStarGeo, bgStarMat));
 
-  // 2. 은하 입자 시스템 (별 + 성운 가스 구름)
+  // 2. 태양계 오리온 팔 위치 마커 & 펄싱 링
+  const solarGroup = new THREE.Group();
+  const solarBeaconGeo = new THREE.SphereGeometry(0.85, 24, 16);
+  const solarBeaconMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+  const solarBeacon = new THREE.Mesh(solarBeaconGeo, solarBeaconMat);
+  solarGroup.add(solarBeacon);
+
+  // 펄싱 링
+  const ringGeo = new THREE.RingGeometry(1.2, 1.8, 32);
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0xffaa00,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.85,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const solarRing = new THREE.Mesh(ringGeo, ringMat);
+  solarRing.rotation.x = -Math.PI / 2;
+  solarGroup.add(solarRing);
+
+  // 태양계 공전 궤도 원선 (R=8.5 kpc)
+  const mwOrbitPts: THREE.Vector3[] = [];
+  for (let i = 0; i <= 64; i++) {
+    const t = (i / 64) * Math.PI * 2;
+    mwOrbitPts.push(new THREE.Vector3(Math.cos(t) * 8.5, 0, Math.sin(t) * 8.5));
+  }
+  const mwOrbitGeo = new THREE.BufferGeometry().setFromPoints(mwOrbitPts);
+  const mwOrbitLine = new THREE.Line(
+    mwOrbitGeo,
+    new THREE.LineBasicMaterial({ color: 0xffcc00, transparent: true, opacity: 0.35 }),
+  );
+  scene.add(mwOrbitLine);
+
+  const solarLabelSprite = makeSolarSystemSprite();
+  solarLabelSprite.position.set(0, 3.8, 0);
+  solarGroup.add(solarLabelSprite);
+  scene.add(solarGroup);
+
+  // 3. 은하 입자 시스템 (별 + 성운 가스 구름)
   const starTex = makeStarPointTexture();
   const gasTex = makeNebulaCloudTexture();
 
@@ -158,7 +266,7 @@ export function createGalaxyScene(
   let starGeo: THREE.BufferGeometry;
   let gasGeo: THREE.BufferGeometry;
 
-  // 3. 중심핵 비주얼 그룹
+  // 4. 중심핵 비주얼 그룹
   const coreMeshes: {
     group: THREE.Group;
     light: THREE.PointLight;
@@ -167,12 +275,10 @@ export function createGalaxyScene(
     ring?: THREE.Mesh;
   }[] = [];
 
-  // 4. 은하 궤적 라인 (Core Trajectory Trails)
   const TRAIL_LEN = 120;
   const coreTrails: { line: THREE.Line; posArr: Float32Array; count: number }[] = [];
 
   function buildCoreVisuals(cores: GalacticCore[]) {
-    // 기존 코어 제거
     for (const cm of coreMeshes) {
       scene.remove(cm.group);
       scene.remove(cm.light);
@@ -196,11 +302,7 @@ export function createGalaxyScene(
       let ring: THREE.Mesh | undefined;
 
       if (c.isBlackHole) {
-        // 초대질량 괴물 블랙홀 (사건의 지평선 + 거대 강착원반 + 렌징 광자 링)
-        const bhSphere = new THREE.Mesh(
-          sphereGeo,
-          new THREE.MeshBasicMaterial({ color: 0x010103 }),
-        );
+        const bhSphere = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: 0x010103 }));
         bhSphere.scale.setScalar(c.radius);
         group.add(bhSphere);
 
@@ -231,19 +333,15 @@ export function createGalaxyScene(
         group.add(ring);
 
         lightColor = '#c084fc';
-        lightIntensity = 5.0;
+        lightIntensity = 5.5;
       } else {
-        // 찬란한 은하 중심핵 광원 (Brilliant Galactic Nucleus)
         const coreSphere = new THREE.Mesh(
           sphereGeo,
-          new THREE.MeshBasicMaterial({
-            color: new THREE.Color(c.color).offsetHSL(0, 0, 0.25),
-          }),
+          new THREE.MeshBasicMaterial({ color: new THREE.Color(c.color).offsetHSL(0, 0, 0.25) }),
         );
         coreSphere.scale.setScalar(c.radius);
         group.add(coreSphere);
 
-        // 중심핵 방사형 다층 글로우 구체 (Volumetric Core Shells)
         const shell1 = new THREE.Mesh(
           sphereGeo,
           new THREE.MeshBasicMaterial({
@@ -276,11 +374,16 @@ export function createGalaxyScene(
       const light = new THREE.PointLight(lightColor, lightIntensity, 450, 1.2);
       light.position.set(...c.pos);
       scene.add(light);
+
+      // 은하 이름 3D 태그 라벨
+      const labelSprite = makeCoreLabelSprite(c.name, c.color);
+      labelSprite.position.set(0, c.radius * 2.2 + 3.2, 0);
+      group.add(labelSprite);
+
       scene.add(group);
 
       coreMeshes.push({ group, light, coreId: c.id, disk, ring });
 
-      // 궤적선
       const posArr = new Float32Array(TRAIL_LEN * 3);
       const trailGeo = new THREE.BufferGeometry();
       trailGeo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
@@ -307,7 +410,6 @@ export function createGalaxyScene(
     const p = state.particles;
     const count = p.count;
 
-    // 별과 가스 구름 분리 인덱싱
     const starIdxs: number[] = [];
     const gasIdxs: number[] = [];
 
@@ -316,7 +418,6 @@ export function createGalaxyScene(
       else starIdxs.push(i);
     }
 
-    // 1. 별무리 (Stars)
     starGeo = new THREE.BufferGeometry();
     const sPos = new Float32Array(starIdxs.length * 3);
     const sCol = new Float32Array(starIdxs.length * 3);
@@ -345,7 +446,6 @@ export function createGalaxyScene(
     starPoints.userData.starIdxs = starIdxs;
     scene.add(starPoints);
 
-    // 2. 성운 가스 구름 (Nebula Gas Clouds - "광원에 구름처럼 우주전체로 도는 느낌")
     gasGeo = new THREE.BufferGeometry();
     const gPos = new Float32Array(gasIdxs.length * 3);
     const gCol = new Float32Array(gasIdxs.length * 3);
@@ -362,7 +462,7 @@ export function createGalaxyScene(
     gasGeo.setAttribute('color', new THREE.BufferAttribute(gCol, 3));
 
     const gasMat = new THREE.PointsMaterial({
-      size: 14.0, // 거대한 구름형 입체 볼륨
+      size: 14.0,
       map: gasTex,
       vertexColors: true,
       transparent: true,
@@ -375,11 +475,9 @@ export function createGalaxyScene(
     scene.add(gasPoints);
   }
 
-  // 초기 구축
   buildCoreVisuals(simState.cores);
   buildParticleVisuals(simState);
 
-  // 시점 및 조작 상태
   let activeView: GalaxyCameraView = 'overview';
   let showGas = true;
   let showTrails = true;
@@ -392,11 +490,18 @@ export function createGalaxyScene(
     rafId = requestAnimationFrame(frame);
     const dt = Math.min(clock.getDelta(), 0.08);
 
-    // 1. 물리 엔진 스텝 진행
     stepGalaxySystem(simState, dt);
     onStateUpdate?.(simState);
 
-    // 2. 중심핵 위치 및 회전 애니메이션 갱신
+    // 태양계 위치 및 펄싱 링 갱신
+    solarGroup.position.set(...simState.solarSystemPos);
+    solarRing.scale.setScalar(1.0 + Math.sin(clock.getElapsedTime() * 4.0) * 0.25);
+
+    // 우리은하 중심 이동 시 공전 궤도선도 중심에 맞춤
+    const mwCore = simState.cores.find((x) => x.id.includes('milkyway')) ?? simState.cores[0];
+    mwOrbitLine.position.set(...mwCore.pos);
+
+    // 중심핵 위치 및 회전 애니메이션
     for (let i = 0; i < simState.cores.length; i++) {
       const c = simState.cores[i];
       const cm = coreMeshes[i];
@@ -405,14 +510,9 @@ export function createGalaxyScene(
       cm.group.position.set(...c.pos);
       cm.light.position.set(...c.pos);
 
-      if (cm.disk) {
-        cm.disk.rotation.z += 0.035;
-      }
-      if (cm.ring) {
-        cm.ring.rotation.z -= 0.02;
-      }
+      if (cm.disk) cm.disk.rotation.z += 0.035;
+      if (cm.ring) cm.ring.rotation.z -= 0.02;
 
-      // 궤적 점 기록
       if (showTrails) {
         const ct = coreTrails[i];
         if (ct) {
@@ -432,7 +532,7 @@ export function createGalaxyScene(
       }
     }
 
-    // 3. 별 파티클 위치 갱신
+    // 별 파티클 위치 갱신
     const p = simState.particles;
     const starIdxs: number[] = starPoints.userData.starIdxs;
     const sPosAttr = starGeo.attributes.position as THREE.BufferAttribute;
@@ -441,7 +541,6 @@ export function createGalaxyScene(
     for (let i = 0; i < starIdxs.length; i++) {
       const orig = starIdxs[i];
       if (p.alive[orig] === 0) {
-        // 흡수된 별은 원점 아래로 숨김
         sPosArr[i * 3] = 99999;
       } else {
         sPosArr[i * 3] = p.pos[orig * 3];
@@ -451,7 +550,7 @@ export function createGalaxyScene(
     }
     sPosAttr.needsUpdate = true;
 
-    // 4. 성운 가스 구름 위치 갱신
+    // 성운 가스 구름 위치 갱신
     if (showGas) {
       gasPoints.visible = true;
       const gasIdxs: number[] = gasPoints.userData.gasIdxs;
@@ -473,11 +572,15 @@ export function createGalaxyScene(
       gasPoints.visible = false;
     }
 
-    // 5. 카메라 시점 타깃 추적 (Camera View Modes)
+    // 카메라 타깃 스무딩
     const cores = simState.cores;
     switch (activeView) {
       case 'overview': {
-        targetLerp.set(0, 0, 0);
+        targetLerp.set(cores.length > 2 ? 60 : 0, 0, 0);
+        break;
+      }
+      case 'solarsystem': {
+        targetLerp.set(...simState.solarSystemPos);
         break;
       }
       case 'milkyway': {
@@ -485,9 +588,19 @@ export function createGalaxyScene(
         targetLerp.set(...c.pos);
         break;
       }
-      case 'andros': {
-        const c = cores.find((x) => x.id.includes('andros')) ?? cores[1];
-        targetLerp.set(...c.pos);
+      case 'andromeda': {
+        const c = cores.find((x) => x.id.includes('andromeda')) ?? cores[1];
+        if (c) targetLerp.set(...c.pos);
+        break;
+      }
+      case 'triangulum': {
+        const c = cores.find((x) => x.id.includes('triangulum'));
+        if (c) targetLerp.set(...c.pos);
+        break;
+      }
+      case 'magellanic': {
+        const c = cores.find((x) => x.id.includes('lmc')) ?? cores.find((x) => x.id.includes('smc'));
+        if (c) targetLerp.set(...c.pos);
         break;
       }
       case 'collision': {
@@ -515,7 +628,6 @@ export function createGalaxyScene(
 
   frame();
 
-  // 반응형 리사이즈 핸들러
   const handleResize = () => {
     const w = container.clientWidth || window.innerWidth;
     const h = container.clientHeight || window.innerHeight;
@@ -545,15 +657,24 @@ export function createGalaxyScene(
     setViewMode(mode) {
       activeView = mode;
       if (mode === 'overview') {
-        camera.position.set(0, 180, 320);
-      } else if (mode === 'collision') {
-        camera.position.set(0, 90, 160);
+        camera.position.set(60, 220, 360);
+      } else if (mode === 'solarsystem') {
+        const p = simState.solarSystemPos;
+        camera.position.set(p[0] + 4, p[1] + 12, p[2] + 18);
       } else if (mode === 'milkyway') {
         const c = simState.cores.find((x) => x.id.includes('milkyway')) ?? simState.cores[0];
-        camera.position.set(c.pos[0], c.pos[1] + 50, c.pos[2] + 90);
-      } else if (mode === 'andros') {
-        const c = simState.cores.find((x) => x.id.includes('andros')) ?? simState.cores[1];
-        camera.position.set(c.pos[0], c.pos[1] + 50, c.pos[2] + 90);
+        camera.position.set(c.pos[0], c.pos[1] + 55, c.pos[2] + 85);
+      } else if (mode === 'andromeda') {
+        const c = simState.cores.find((x) => x.id.includes('andromeda')) ?? simState.cores[1];
+        if (c) camera.position.set(c.pos[0], c.pos[1] + 55, c.pos[2] + 85);
+      } else if (mode === 'triangulum') {
+        const c = simState.cores.find((x) => x.id.includes('triangulum'));
+        if (c) camera.position.set(c.pos[0], c.pos[1] + 40, c.pos[2] + 65);
+      } else if (mode === 'magellanic') {
+        const c = simState.cores.find((x) => x.id.includes('lmc'));
+        if (c) camera.position.set(c.pos[0], c.pos[1] + 35, c.pos[2] + 55);
+      } else if (mode === 'collision') {
+        camera.position.set(0, 95, 160);
       } else if (mode === 'blackhole') {
         camera.position.set(0, 45, 80);
       }
@@ -565,7 +686,6 @@ export function createGalaxyScene(
       showTrails = show;
     },
     setGalaxyDistance(kpc) {
-      // 실시간 은하 간격 조정
       if (simState.cores.length >= 2) {
         const c1 = simState.cores[0];
         const c2 = simState.cores[1];
@@ -583,7 +703,7 @@ export function createGalaxyScene(
       simState = createGalaxyScenario(simState.scenario);
       buildCoreVisuals(simState.cores);
       buildParticleVisuals(simState);
-      camera.position.set(0, 160, 280);
+      camera.position.set(0, 220, 360);
       controls.target.set(0, 0, 0);
     },
     dispose() {

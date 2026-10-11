@@ -2,6 +2,7 @@
 import { dist2, length, totalEnergy, type Body, type Vec3 } from '../src/physics.ts';
 import { createInitialState, executeCommand, findBody, advance, DAYS_PER_SECOND, type SimState } from '../src/simulation.ts';
 import { createSolarSystem } from '../src/solarSystem.ts';
+import { createGalaxyScenario, stepGalaxySystem } from '../src/galaxyCollisionPhysics.ts';
 
 let failed = 0;
 function check(name: string, ok: boolean, detail: string) {
@@ -311,6 +312,43 @@ const r0 = (b: Body) => length(b.position);
     advance(s, 5 / 500);
   }
   check('초대질량 블랙홀 대포식: 시공간 왜곡 및 포식 가동', !!gargantua && s.bodies.length > 0, `현재 천체 수: ${s.bodies.length}, 삼킨 기록: ${s.swallowedList.length}`);
+}
+
+// 22. 국부은하군 기본 시나리오 & 태양계 오리온 팔 위치 & 은하 충돌/포식 트리거 검증
+{
+  // 1) 기본 국부은하군 (Local Group) 시나리오 검증
+  const lgState = createGalaxyScenario('local_group');
+  check('국부은하군 기본: 5대 은하(우리은하, 안드로메다, 삼각형, 대/소마젤란) 생성', lgState.cores.length === 5, `중심핵 수: ${lgState.cores.length}`);
+  check('국부은하군 기본: 4,000개 이상 천체 입자 풀', lgState.particles.count >= 4000, `입자 수: ${lgState.particles.count}`);
+
+  // 2) 우리은하 내 태양계 위치 (오리온 팔 R ≈ 8.5 kpc) 검증
+  const mw = lgState.cores.find((c) => c.id.includes('milkyway'));
+  const solarR = Math.hypot(lgState.solarSystemPos[0] - (mw?.pos[0] ?? 0), lgState.solarSystemPos[1] - (mw?.pos[1] ?? 0));
+  check('태양계 위치: 우리은하 중심핵(궁수자리 A*)에서 8.5 kpc (약 26,000광년) 오리온 팔 위치', Math.abs(solarR - 8.5) < 0.1, `태양계 공전 반경: ${solarR.toFixed(2)} kpc`);
+
+  // 3) 국부은하군 평형 궤도 진행 후 태양계 공전 각도 전진 검증
+  const initAngle = lgState.solarAngleRad;
+  for (let i = 0; i < 30; i++) {
+    stepGalaxySystem(lgState, 0.05);
+  }
+  check('태양계 공전: 우리은하 자전 및 공전에 따라 궤도 각도 전진', lgState.solarAngleRad > initAngle, `각도 전진: ${(lgState.solarAngleRad - initAngle).toFixed(3)} rad`);
+
+  // 4) 조건 트리거: 정면 대충돌 시나리오 검증
+  const headOnState = createGalaxyScenario('head_on');
+  check('충돌 조건 발동 [정면 대충돌]: 상대 속도를 가진 두 은하 초기화', headOnState.cores.length === 2 && headOnState.cores[0].vel[0] > 0, `은하1 속도: ${headOnState.cores[0].vel[0]}`);
+  for (let i = 0; i < 50; i++) {
+    stepGalaxySystem(headOnState, 0.05);
+  }
+  check('정면 대충돌 진행: 조석 변형률 상승', headOnState.tidalDistortion > 0.1, `조석 변형률: ${(headOnState.tidalDistortion * 100).toFixed(1)}%`);
+
+  // 5) 조건 트리거: 괴물 블랙홀 은하 포식 시나리오 검증
+  const bhState = createGalaxyScenario('supermassive');
+  const monsterBh = bhState.cores.find((c) => c.isBlackHole);
+  check('충돌 조건 발동 [괴물 블랙홀 포식]: 거대 블랙홀(가르간튀아) 출현', !!monsterBh && monsterBh.mass >= 10000, `블랙홀 질량: ${monsterBh?.mass}`);
+  for (let i = 0; i < 80; i++) {
+    stepGalaxySystem(bhState, 0.05);
+  }
+  check('괴물 블랙홀 포식 진행: 삼킨 별 기록 갱신', bhState.swallowedCount > 0, `삼킨 별: ${bhState.swallowedCount}개`);
 }
 
 console.log(failed ? `\n${failed}개 실패` : '\n모든 테스트 통과');
