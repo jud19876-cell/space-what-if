@@ -326,11 +326,14 @@ const r0 = (b: Body) => length(b.position);
   const solarR = Math.hypot(lgState.solarSystemPos[0] - (mw?.pos[0] ?? 0), lgState.solarSystemPos[1] - (mw?.pos[1] ?? 0));
   check('태양계 위치: 우리은하 중심핵(궁수자리 A*)에서 8.5 kpc (약 26,000광년) 오리온 팔 위치', Math.abs(solarR - 8.5) < 0.1, `태양계 공전 반경: ${solarR.toFixed(2)} kpc`);
 
-  // 3) 국부은하군 평형 궤도 진행 후 태양계 공전 각도 전진 검증
+  // 3) 기본 뷰 모드: 은하 간 상호 중력 0 및 위치 보존 검증
   const initAngle = lgState.solarAngleRad;
+  const androInitX = lgState.cores[1].pos[0];
   for (let i = 0; i < 30; i++) {
     stepGalaxySystem(lgState, 0.05);
   }
+  check('기본 뷰 모드: 은하 간 상호 중력 OFF (안드로메다 위치 불변)', lgState.cores[1].pos[0] === androInitX, `안드로메다 위치: ${lgState.cores[1].pos[0]}`);
+  check('기본 뷰 모드: 조석 섭동 변형률 0% 유지 (원형 은하 보존)', lgState.tidalDistortion === 0, `조석 변형률: ${lgState.tidalDistortion}`);
   check('태양계 공전: 우리은하 자전 및 공전에 따라 궤도 각도 전진', lgState.solarAngleRad > initAngle, `각도 전진: ${(lgState.solarAngleRad - initAngle).toFixed(3)} rad`);
 
   // 4) 조건 트리거: 정면 대충돌 시나리오 검증

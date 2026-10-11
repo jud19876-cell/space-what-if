@@ -23,8 +23,8 @@ const SCENARIOS: {
   {
     id: 'local_group',
     emoji: '🌌',
-    name: '우리은하 & 국부은하군 (기본)',
-    desc: '태양계가 위치한 우리은하를 중심으로 안드로메다(M31), 삼각형자리(M33), 대/소 마젤란 은하 등 실제 인접 은하 군집을 평화롭게 탐험합니다',
+    name: '우리은하 & 국부은하군 (기본 뷰)',
+    desc: '기본 뷰 모드로 은하 간 상호 중력이 작용하지 않아 태양계와 주변 은하들의 온전한 모습을 평화롭게 관찰합니다. (하단 조건을 누르면 상호 중력 및 충돌 시뮬레이션 개시)',
   },
   {
     id: 'head_on',
@@ -368,6 +368,20 @@ export default function GalaxyCollisionSim({
                 <span className="metric-label">✨ 관측 중인 은하 군집</span>
                 <strong className="metric-val">5대 은하 (4,450개 천체)</strong>
                 <small className="metric-sub">우리은하, 안드로메다, 삼각형자리, 대/소 마젤란</small>
+              </div>
+              <div className="hud-metric-row">
+                <span className="metric-label">⚛️ 은하 간 상호 중력</span>
+                {activeScenario === 'local_group' ? (
+                  <>
+                    <strong className="metric-val highlight-cyan">OFF (기본 뷰 모드)</strong>
+                    <small className="metric-sub">모든 은하가 원형 유지 / 조건 버튼 클릭 시 상호 중력 개시</small>
+                  </>
+                ) : (
+                  <>
+                    <strong className="metric-val highlight-magenta">ON (시뮬레이션 발동)</strong>
+                    <small className="metric-sub">은하 간 N-Body 상호 인력 및 조석 섭동 활성화</small>
+                  </>
+                )}
               </div>
             </>
           )}
