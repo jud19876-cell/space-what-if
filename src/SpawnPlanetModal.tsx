@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
 import { type SimCommand } from './simulation.ts';
 
+export interface PlacementConfig {
+  typeId: string;
+  name: string;
+  visualRadius: number;
+  massMultiplier: number;
+  hasRings: boolean;
+}
+
 interface SpawnPlanetModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRunCommands: (cmds: SimCommand[]) => void;
   onSpawnSuccess: (name: string) => void;
+  onStartMousePlacement: (config: PlacementConfig) => void;
 }
 
 interface PlanetPreset {
@@ -78,11 +87,26 @@ const PRESETS: PlanetPreset[] = [
   },
 ];
 
+// 태양계 주요 궤도 구역 프리셋
+const ORBIT_ZONES = [
+  { label: '수성 안쪽', au: 0.25, emoji: '☀️', desc: '초근접 고온 궤도' },
+  { label: '수성 궤도', au: 0.39, emoji: '🪨', desc: '공전 88일' },
+  { label: '금성 궤도', au: 0.72, emoji: '🟡', desc: '두꺼운 온실층' },
+  { label: '지구 골디락스', au: 1.0, emoji: '🌍', desc: '생명체 거주존 (1년)' },
+  { label: '화성 궤도', au: 1.52, emoji: '🔴', desc: '붉은 사막 영역' },
+  { label: '소행성대', au: 2.77, emoji: '☄️', desc: '소행성 벨트' },
+  { label: '목성 궤도', au: 5.2, emoji: '🟠', desc: '가스 거인 궤도' },
+  { label: '토성 궤도', au: 9.58, emoji: '🪐', desc: '고리 영역' },
+  { label: '천왕성 궤도', au: 19.2, emoji: '🔵', desc: '극저온 얼음권' },
+  { label: '해왕성/카이퍼', au: 30.1, emoji: '❄️', desc: '태양계 외곽' },
+];
+
 export const SpawnPlanetModal: React.FC<SpawnPlanetModalProps> = ({
   isOpen,
   onClose,
   onRunCommands,
   onSpawnSuccess,
+  onStartMousePlacement,
 }) => {
   const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
   const [name, setName] = useState(PRESETS[0].name);
@@ -105,7 +129,7 @@ export const SpawnPlanetModal: React.FC<SpawnPlanetModalProps> = ({
     setHasRings(p.hasRings);
   };
 
-  const handleSpawn = () => {
+  const handleSpawnDirect = () => {
     onRunCommands([
       {
         action: 'spawn_custom_planet',
@@ -121,6 +145,17 @@ export const SpawnPlanetModal: React.FC<SpawnPlanetModalProps> = ({
     onClose();
   };
 
+  const handleStartMousePlacementClick = () => {
+    onStartMousePlacement({
+      name,
+      typeId,
+      visualRadius,
+      massMultiplier,
+      hasRings,
+    });
+    onClose();
+  };
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="spawn-planet-modal" onClick={(e) => e.stopPropagation()}>
@@ -129,7 +164,7 @@ export const SpawnPlanetModal: React.FC<SpawnPlanetModalProps> = ({
             <span className="modal-icon">➕🪐</span>
             <div>
               <h3>새로운 행성 궤도 배치 (Spawn Planet)</h3>
-              <p className="modal-subtitle">케플러 원궤도 공전 속도를 자동 계산하여 즉시 태양계에 배치합니다.</p>
+              <p className="modal-subtitle">거리별 궤도 선택 또는 3D 마우스 직접 찍기 배치 중 원하는 방식을 선택하세요.</p>
             </div>
           </div>
           <button className="modal-close-btn" onClick={onClose}>
@@ -154,6 +189,28 @@ export const SpawnPlanetModal: React.FC<SpawnPlanetModalProps> = ({
           <p className="preset-desc-text">{PRESETS[selectedPresetIndex].desc}</p>
         </div>
 
+        {/* 태양계 주요 궤도 구역 선택 */}
+        <div className="orbit-zones-section">
+          <label className="input-section-label">📍 태양과의 거리에 따른 궤도 선택:</label>
+          <div className="orbit-zones-chips">
+            {ORBIT_ZONES.map((zone) => {
+              const isSelected = Math.abs(distanceAU - zone.au) < 0.15;
+              return (
+                <button
+                  key={zone.label}
+                  className={`orbit-zone-chip ${isSelected ? 'active' : ''}`}
+                  onClick={() => setDistanceAU(zone.au)}
+                  title={`${zone.label} (${zone.au} AU) - ${zone.desc}`}
+                >
+                  <span className="zone-emoji">{zone.emoji}</span>
+                  <span className="zone-label">{zone.label}</span>
+                  <span className="zone-au">{zone.au}AU</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* 세부 설정 필드 */}
         <div className="modal-form-grid">
           <div className="form-group">
@@ -172,45 +229,78 @@ export const SpawnPlanetModal: React.FC<SpawnPlanetModalProps> = ({
               태양과의 거리: <strong>{distanceAU.toFixed(2)} AU</strong>
               <small> ({(distanceAU * 149.6).toFixed(1)} 백만 km)</small>
             </label>
-            <input
-              type="range"
-              min="0.4"
-              max="25.0"
-              step="0.1"
-              value={distanceAU}
-              onChange={(e) => setDistanceAU(Number(e.target.value))}
-              className="modal-slider"
-            />
+            <div className="slider-row-with-num">
+              <input
+                type="range"
+                min="0.2"
+                max="35.0"
+                step="0.05"
+                value={distanceAU}
+                onChange={(e) => setDistanceAU(Number(e.target.value))}
+                className="modal-slider"
+              />
+              <input
+                type="number"
+                min="0.1"
+                max="50.0"
+                step="0.1"
+                value={distanceAU}
+                onChange={(e) => setDistanceAU(Math.max(0.1, Number(e.target.value)))}
+                className="modal-num-input"
+              />
+            </div>
           </div>
 
           <div className="form-group">
             <label>
               시각 크기 (반경): <strong>{visualRadius.toFixed(2)}x</strong>
             </label>
-            <input
-              type="range"
-              min="0.3"
-              max="2.5"
-              step="0.05"
-              value={visualRadius}
-              onChange={(e) => setVisualRadius(Number(e.target.value))}
-              className="modal-slider"
-            />
+            <div className="slider-row-with-num">
+              <input
+                type="range"
+                min="0.2"
+                max="15.0"
+                step="0.05"
+                value={visualRadius}
+                onChange={(e) => setVisualRadius(Number(e.target.value))}
+                className="modal-slider"
+              />
+              <input
+                type="number"
+                min="0.1"
+                max="50.0"
+                step="0.1"
+                value={visualRadius}
+                onChange={(e) => setVisualRadius(Math.max(0.1, Number(e.target.value)))}
+                className="modal-num-input"
+              />
+            </div>
           </div>
 
           <div className="form-group">
             <label>
               질량 배수 (지구 질량 대비): <strong>{massMultiplier >= 10 ? Math.round(massMultiplier) : massMultiplier.toFixed(1)}배</strong>
             </label>
-            <input
-              type="range"
-              min="0.1"
-              max="600.0"
-              step="0.5"
-              value={massMultiplier}
-              onChange={(e) => setMassMultiplier(Number(e.target.value))}
-              className="modal-slider"
-            />
+            <div className="slider-row-with-num">
+              <input
+                type="range"
+                min="0.05"
+                max="1000.0"
+                step="0.5"
+                value={massMultiplier}
+                onChange={(e) => setMassMultiplier(Number(e.target.value))}
+                className="modal-slider"
+              />
+              <input
+                type="number"
+                min="0.01"
+                max="10000.0"
+                step="any"
+                value={massMultiplier}
+                onChange={(e) => setMassMultiplier(Math.max(0.01, Number(e.target.value)))}
+                className="modal-num-input"
+              />
+            </div>
           </div>
 
           <div className="form-group checkbox-group">
@@ -225,12 +315,12 @@ export const SpawnPlanetModal: React.FC<SpawnPlanetModalProps> = ({
           </div>
         </div>
 
-        <div className="modal-footer-row">
-          <button className="btn modal-cancel-btn" onClick={onClose}>
-            취소
+        <div className="modal-footer-dual">
+          <button className="btn modal-mouse-place-btn" onClick={handleStartMousePlacementClick}>
+            <span>🖱️</span> 3D 화면에 마우스로 직접 찍어서 배치
           </button>
-          <button className="btn modal-submit-btn" onClick={handleSpawn}>
-            ✨ 이 설정으로 궤도에 배치하기!
+          <button className="btn modal-submit-btn" onClick={handleSpawnDirect}>
+            <span>📍</span> 선택한 궤도({distanceAU.toFixed(1)}AU)에 즉시 안착 배치
           </button>
         </div>
       </div>

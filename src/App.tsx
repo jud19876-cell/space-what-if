@@ -3,22 +3,24 @@ import BlackHoleSpaghettiSim from './BlackHoleSpaghettiSim.tsx';
 import ConstellationSim from './ConstellationSim.tsx';
 import { AU_PER_DAY_TO_KM_S, length, type Vec3 } from './physics.ts';
 import { PlanetInspector } from './PlanetInspector.tsx';
-import { createSpaceScene, type AimInfo, type SpaceScene } from './scene.ts';
+import { createSpaceScene, type AimInfo, type PlacementConfig, type PlacementInfo, type SpaceScene } from './scene.ts';
 import { SCENARIOS, type Scenario, type ScenarioCategory } from './scenarios.ts';
 import { createInitialState, executeCommand, findBody, type SimCommand, type SimState, type StackableConditions } from './simulation.ts';
 import { BODY_INFO, EARTH_MASS, type BodyId } from './solarSystem.ts';
 import { SpawnPlanetModal } from './SpawnPlanetModal.tsx';
 
-const STACKABLE_CONDITIONS: { key: keyof StackableConditions; label: string; emoji: string; desc: string }[] = [
-  { key: 'mass2x', label: '질량 2배', emoji: '⚖️', desc: '모든 행성의 질량이 2배가 됩니다' },
-  { key: 'velocity2x', label: '공전속도 2배', emoji: '🚀', desc: '행성들이 탈출 속도에 도달하여 흩어집니다' },
-  { key: 'gravity2x', label: '중력 2배', emoji: '🧲', desc: '우주 만유인력 상수(G)가 2배로 증가하여 궤도가 수축합니다' },
-  { key: 'sun10x', label: '태양 10배', emoji: '☀️', desc: '태양이 10배 거대해져 강한 중력으로 행성을 끌어당깁니다' },
-  { key: 'earthStop', label: '지구 정지', emoji: '🛑', desc: '지구의 공전 속도가 0이 되어 태양으로 수직 추락합니다' },
-  { key: 'sunGone', label: '태양 소멸', emoji: '💨', desc: '태양이 사라져 행성들이 관성으로 직선 비행합니다' },
-  { key: 'sunBlackHole', label: '태양 블랙홀', emoji: '🕳️', desc: '태양이 동급 질량의 블랙홀로 변합니다' },
-  { key: 'monsterBlackHole', label: '괴물 블랙홀', emoji: '👾', desc: '30배 질량의 거대 블랙홀이 중심에 자리잡습니다' },
-  { key: 'moonToJupiter', label: '달 목성 이동', emoji: '🌙', desc: '달이 목성 궤도로 이동합니다' },
+const EXTREME_ANOMALIES: {
+  key: 'antiGravity' | 'darkMatterHalo' | 'twinNemesis' | 'asteroidStorm' | 'retrogradeFlip' | 'solarWindRepulsion';
+  label: string;
+  emoji: string;
+  desc: string;
+}[] = [
+  { key: 'antiGravity', label: '반중력 우주 팽창', emoji: '🧲💥', desc: '만유인력이 척력으로 역전되어 모든 천체가 우주 밖으로 흩어집니다' },
+  { key: 'darkMatterHalo', label: '암흑물질 헤일로', emoji: '🌪️✨', desc: '은하 회전 곡선 가속도로 외곽 행성들이 튕겨나가지 않고 광속 회전합니다' },
+  { key: 'twinNemesis', label: '쌍둥이 항성 난입', emoji: '🌀⭐', desc: '1.3배 태양 질량의 청색 쌍성이 침입하여 삼체 문제 카오스가 펼쳐집니다' },
+  { key: 'asteroidStorm', label: '소행성 대폭풍', emoji: '☄️⚡', desc: '우주 외곽에서 쏟아지는 소행성 유성우가 행성들을 맹폭합니다' },
+  { key: 'retrogradeFlip', label: '전 행성 역행 공전', emoji: '💫🔄', desc: '모든 행성의 공전 방향이 순간적으로 180도 반전됩니다' },
+  { key: 'solarWindRepulsion', label: '초신성 태양풍', emoji: '💥☀️', desc: '태양의 복사압 폭풍으로 행성들이 바깥으로 밀려납니다' },
 ];
 
 export default function App() {
@@ -34,6 +36,8 @@ export default function App() {
   const [cannonMassType, setCannonMassType] = useState<'normal' | 'giant'>('normal');
   const [aimInfo, setAimInfo] = useState<AimInfo | null>(null);
   const [spawnModalOpen, setSpawnModalOpen] = useState(false);
+  const [placementConfig, setPlacementConfig] = useState<PlacementConfig | null>(null);
+  const [placementHover, setPlacementHover] = useState<PlacementInfo | null>(null);
   const [, setTick] = useState(0);
 
   /** 모든 상태 변경은 여기서 Simulation Command 로만 한다. */
@@ -47,18 +51,74 @@ export default function App() {
     setTick((t) => t + 1);
   }, []);
 
-  const handleToggleCondition = useCallback((condKey: keyof StackableConditions) => {
-    const currentVal = !!stateRef.current.conditions?.[condKey];
-    const nextVal = !currentVal;
-    runCommands([{ action: 'toggle_condition', condition: condKey, enable: nextVal }]);
-    const item = STACKABLE_CONDITIONS.find((c) => c.key === condKey);
+  const handleStartMousePlacement = useCallback((config: PlacementConfig) => {
+    setPlacementConfig(config);
+    sceneRef.current?.setPlacementMode(
+      config,
+      (hoverInfo) => setPlacementHover(hoverInfo),
+      (posAU) => {
+        runCommands([
+          {
+            action: 'spawn_custom_planet',
+            name: config.name,
+            typeId: config.typeId,
+            position: posAU,
+            visualRadius: config.visualRadius,
+            massMultiplier: config.massMultiplier,
+            hasRings: config.hasRings,
+          },
+        ]);
+        setToast({
+          key: Date.now(),
+          emoji: '🪐✨',
+          text: `새 천체 [${config.name}]이(가) 클릭한 궤도 좌표에 안정적인 케플러 원궤도로 안착했습니다!`,
+          type: 'normal',
+        });
+        setPlacementConfig(null);
+        setPlacementHover(null);
+        sceneRef.current?.setPlacementMode(null);
+      },
+    );
     setToast({
       key: Date.now(),
-      emoji: item?.emoji ?? '🎛️',
-      text: `[${item?.label ?? condKey}] ${nextVal ? '조건 활성화 (ON)!' : '조건 해제 (OFF)'}`,
+      emoji: '🖱️🪐',
+      text: '화면의 원하는 궤도 평면을 마우스로 클릭하여 행성을 안착시키세요!',
       type: 'normal',
     });
   }, [runCommands]);
+
+  const handleCancelMousePlacement = useCallback(() => {
+    setPlacementConfig(null);
+    setPlacementHover(null);
+    sceneRef.current?.setPlacementMode(null);
+  }, []);
+
+  const handleToggleAnomaly = useCallback((anomalyKey: (typeof EXTREME_ANOMALIES)[number]['key']) => {
+    const currentVal = !!stateRef.current.conditions?.[anomalyKey];
+    const nextVal = !currentVal;
+    runCommands([{ action: 'toggle_extreme_anomaly', anomaly: anomalyKey, enable: nextVal }]);
+    const item = EXTREME_ANOMALIES.find((c) => c.key === anomalyKey);
+    setToast({
+      key: Date.now(),
+      emoji: item?.emoji ?? '🌌',
+      text: `[${item?.label ?? anomalyKey}] ${nextVal ? '극한 현상 발동 (ON)!' : '현상 종료 (OFF)'}`,
+      type: 'normal',
+    });
+  }, [runCommands]);
+
+  const handleConditionSlider = useCallback((param: 'gravity' | 'sunMass' | 'orbitSpeed', val: number) => {
+    runCommands([{ action: 'set_condition_slider', param, value: val }]);
+  }, [runCommands]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (placementConfig) handleCancelMousePlacement();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [placementConfig, handleCancelMousePlacement]);
 
   const handleLaunchAsteroid = useCallback((pos: Vec3, vel: Vec3, massType: 'normal' | 'giant') => {
     runCommands([
@@ -353,6 +413,40 @@ export default function App() {
         </div>
       </header>
 
+      {/* 마우스 3D 궤도 직접 찍기 안내 HUD 배너 */}
+      {placementConfig && (
+        <div className="mouse-placement-banner">
+          <div className="placement-banner-left">
+            <span className="placement-pulse-icon">📍</span>
+            <div className="placement-banner-info">
+              <span className="placement-banner-title">
+                <strong>[{placementConfig.name}]</strong> 마우스 궤도 직접 배치 모드
+              </span>
+              <span className="placement-banner-subtitle">
+                3D 우주 평면 위 원하는 궤도에 마우스를 대고 클릭하세요! (원궤도 자동 계산)
+              </span>
+            </div>
+          </div>
+          {placementHover && (
+            <div className="placement-live-stats">
+              <span className="placement-stat-pill">
+                📏 태양 거리: <strong>{placementHover.distanceAU.toFixed(2)} AU</strong>
+              </span>
+              <span className="placement-stat-pill">
+                ⚡ 원궤도 속도: <strong>{placementHover.circularSpeedKmS.toFixed(1)} km/s</strong>
+              </span>
+            </div>
+          )}
+          <button
+            className="btn placement-cancel-btn"
+            onClick={handleCancelMousePlacement}
+            title="ESC 키로도 취소할 수 있습니다"
+          >
+            ✕ 배치 취소 (ESC)
+          </button>
+        </div>
+      )}
+
       {/* 사용자가 소행성을 클릭했을 때 뜨는 방향 지정 안내 배너 */}
       {isAsteroidSelected && (
         <div className="aim-guide-banner">
@@ -463,42 +557,131 @@ export default function App() {
       )}
 
       <footer className="experiments">
-        {/* 다중 조건 동시 시뮬레이션 토글 바 */}
-        <div className="stackable-conditions-bar">
-          <div className="conditions-header">
-            <div className="conditions-title-group">
-              <span className="conditions-icon">🎛️</span>
-              <strong className="conditions-title-text">다중 조건 동시 시뮬레이션</strong>
-              <span className="conditions-subtitle">(여러 조건을 동시에 켜고 끌 수 있습니다)</span>
+        {/* 극한 우주 물리 실험실 (연속 슬라이더 & 6대 우주 변칙 현상) */}
+        <div className="cosmic-extremes-lab">
+          <div className="extremes-header">
+            <div className="extremes-title-group">
+              <span className="extremes-icon">🌌</span>
+              <strong className="extremes-title-text">극한 우주 물리 실험실</strong>
+              <span className="extremes-subtitle">우주의 물리 법칙을 실시간으로 비틀고 상상을 초월하는 천문 현상을 가동합니다</span>
             </div>
-            {state.conditions && Object.values(state.conditions).filter(Boolean).length > 0 && (
+            {((state.conditions?.gravityMultiplier ?? 1.0) !== 1.0 ||
+              (state.conditions?.sunMassMultiplier ?? 1.0) !== 1.0 ||
+              (state.conditions?.orbitSpeedMultiplier ?? 1.0) !== 1.0 ||
+              Object.entries(state.conditions || {}).some(([k, v]) => typeof v === 'boolean' && v)) && (
               <button
-                className="conditions-reset-btn"
+                className="extremes-reset-btn"
                 onClick={() => runCommands([{ action: 'reset' }])}
-                title="모든 중첩 조건을 해제하고 기본 태양계로 복원"
+                title="모든 극한 물리 변수를 표준 태양계 상태로 초기화"
               >
-                🔄 기본 태양계 복원 ({Object.values(state.conditions).filter(Boolean).length}개 활성)
+                🔄 표준 물리 복원
               </button>
             )}
           </div>
-          <div className="conditions-chips-row">
-            {STACKABLE_CONDITIONS.map((cond) => {
-              const active = !!state.conditions?.[cond.key];
-              return (
-                <button
-                  key={cond.key}
-                  className={`condition-chip ${active ? 'active' : ''}`}
-                  onClick={() => handleToggleCondition(cond.key)}
-                  title={cond.desc}
-                >
-                  <span className="condition-chip-emoji">{cond.emoji}</span>
-                  <span className="condition-chip-label">{cond.label}</span>
-                  <span className={`condition-chip-indicator ${active ? 'on' : ''}`}>
-                    {active ? 'ON' : 'OFF'}
+
+          <div className="extremes-body-grid">
+            {/* 3대 핵심 연속 물리 슬라이더 */}
+            <div className="extremes-sliders-rack">
+              {/* 중력 상수 G 슬라이더 */}
+              <div className="extreme-slider-card">
+                <div className="slider-card-top">
+                  <span className="slider-card-title">🧲 만유인력 상수 (G)</span>
+                  <span className={`slider-card-badge ${(state.conditions?.gravityMultiplier ?? 1.0) < 0 ? 'badge-anti' : ''}`}>
+                    {(state.conditions?.gravityMultiplier ?? 1.0) < 0
+                      ? `반중력 (${(state.conditions?.gravityMultiplier ?? 1.0).toFixed(1)}x)`
+                      : `${(state.conditions?.gravityMultiplier ?? 1.0).toFixed(1)}x`}
                   </span>
-                </button>
-              );
-            })}
+                </div>
+                <input
+                  type="range"
+                  min="-1.0"
+                  max="5.0"
+                  step="0.1"
+                  value={state.conditions?.gravityMultiplier ?? 1.0}
+                  onChange={(e) => handleConditionSlider('gravity', Number(e.target.value))}
+                  className="extreme-slider"
+                  aria-label="만유인력 상수 G 배율"
+                />
+                <div className="slider-card-labels">
+                  <span onClick={() => handleConditionSlider('gravity', -1.0)} className="preset-label">척력(-1x)</span>
+                  <span onClick={() => handleConditionSlider('gravity', 0.0)} className="preset-label">무중력(0x)</span>
+                  <span onClick={() => handleConditionSlider('gravity', 1.0)} className="preset-label reset-mark">표준(1x)</span>
+                  <span onClick={() => handleConditionSlider('gravity', 5.0)} className="preset-label">초중력(5x)</span>
+                </div>
+              </div>
+
+              {/* 태양 질량 M 슬라이더 */}
+              <div className="extreme-slider-card">
+                <div className="slider-card-top">
+                  <span className="slider-card-title">☀️ 태양 질량 (M⊙)</span>
+                  <span className="slider-card-badge">{(state.conditions?.sunMassMultiplier ?? 1.0).toFixed(1)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.0"
+                  max="15.0"
+                  step="0.5"
+                  value={state.conditions?.sunMassMultiplier ?? 1.0}
+                  onChange={(e) => handleConditionSlider('sunMass', Number(e.target.value))}
+                  className="extreme-slider"
+                  aria-label="태양 질량 배율"
+                />
+                <div className="slider-card-labels">
+                  <span onClick={() => handleConditionSlider('sunMass', 0.0)} className="preset-label">소멸(0x)</span>
+                  <span onClick={() => handleConditionSlider('sunMass', 1.0)} className="preset-label reset-mark">표준(1x)</span>
+                  <span onClick={() => handleConditionSlider('sunMass', 5.0)} className="preset-label">거대(5x)</span>
+                  <span onClick={() => handleConditionSlider('sunMass', 15.0)} className="preset-label">극대(15x)</span>
+                </div>
+              </div>
+
+              {/* 공전 속도 v 슬라이더 */}
+              <div className="extreme-slider-card">
+                <div className="slider-card-top">
+                  <span className="slider-card-title">🚀 공전 속도 (v)</span>
+                  <span className="slider-card-badge">{(state.conditions?.orbitSpeedMultiplier ?? 1.0).toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.0"
+                  max="2.5"
+                  step="0.05"
+                  value={state.conditions?.orbitSpeedMultiplier ?? 1.0}
+                  onChange={(e) => handleConditionSlider('orbitSpeed', Number(e.target.value))}
+                  className="extreme-slider"
+                  aria-label="공전 속도 배율"
+                />
+                <div className="slider-card-labels">
+                  <span onClick={() => handleConditionSlider('orbitSpeed', 0.0)} className="preset-label">정지(0x)</span>
+                  <span onClick={() => handleConditionSlider('orbitSpeed', 1.0)} className="preset-label reset-mark">표준(1x)</span>
+                  <span onClick={() => handleConditionSlider('orbitSpeed', 1.41)} className="preset-label">탈출(√2x)</span>
+                  <span onClick={() => handleConditionSlider('orbitSpeed', 2.5)} className="preset-label">초광속(2.5x)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 6대 우주 극한 변칙 토글 버튼 */}
+            <div className="anomalies-rack">
+              {EXTREME_ANOMALIES.map((anom) => {
+                const active = !!state.conditions?.[anom.key];
+                return (
+                  <button
+                    key={anom.key}
+                    className={`anomaly-btn ${active ? 'active' : ''}`}
+                    onClick={() => handleToggleAnomaly(anom.key)}
+                    title={anom.desc}
+                  >
+                    <span className="anomaly-emoji">{anom.emoji}</span>
+                    <div className="anomaly-text-group">
+                      <span className="anomaly-label">{anom.label}</span>
+                      <span className="anomaly-subdesc">{anom.desc}</span>
+                    </div>
+                    <span className={`anomaly-indicator ${active ? 'on' : ''}`}>
+                      {active ? 'ON' : 'OFF'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -557,6 +740,7 @@ export default function App() {
         isOpen={spawnModalOpen}
         onClose={() => setSpawnModalOpen(false)}
         onRunCommands={runCommands}
+        onStartMousePlacement={handleStartMousePlacement}
         onSpawnSuccess={(planetName) => {
           setToast({
             key: Date.now(),

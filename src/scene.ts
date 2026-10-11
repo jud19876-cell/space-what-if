@@ -2,7 +2,7 @@
 // 여기서는 물리 상태를 읽기만 하고 바꾸지 않는다. (시간 진행 advance() 만 호출)
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { AU_PER_DAY_TO_KM_S, G, length, SUN_MASS, type Body, type Vec3, type AbsorptionEvent, type CollisionEvent } from './physics.ts';
+import { AU_PER_DAY_TO_KM_S, G, length, SUN_MASS, calculateCircularSpeed, type Body, type Vec3, type AbsorptionEvent, type CollisionEvent } from './physics.ts';
 import { advance, findHost, type SimState } from './simulation.ts';
 import { BODY_INFO, ORBIT_RADII, type BodyId } from './solarSystem.ts';
 import { createPlanetTexture, createNormalMap, createRingTexture } from './planetTextures.ts';
@@ -62,11 +62,31 @@ export interface AimInfo {
   massType: 'normal' | 'giant';
 }
 
+export interface PlacementConfig {
+  typeId: string;
+  name: string;
+  visualRadius: number;
+  massMultiplier: number;
+  hasRings: boolean;
+}
+
+export interface PlacementInfo {
+  distanceAU: number;
+  millionKm: number;
+  circularSpeedKmS: number;
+  position: Vec3;
+}
+
 export interface SpaceScene {
   clearTrails(): void;
   setSelected(id: string | null): void;
   setCannonMode(active: boolean, massType?: 'normal' | 'giant'): void;
   setAimingAsteroid(id: string | null): void;
+  setPlacementMode(
+    config: PlacementConfig | null,
+    onHover?: (info: PlacementInfo | null) => void,
+    onConfirm?: (pos: Vec3) => void,
+  ): void;
   focusBody(id: string | null): void;
   resetCamera(): void;
   dispose(): void;
@@ -773,6 +793,39 @@ export function createSpaceScene(
   const el = renderer.domElement;
   const planeHit = new THREE.Vector3();
 
+  // ---------- 마우스 3D 직접 궤도 배치 프리뷰 ----------
+  let placementConfig: PlacementConfig | null = null;
+  let onPlacementHoverCb: ((info: PlacementInfo | null) => void) | null = null;
+  let onPlacementConfirmCb: ((pos: Vec3) => void) | null = null;
+
+  const placementPreviewMat = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0.85,
+    roughness: 0.35,
+    metalness: 0.2,
+    emissive: 0x0284c7,
+    emissiveIntensity: 0.5,
+  });
+  const placementPreviewSphere = new THREE.Mesh(sphereGeo, placementPreviewMat);
+  placementPreviewSphere.visible = false;
+  scene.add(placementPreviewSphere);
+
+  const placementOrbitPts: THREE.Vector3[] = [];
+  for (let i = 0; i <= 128; i++) placementOrbitPts.push(new THREE.Vector3());
+  const placementOrbitGeo = new THREE.BufferGeometry().setFromPoints(placementOrbitPts);
+  const placementOrbitLine = new THREE.Line(
+    placementOrbitGeo,
+    new THREE.LineBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+    }),
+  );
+  placementOrbitLine.visible = false;
+  scene.add(placementOrbitLine);
+
   const getNDC = (e: PointerEvent) => {
     const rect = el.getBoundingClientRect();
     return new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
@@ -801,6 +854,39 @@ export function createSpaceScene(
   };
 
   const onMove = (e: PointerEvent) => {
+    // 0. 마우스 행성 궤도 배치 모드 프리뷰 & 안내
+    if (placementConfig) {
+      raycaster.setFromCamera(getNDC(e), camera);
+      if (raycaster.ray.intersectPlane(groundPlane, planeHit)) {
+        placementPreviewSphere.visible = true;
+        placementPreviewSphere.position.copy(planeHit);
+        placementPreviewSphere.position.y = 0.05;
+        placementPreviewSphere.scale.setScalar(Math.max(0.4, placementConfig.visualRadius));
+
+        const R = Math.hypot(planeHit.x, planeHit.z);
+        const posAttr = placementOrbitGeo.getAttribute('position') as THREE.BufferAttribute;
+        for (let i = 0; i <= 128; i++) {
+          const t = (i / 128) * Math.PI * 2;
+          posAttr.setXYZ(i, Math.cos(t) * R, 0.02, -Math.sin(t) * R);
+        }
+        posAttr.needsUpdate = true;
+        placementOrbitLine.visible = true;
+
+        const posAU = unmapPoint(planeHit);
+        const rAU = length(posAU);
+        const sun = getState().bodies.find((b) => b.id === 'sun');
+        const mSun = sun ? sun.mass : SUN_MASS;
+        const vCirc = calculateCircularSpeed(mSun, rAU);
+        onPlacementHoverCb?.({
+          distanceAU: rAU,
+          millionKm: rAU * 149.6,
+          circularSpeedKmS: vCirc * AU_PER_DAY_TO_KM_S,
+          position: posAU,
+        });
+      }
+      return;
+    }
+
     // 1. 소행성이 조준된 상태이면 마우스 위치로 레이저선 표시
     if (aimingAsteroidId) {
       const astVis = visuals.get(aimingAsteroidId);
@@ -917,6 +1003,19 @@ export function createSpaceScene(
     }
 
     if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
+
+    // 마우스 행성 궤도 배치 모드 클릭 안착
+    if (placementConfig) {
+      raycaster.setFromCamera(getNDC(e), camera);
+      if (raycaster.ray.intersectPlane(groundPlane, planeHit)) {
+        const posAU = unmapPoint(planeHit);
+        triggerShockwave(planeHit, 0x38bdf8, 1.2);
+        playLaunchSound();
+        onPlacementConfirmCb?.(posAU);
+      }
+      return;
+    }
+
     const ndc = getNDC(e);
     raycaster.setFromCamera(ndc, camera);
     const alive = new Set(getState().bodies.map((b) => b.id));
@@ -1027,6 +1126,17 @@ export function createSpaceScene(
       if (!id) {
         laserLine.visible = false;
         targetRing.visible = false;
+      }
+    },
+    setPlacementMode(config, onHover, onConfirm) {
+      placementConfig = config;
+      onPlacementHoverCb = onHover ?? null;
+      onPlacementConfirmCb = onConfirm ?? null;
+      el.style.cursor = config ? 'crosshair' : 'grab';
+      if (!config) {
+        placementPreviewSphere.visible = false;
+        placementOrbitLine.visible = false;
+        onPlacementHoverCb?.(null);
       }
     },
     focusBody(id) {

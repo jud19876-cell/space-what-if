@@ -151,4 +151,5 @@ export const BODY_INFO: Record<BodyId, BodyInfo> = {
   asteroid: { emoji: '☄️', color: '#ff6622', lines: ['우주를 날아다니는 소행성이야!', '행성과 충돌하면 궤도를 흔들어 놓을 수 있어!'] },
   giant_asteroid: { emoji: '💥☄️', color: '#ff2244', lines: ['행성을 산산조각 낼 수 있는 거대 소행성이야!', '엄청난 충돌 에너지로 행성을 파괴해!'] },
   fragment: { emoji: '🪨', color: '#d0a87a', lines: ['행성이 폭발하면서 흩어진 파편이야!', '새로운 파편 조각들이 우주를 돌고 있어.'] },
+  twin_nemesis: { emoji: '⭐🔵', color: '#60a5fa', lines: ['태양계를 침입한 거대한 청색 쌍성 네메시스야!', '질량이 태양의 1.3배에 달해 태양계 전체를 쌍성계 삼체 카오스로 뒤흔들고 있어!'] },
 };

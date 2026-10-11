@@ -1,5 +1,5 @@
-import React from 'react';
-import { AU_PER_DAY_TO_KM_S, length, type Vec3 } from './physics.ts';
+import React, { useState } from 'react';
+import { AU_PER_DAY_TO_KM_S, length } from './physics.ts';
 import { findBody, type SimCommand, type SimState } from './simulation.ts';
 import { BODY_INFO, EARTH_MASS, type BodyId } from './solarSystem.ts';
 
@@ -21,6 +21,9 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
   onResetCamera,
 }) => {
   const body = findBody(state, bodyId);
+  const [customMassInput, setCustomMassInput] = useState('');
+  const [customRadiusInput, setCustomRadiusInput] = useState('');
+
   if (!body) return null;
 
   const isSun = body.id === 'sun';
@@ -40,6 +43,18 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
 
   const massRatio = body.mass / EARTH_MASS;
   const massRatioText = massRatio >= 10 ? Math.round(massRatio).toLocaleString('ko-KR') : massRatio >= 0.01 ? String(+massRatio.toFixed(2)) : massRatio.toExponential(2);
+
+  // 질량 직접 적용 핸들러
+  const handleApplyCustomMass = (ratioNum: number) => {
+    if (isNaN(ratioNum) || ratioNum <= 0) return;
+    onRunCommands([{ action: 'set_mass_earth_ratio', target: body.id, ratio: ratioNum }]);
+  };
+
+  // 시각 반경 직접 적용 핸들러
+  const handleApplyCustomRadius = (radiusNum: number) => {
+    if (isNaN(radiusNum) || radiusNum <= 0) return;
+    onRunCommands([{ action: 'set_visual_radius', target: body.id, radius: radiusNum }]);
+  };
 
   return (
     <aside className="planet-inspector-panel" style={{ ['--accent' as string]: info.color }}>
@@ -96,7 +111,7 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
 
       {/* 실시간 파라미터 조작 컨트롤 섹션 */}
       <div className="inspector-controls-section">
-        <h4 className="controls-section-title">⚡ 실시간 속도 조작</h4>
+        <h4 className="controls-section-title">⚡ 실시간 공전 속도 조작</h4>
         <div className="btn-group-row">
           <button
             className="ctrl-chip-btn"
@@ -113,11 +128,18 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
             +20% 가속
           </button>
           <button
+            className="ctrl-chip-btn"
+            onClick={() => onRunCommands([{ action: 'change_velocity', target: body.id, multiplier: 1.5 }])}
+            title="속도를 1.5배로 올립니다"
+          >
+            1.5x
+          </button>
+          <button
             className="ctrl-chip-btn danger"
             onClick={() => onRunCommands([{ action: 'change_velocity', target: body.id, multiplier: 2.0 }])}
             title="속도를 2배로 올려 탈출 속도 돌파!"
           >
-            🚀 2배 탈출속도
+            🚀 2배 탈출
           </button>
           <button
             className="ctrl-chip-btn stop"
@@ -128,31 +150,127 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
           </button>
         </div>
 
-        <h4 className="controls-section-title">📐 시각 크기 (반경) 조절</h4>
-        <div className="btn-group-row">
-          {[0.5, 1.0, 1.5, 2.0, 3.0].map((scale) => (
+        {/* 📐 시각 크기(반경) 자유 배수 조절 */}
+        <div className="inspector-slider-block">
+          <div className="slider-label-row">
+            <span className="controls-section-title">📐 시각 크기(반경) 자유 조절</span>
+            <span className="slider-current-val">{body.visualRadius.toFixed(2)}x</span>
+          </div>
+          <input
+            type="range"
+            min="0.1"
+            max="25.0"
+            step="0.1"
+            value={Math.min(25.0, body.visualRadius)}
+            onChange={(e) => handleApplyCustomRadius(Number(e.target.value))}
+            className="inspector-range-slider"
+            aria-label="시각 크기 슬라이더"
+          />
+          <div className="slider-input-row">
+            <input
+              type="number"
+              min="0.05"
+              max="100.0"
+              step="0.1"
+              placeholder="직접 크기 배수 입력 (예: 15.5)"
+              value={customRadiusInput}
+              onChange={(e) => setCustomRadiusInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleApplyCustomRadius(Number(customRadiusInput));
+                  setCustomRadiusInput('');
+                }
+              }}
+              className="inspector-num-input"
+            />
             <button
-              key={scale}
-              className="ctrl-chip-btn"
-              onClick={() => onRunCommands([{ action: 'change_visual_radius', target: body.id, multiplier: scale / body.visualRadius }])}
+              className="ctrl-apply-btn"
+              onClick={() => {
+                handleApplyCustomRadius(Number(customRadiusInput));
+                setCustomRadiusInput('');
+              }}
             >
-              {scale}x
+              적용
             </button>
-          ))}
+          </div>
+          <div className="btn-group-row">
+            {[0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0].map((scale) => (
+              <button
+                key={scale}
+                className={`ctrl-chip-btn ${Math.abs(body.visualRadius - scale) < 0.1 ? 'active' : ''}`}
+                onClick={() => handleApplyCustomRadius(scale)}
+                title={`크기를 ${scale}배로 설정`}
+              >
+                {scale}x
+              </button>
+            ))}
+          </div>
         </div>
 
-        <h4 className="controls-section-title">⚖️ 질량(무게) 배율 조절</h4>
-        <div className="btn-group-row">
-          {[0.5, 1.0, 2.0, 5.0, 10.0].map((mult) => (
+        {/* ⚖️ 질량(무게) 자유 배수 조절 */}
+        <div className="inspector-slider-block">
+          <div className="slider-label-row">
+            <span className="controls-section-title">⚖️ 질량(무게) 자유 배수 조절</span>
+            <span className="slider-current-val">지구의 {massRatioText}배</span>
+          </div>
+          {/* 로그 슬라이더: 0.01x ~ 3000x */}
+          <input
+            type="range"
+            min="-2"
+            max="3.5"
+            step="0.05"
+            value={Math.log10(Math.max(0.01, massRatio))}
+            onChange={(e) => handleApplyCustomMass(Math.pow(10, Number(e.target.value)))}
+            className="inspector-range-slider"
+            aria-label="질량 로그 슬라이더"
+          />
+          <div className="slider-input-row">
+            <input
+              type="number"
+              min="0.001"
+              max="100000"
+              step="any"
+              placeholder="지구 대비 배수 직접 입력 (예: 318)"
+              value={customMassInput}
+              onChange={(e) => setCustomMassInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleApplyCustomMass(Number(customMassInput));
+                  setCustomMassInput('');
+                }
+              }}
+              className="inspector-num-input"
+            />
             <button
-              key={mult}
-              className="ctrl-chip-btn"
-              onClick={() => onRunCommands([{ action: 'change_mass', target: body.id, multiplier: mult }])}
-              title={`질량을 ${mult}배로 조절 (중력장 변화)`}
+              className="ctrl-apply-btn"
+              onClick={() => {
+                handleApplyCustomMass(Number(customMassInput));
+                setCustomMassInput('');
+              }}
             >
-              {mult}x
+              적용
             </button>
-          ))}
+          </div>
+          <div className="btn-group-row">
+            {[
+              { val: 0.01, label: '0.01x(왜소)' },
+              { val: 0.1, label: '0.1x' },
+              { val: 1.0, label: '1x(지구)' },
+              { val: 17.0, label: '17x(해왕성)' },
+              { val: 318.0, label: '318x(목성)' },
+              { val: 1000.0, label: '1000x(갈색왜성)' },
+              { val: 5000.0, label: '5000x(초중력)' },
+            ].map(({ val, label }) => (
+              <button
+                key={val}
+                className="ctrl-chip-btn"
+                onClick={() => handleApplyCustomMass(val)}
+                title={`질량을 지구의 ${val}배로 설정`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {!isSun && (

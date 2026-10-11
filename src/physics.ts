@@ -37,15 +37,33 @@ export const SUN_MASS = 1.98847e30;
 export const G = 2.9591220828559e-4 / SUN_MASS;
 
 let gravityMultiplier = 1.0;
+let darkMatterHaloActive = false;
+let solarWindActive = false;
+
 export function setGravityMultiplier(m: number): void {
-  gravityMultiplier = Math.max(0.1, m);
+  gravityMultiplier = m;
 }
 export function getGravityMultiplier(): number {
   return gravityMultiplier;
 }
 
+export function setDarkMatterHalo(active: boolean): void {
+  darkMatterHaloActive = active;
+}
+export function getDarkMatterHalo(): boolean {
+  return darkMatterHaloActive;
+}
+
+export function setSolarWind(active: boolean): void {
+  solarWindActive = active;
+}
+export function getSolarWind(): boolean {
+  return solarWindActive;
+}
+
 export function calculateCircularSpeed(centralMass: number, distanceAU: number): number {
-  return Math.sqrt((G * gravityMultiplier * centralMass) / Math.max(1e-4, distanceAU));
+  const gEff = Math.max(0.01, G * Math.max(0.1, gravityMultiplier));
+  return Math.sqrt((gEff * centralMass) / Math.max(1e-4, distanceAU));
 }
 
 // AU/day -> km/s
@@ -133,13 +151,41 @@ function computeAccelerations(bodies: Body[]): { acc: Float64Array; tmin: number
       acc[j * 3 + 1] -= dy * fb;
       acc[j * 3 + 2] -= dz * fb;
 
-      const gm = G * (a.mass + b.mass);
+      const gm = Math.abs(effectiveG) * (a.mass + b.mass);
       if (gm > 0) {
         const t = Math.sqrt((r2 * r) / gm); // 자유낙하 시간 규모
         if (t < tmin) tmin = t;
       }
     }
   }
+
+  // 암흑물질 헤일로 및 초신성 태양풍 가속도 효과
+  if (darkMatterHaloActive || solarWindActive) {
+    for (let i = 0; i < n; i++) {
+      const a = bodies[i];
+      if (a.id === 'sun') continue;
+      const r = Math.sqrt(a.position[0] * a.position[0] + a.position[1] * a.position[1] + a.position[2] * a.position[2]);
+      if (r < 1e-4) continue;
+      const invR = 1 / r;
+
+      if (darkMatterHaloActive && r > 0.15) {
+        // 암흑물질 은하 회전 곡선 가속도 (구심 방향)
+        const aDM = 0.00035;
+        acc[i * 3] -= a.position[0] * invR * aDM;
+        acc[i * 3 + 1] -= a.position[1] * invR * aDM;
+        acc[i * 3 + 2] -= a.position[2] * invR * aDM;
+      }
+
+      if (solarWindActive && r > 0.05) {
+        // 초신성 태양풍 복사압 가속도 (원심 방향)
+        const aWind = 0.0006 / Math.max(0.1, r * r);
+        acc[i * 3] += a.position[0] * invR * aWind;
+        acc[i * 3 + 1] += a.position[1] * invR * aWind;
+        acc[i * 3 + 2] += a.position[2] * invR * aWind;
+      }
+    }
+  }
+
   return { acc, tmin };
 }
 

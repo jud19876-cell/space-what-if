@@ -1,39 +1,59 @@
 // 시뮬레이션 상태 + Simulation Command.
 // UI 버튼과 (앞으로의) AI 는 모두 executeCommand() 를 통해서만 상태를 바꾼다.
-import { G, dist2, stepBodies, SUN_MASS, length, setGravityMultiplier, calculateCircularSpeed, type Body, type Vec3, type AbsorptionEvent, type CollisionEvent } from './physics.ts';
+import {
+  G,
+  dist2,
+  stepBodies,
+  SUN_MASS,
+  length,
+  setGravityMultiplier,
+  getGravityMultiplier,
+  setDarkMatterHalo,
+  setSolarWind,
+  calculateCircularSpeed,
+  type Body,
+  type Vec3,
+  type AbsorptionEvent,
+  type CollisionEvent,
+} from './physics.ts';
 import { createSolarSystem, EARTH_MASS, BODY_INFO, type BodyId } from './solarSystem.ts';
 
 export type Speed = number; // 1 ~ 100x 자유 조절 가능
 
 export interface StackableConditions {
-  mass2x: boolean;
-  velocity2x: boolean;
-  gravity2x: boolean;
-  sun10x: boolean;
-  earthStop: boolean;
-  sunGone: boolean;
-  sunBlackHole: boolean;
-  monsterBlackHole: boolean;
-  moonToJupiter: boolean;
+  // 연속 물리 파라미터 (자유 슬라이더)
+  gravityMultiplier: number; // -1.0x ~ 10.0x (0x=무중력, -1x=반중력 척력 대팽창)
+  sunMassMultiplier: number; // 0.0x ~ 50.0x (0x=태양 실종, 50x=초거대 항성)
+  orbitSpeedMultiplier: number; // 0.0x ~ 3.0x (0x=정지 추락, 2x=탈출)
+
+  // 6대 창의적 극한 우주 현상
+  antiGravity: boolean; // 🧲 반중력 척력 우주 (암흑에너지 대팽창)
+  darkMatterHalo: boolean; // 🌪️ 암흑물질 헤일로 (외곽 행성 은하 고속 회전)
+  twinNemesis: boolean; // 🌀 침입 쌍성 난입 (태양계 쌍성계화 & 삼체 카오스)
+  asteroidStorm: boolean; // ☄️ 소행성 대폭풍 지속 유입
+  retrogradeFlip: boolean; // 💫 전 행성 역행 공전 반전 (180도)
+  solarWindRepulsion: boolean; // 💥 초신성 플라즈마 척력 폭풍
 }
 
 export function createDefaultConditions(): StackableConditions {
   return {
-    mass2x: false,
-    velocity2x: false,
-    gravity2x: false,
-    sun10x: false,
-    earthStop: false,
-    sunGone: false,
-    sunBlackHole: false,
-    monsterBlackHole: false,
-    moonToJupiter: false,
+    gravityMultiplier: 1.0,
+    sunMassMultiplier: 1.0,
+    orbitSpeedMultiplier: 1.0,
+    antiGravity: false,
+    darkMatterHalo: false,
+    twinNemesis: false,
+    asteroidStorm: false,
+    retrogradeFlip: false,
+    solarWindRepulsion: false,
   };
 }
 
 export type SimCommand =
   | { action: 'remove_body'; target: string }
   | { action: 'change_mass'; target: string; multiplier: number }
+  | { action: 'set_mass'; target: string; massKg: number }
+  | { action: 'set_mass_earth_ratio'; target: string; ratio: number }
   | { action: 'change_velocity'; target: string; multiplier: number }
   | { action: 'move_body'; target: string; near: string }
   | { action: 'spawn_black_hole'; variant: 'sun_replace' | 'invader' | 'near_earth' | 'giant' | 'jupiter_replace' | 'vortex' }
@@ -49,11 +69,13 @@ export type SimCommand =
   | { action: 'resume' }
   | { action: 'set_speed'; speed: number }
   | { action: 'change_visual_radius'; target: string; multiplier: number }
+  | { action: 'set_visual_radius'; target: string; radius: number }
   | { action: 'change_orbit_distance'; target: string; deltaAU?: number; distanceAU?: number; circularizeSpeed?: boolean }
   | { action: 'offset_position'; target: string; delta: Vec3 }
   | { action: 'set_speed_magnitude'; target: string; speedAuDay: number }
-  | { action: 'spawn_custom_planet'; name: string; typeId: string; distanceAU: number; visualRadius: number; massMultiplier: number; hasRings?: boolean }
-  | { action: 'toggle_condition'; condition: keyof StackableConditions; enable: boolean };
+  | { action: 'spawn_custom_planet'; name: string; typeId: string; distanceAU?: number; position?: Vec3; visualRadius: number; massMultiplier: number; hasRings?: boolean }
+  | { action: 'set_condition_slider'; param: 'gravity' | 'sunMass' | 'orbitSpeed'; value: number }
+  | { action: 'toggle_extreme_anomaly'; anomaly: 'antiGravity' | 'darkMatterHalo' | 'twinNemesis' | 'asteroidStorm' | 'retrogradeFlip' | 'solarWindRepulsion'; enable: boolean };
 
 export interface SwallowedRecord {
   id: string;
@@ -109,6 +131,27 @@ export function advance(
       onCollision?.(ev);
     },
   );
+
+  // 소행성 대폭풍 활성화 시 우주 외곽에서 지속적 소행성 침입
+  if (state.conditions?.asteroidStorm && !state.paused) {
+    const activeStormAsteroids = state.bodies.filter((b) => b.id.includes('storm_ast')).length;
+    if (activeStormAsteroids < 10 && Math.random() < 0.15 * realSeconds * state.speed) {
+      const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+      const angle = Math.random() * Math.PI * 2;
+      const r = 16.0 + Math.random() * 4.0;
+      const speed = 0.055 + Math.random() * 0.035;
+      const tgtOffset = (Math.random() - 0.5) * 0.4;
+      state.bodies.push({
+        id: `storm_ast_${uid}`,
+        name: `폭풍 소행성 ${uid.slice(-3)}`,
+        mass: EARTH_MASS * 0.04,
+        position: [Math.cos(angle) * r, Math.sin(angle) * r, 0],
+        velocity: [-Math.cos(angle + tgtOffset) * speed, -Math.sin(angle + tgtOffset) * speed, 0],
+        physicalRadius: 900,
+        visualRadius: 0.42,
+      });
+    }
+  }
 }
 
 export function findBody(state: SimState, id: string): Body | undefined {
@@ -149,6 +192,8 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       state.collisions = [];
       state.conditions = createDefaultConditions();
       setGravityMultiplier(1.0);
+      setDarkMatterHalo(false);
+      setSolarWind(false);
       return true;
     case 'pause':
       state.paused = true;
@@ -387,13 +432,25 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const id = `custom_${cmd.typeId}_${uid}`;
       const mass = EARTH_MASS * cmd.massMultiplier;
-      const angle = Math.random() * Math.PI * 2;
-      const r = Math.max(0.3, cmd.distanceAU);
-      const pos: Vec3 = [Math.cos(angle) * r, Math.sin(angle) * r, 0];
+      let pos: Vec3;
+      let vel: Vec3;
+
       const sun = findBody(state, 'sun');
       const mSun = sun ? sun.mass : SUN_MASS;
-      const vCirc = calculateCircularSpeed(mSun, r);
-      const vel: Vec3 = [-Math.sin(angle) * vCirc, Math.cos(angle) * vCirc, 0];
+
+      if (cmd.position) {
+        pos = [cmd.position[0], cmd.position[1], cmd.position[2]];
+        const r = Math.max(0.1, length(pos));
+        const vCirc = calculateCircularSpeed(mSun, r);
+        vel = [-pos[1] / r * vCirc, pos[0] / r * vCirc, 0];
+      } else {
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.max(0.2, cmd.distanceAU ?? 2.0);
+        pos = [Math.cos(angle) * r, Math.sin(angle) * r, 0];
+        const vCirc = calculateCircularSpeed(mSun, r);
+        vel = [-Math.sin(angle) * vCirc, Math.cos(angle) * vCirc, 0];
+      }
+
       const physicalRadius = Math.round(6371 * Math.sqrt(cmd.massMultiplier));
 
       state.bodies.push({
@@ -408,113 +465,78 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       return true;
     }
 
-    case 'toggle_condition': {
+    case 'set_condition_slider': {
       if (!state.conditions) state.conditions = createDefaultConditions();
-      const cond = cmd.condition;
-      const enable = cmd.enable;
-      if (state.conditions[cond] === enable) return true;
-      state.conditions[cond] = enable;
+      if (cmd.param === 'gravity') {
+        state.conditions.gravityMultiplier = cmd.value;
+        setGravityMultiplier(cmd.value);
+      } else if (cmd.param === 'sunMass') {
+        state.conditions.sunMassMultiplier = cmd.value;
+        const sun = findBody(state, 'sun');
+        if (sun) sun.mass = SUN_MASS * Math.max(0, cmd.value);
+      } else if (cmd.param === 'orbitSpeed') {
+        const oldMult = state.conditions.orbitSpeedMultiplier || 1.0;
+        const newMult = Math.max(0, cmd.value);
+        state.conditions.orbitSpeedMultiplier = newMult;
+        const factor = oldMult > 1e-4 ? newMult / oldMult : newMult;
+        for (const b of state.bodies) {
+          if (b.id !== 'sun' && !b.id.includes('black_hole') && !b.id.includes('nemesis')) {
+            b.velocity[0] *= factor;
+            b.velocity[1] *= factor;
+            b.velocity[2] *= factor;
+          }
+        }
+      }
+      return true;
+    }
 
-      switch (cond) {
-        case 'mass2x': {
-          const factor = enable ? 2.0 : 0.5;
+    case 'toggle_extreme_anomaly': {
+      if (!state.conditions) state.conditions = createDefaultConditions();
+      const anom = cmd.anomaly;
+      const enable = cmd.enable;
+      state.conditions[anom] = enable;
+
+      switch (anom) {
+        case 'antiGravity': {
+          setGravityMultiplier(enable ? -1.0 : state.conditions.gravityMultiplier);
+          break;
+        }
+        case 'darkMatterHalo': {
+          setDarkMatterHalo(enable);
+          break;
+        }
+        case 'twinNemesis': {
+          if (enable) {
+            state.bodies = state.bodies.filter((b) => b.id !== 'twin_nemesis');
+            state.bodies.push({
+              id: 'twin_nemesis',
+              name: '청색 쌍성 네메시스',
+              mass: SUN_MASS * 1.3,
+              position: [7.5, 3.2, 0],
+              velocity: [-0.007, 0.015, 0],
+              physicalRadius: 850000,
+              visualRadius: 2.2,
+            });
+          } else {
+            state.bodies = state.bodies.filter((b) => b.id !== 'twin_nemesis');
+          }
+          break;
+        }
+        case 'asteroidStorm': {
+          break;
+        }
+        case 'retrogradeFlip': {
           for (const b of state.bodies) {
             if (b.id !== 'sun' && !b.id.includes('black_hole')) {
-              b.mass *= factor;
+              b.velocity[0] *= -1;
+              b.velocity[1] *= -1;
+              b.velocity[2] *= -1;
             }
           }
           break;
         }
-        case 'velocity2x': {
-          const factor = enable ? 2.0 : 0.5;
-          for (const b of state.bodies) {
-            if (b.id !== 'sun' && !b.id.includes('black_hole')) {
-              b.velocity[0] *= factor;
-              b.velocity[1] *= factor;
-              b.velocity[2] *= factor;
-            }
-          }
-          break;
-        }
-        case 'gravity2x': {
-          setGravityMultiplier(enable ? 2.0 : 1.0);
-          break;
-        }
-        case 'sun10x': {
-          const sun = findBody(state, 'sun');
-          if (sun) {
-            sun.mass = enable ? SUN_MASS * 10.0 : SUN_MASS;
-          }
-          break;
-        }
-        case 'earthStop': {
-          const earth = findBody(state, 'earth');
-          if (earth) {
-            if (enable) {
-              earth.velocity = [0, 0, 0];
-            } else {
-              const r = length(earth.position);
-              const v = calculateCircularSpeed(SUN_MASS, r);
-              const angle = Math.atan2(earth.position[1], earth.position[0]);
-              earth.velocity = [-Math.sin(angle) * v, Math.cos(angle) * v, 0];
-            }
-          }
-          break;
-        }
-        case 'sunGone': {
-          const sun = findBody(state, 'sun');
-          if (enable) {
-            if (sun) {
-              sun.mass = 0;
-            }
-          } else {
-            if (sun) {
-              sun.mass = state.conditions.sun10x ? SUN_MASS * 10 : SUN_MASS;
-            } else {
-              state.bodies.unshift({
-                id: 'sun',
-                name: '태양',
-                mass: state.conditions.sun10x ? SUN_MASS * 10 : SUN_MASS,
-                position: [0, 0, 0],
-                velocity: [0, 0, 0],
-                physicalRadius: 696340,
-                visualRadius: 1.8,
-              });
-            }
-          }
-          break;
-        }
-        case 'sunBlackHole': {
-          if (enable) {
-            executeCommand(state, { action: 'spawn_black_hole', variant: 'sun_replace' });
-          } else {
-            state.bodies = state.bodies.filter((b) => b.id !== 'black_hole');
-            if (!findBody(state, 'sun')) {
-              state.bodies.unshift({
-                id: 'sun',
-                name: '태양',
-                mass: SUN_MASS,
-                position: [0, 0, 0],
-                velocity: [0, 0, 0],
-                physicalRadius: 696340,
-                visualRadius: 1.8,
-              });
-            }
-          }
-          break;
-        }
-        case 'monsterBlackHole': {
-          if (enable) {
-            executeCommand(state, { action: 'spawn_black_hole', variant: 'giant' });
-          } else {
-            state.bodies = state.bodies.filter((b) => b.id !== 'giant_black_hole');
-          }
-          break;
-        }
-        case 'moonToJupiter': {
-          if (enable) {
-            executeCommand(state, { action: 'move_body', target: 'moon', near: 'jupiter' });
-          }
+        case 'solarWindRepulsion': {
+          setSolarWind(enable);
           break;
         }
       }
@@ -536,8 +558,26 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
         return true;
       }
       body.mass *= cmd.multiplier;
-      body.visualRadius *= Math.pow(cmd.multiplier, 0.25);
+      body.visualRadius = Math.max(0.08, Math.min(100.0, body.visualRadius * Math.pow(cmd.multiplier, 0.25)));
       body.physicalRadius *= Math.cbrt(cmd.multiplier);
+      return true;
+    }
+
+    case 'set_mass': {
+      const targetMass = Math.max(1e18, cmd.massKg);
+      const ratio = targetMass / body.mass;
+      body.mass = targetMass;
+      body.visualRadius = Math.max(0.08, Math.min(100.0, body.visualRadius * Math.pow(ratio, 0.2)));
+      body.physicalRadius = Math.round(body.physicalRadius * Math.cbrt(ratio));
+      return true;
+    }
+
+    case 'set_mass_earth_ratio': {
+      const targetMass = Math.max(1e18, EARTH_MASS * cmd.ratio);
+      const ratio = targetMass / body.mass;
+      body.mass = targetMass;
+      body.visualRadius = Math.max(0.08, Math.min(100.0, body.visualRadius * Math.pow(ratio, 0.2)));
+      body.physicalRadius = Math.round(body.physicalRadius * Math.cbrt(ratio));
       return true;
     }
 
@@ -552,7 +592,12 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
     }
 
     case 'change_visual_radius': {
-      body.visualRadius = Math.max(0.15, Math.min(6.0, body.visualRadius * cmd.multiplier));
+      body.visualRadius = Math.max(0.05, Math.min(100.0, body.visualRadius * cmd.multiplier));
+      return true;
+    }
+
+    case 'set_visual_radius': {
+      body.visualRadius = Math.max(0.05, Math.min(100.0, cmd.radius));
       return true;
     }
 
