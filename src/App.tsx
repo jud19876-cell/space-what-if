@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import BlackHoleSpaghettiSim from './BlackHoleSpaghettiSim.tsx';
 import ConstellationSim from './ConstellationSim.tsx';
+import GalaxyCollisionSim from './GalaxyCollisionSim.tsx';
+import type { GalaxyScenarioType } from './galaxyCollisionPhysics.ts';
 import { AU_PER_DAY_TO_KM_S, length, type Vec3 } from './physics.ts';
 import { PlanetInspector } from './PlanetInspector.tsx';
 import { createSpaceScene, type AimInfo, type PlacementConfig, type PlacementInfo, type SpaceScene } from './scene.ts';
@@ -27,7 +29,8 @@ export default function App() {
   const stateRef = useRef<SimState>(createInitialState());
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SpaceScene | null>(null);
-  const [simMode, setSimMode] = useState<'solar' | 'spaghetti' | 'constellation'>('solar');
+  const [simMode, setSimMode] = useState<'solar' | 'spaghetti' | 'constellation' | 'galaxy'>('solar');
+  const [galaxyScenario, setGalaxyScenario] = useState<GalaxyScenarioType>('grazing');
   const [selected, setSelected] = useState<string | null>(null);
   const [toast, setToast] = useState<{ key: number; emoji: string; text: string; type?: 'normal' | 'impact' | 'explosion' } | null>(null);
   const [hinted, setHinted] = useState(false);
@@ -286,6 +289,39 @@ export default function App() {
       });
       return;
     }
+    if (sc.id === 'galaxy-collision') {
+      setGalaxyScenario('head_on');
+      setSimMode('galaxy');
+      setToast({
+        key: Date.now(),
+        emoji: '💥🌌',
+        text: '두 은하의 정면 대충돌 심우주 모드로 이동합니다!',
+        type: 'normal',
+      });
+      return;
+    }
+    if (sc.id === 'spawn-nearby-galaxy') {
+      setGalaxyScenario('grazing');
+      setSimMode('galaxy');
+      setToast({
+        key: Date.now(),
+        emoji: '🌌🌀',
+        text: '나선은하 조석 꼬리 & 심우주 모드로 이동합니다!',
+        type: 'normal',
+      });
+      return;
+    }
+    if (sc.id === 'supermassive-blackhole-feast') {
+      setGalaxyScenario('supermassive');
+      setSimMode('galaxy');
+      setToast({
+        key: Date.now(),
+        emoji: '🕳️🌌',
+        text: '초대질량 블랙홀 [가르간튀아]의 은하 쌍포식 심우주 모드로 이동합니다!',
+        type: 'normal',
+      });
+      return;
+    }
     runCommands(sc.commands);
     setToast({
       key: Date.now(),
@@ -369,6 +405,19 @@ export default function App() {
           >
             <span>✨🦂</span>
             <span className="btn-text">3D 별자리 탐험</span>
+          </button>
+
+          <button
+            id="btn-galaxy-sim"
+            className="btn galaxy-nav-btn"
+            onClick={() => {
+              setGalaxyScenario('grazing');
+              setSimMode('galaxy');
+            }}
+            title="광활한 심우주 스케일에서 성운 가스 구름과 두 은하의 상호작용 및 대충돌 관찰"
+          >
+            <span>🌌🌀</span>
+            <span className="btn-text">은하 대충돌 심우주</span>
           </button>
 
           <button
@@ -783,6 +832,14 @@ export default function App() {
       {/* 3D 입체 별자리 탐험 전용 시뮬레이션 모드 */}
       {simMode === 'constellation' && (
         <ConstellationSim onBackToSolar={() => setSimMode('solar')} />
+      )}
+
+      {/* 은하 대충돌 & 심우주 전용 시뮬레이션 모드 */}
+      {simMode === 'galaxy' && (
+        <GalaxyCollisionSim
+          onBackToSolar={() => setSimMode('solar')}
+          initialScenario={galaxyScenario}
+        />
       )}
     </div>
   );

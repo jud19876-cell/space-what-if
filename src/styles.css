@@ -3430,6 +3430,504 @@ body,
   color: #ffffff;
 }
 
+/* ==========================================================================
+   🌌 은하 대충돌 & 심우주 모드 (Galaxy Scale Simulation) 스타일
+   ========================================================================== */
+.galaxy-nav-btn {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.45), rgba(37, 99, 235, 0.45)) !important;
+  border-color: rgba(192, 132, 252, 0.6) !important;
+  box-shadow: 0 0 16px rgba(147, 51, 234, 0.35);
+}
+.galaxy-nav-btn:hover {
+  background: linear-gradient(135deg, rgba(147, 51, 234, 0.75), rgba(59, 130, 246, 0.75)) !important;
+  border-color: #c084fc !important;
+  box-shadow: 0 0 24px rgba(192, 132, 252, 0.6);
+  transform: translateY(-1px);
+}
+
+.galaxy-sim-root {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #03030d;
+  color: #e2e8f0;
+  overflow: hidden;
+  font-family: inherit;
+  user-select: none;
+}
+
+.galaxy-canvas-container {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* 상단 헤더 */
+.galaxy-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 68px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: linear-gradient(180deg, rgba(8, 10, 28, 0.92) 0%, rgba(8, 10, 28, 0.6) 80%, transparent 100%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  z-index: 20;
+}
+
+.galaxy-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.galaxy-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.galaxy-main-title {
+  font-size: 19px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #38bdf8 0%, #c084fc 60%, #f472b6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: -0.02em;
+}
+
+.galaxy-title-icon {
+  font-size: 22px;
+}
+
+.galaxy-sub-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(147, 51, 234, 0.25);
+  border: 1px solid rgba(192, 132, 252, 0.4);
+  color: #e9d5ff;
+}
+
+.galaxy-scenarios-bar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.galaxy-scenario-btn {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.65);
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  white-space: nowrap;
+}
+
+.galaxy-scenario-btn:hover {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(192, 132, 252, 0.5);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.galaxy-scenario-btn.active {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.75), rgba(219, 39, 119, 0.75));
+  border-color: #f472b6;
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(219, 39, 119, 0.5);
+}
+
+/* 카메라 시점 모드 바 */
+.galaxy-viewmode-bar {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 20;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.galaxy-viewmode-bar .view-mode-pill {
+  display: flex;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  padding: 4px;
+  gap: 4px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.galaxy-viewmode-bar .btn-view-toggle {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.galaxy-viewmode-bar .btn-view-toggle:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.galaxy-viewmode-bar .btn-view-toggle.active {
+  background: linear-gradient(135deg, #0284c7, #2563eb);
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(37, 99, 235, 0.55);
+}
+
+.galaxy-viewmode-bar .btn-view-toggle.highlight.active {
+  background: linear-gradient(135deg, #ea580c, #dc2626);
+  box-shadow: 0 0 16px rgba(234, 88, 12, 0.6);
+}
+
+.galaxy-viewmode-bar .btn-view-toggle.highlight-purple.active {
+  background: linear-gradient(135deg, #7c3aed, #db2777);
+  box-shadow: 0 0 16px rgba(124, 58, 237, 0.6);
+}
+
+.galaxy-viewmode-bar .aux-toggles {
+  display: flex;
+  gap: 6px;
+}
+
+.galaxy-viewmode-bar .btn-aux-toggle {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.7);
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.galaxy-viewmode-bar .btn-aux-toggle.active {
+  background: rgba(30, 41, 59, 0.9);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.6);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+}
+
+/* 좌측 HUD 지표 패널 */
+.galaxy-hud-panel {
+  position: absolute;
+  top: 136px;
+  left: 20px;
+  width: min(90vw, 310px);
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: rgba(15, 20, 42, 0.84);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6), 0 0 24px rgba(56, 189, 248, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 20;
+}
+
+.hud-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.hud-metrics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hud-metric-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hud-metric-row .metric-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.hud-metric-row .metric-val {
+  font-size: 15px;
+  font-weight: 800;
+  font-family: monospace;
+  color: #f8fafc;
+}
+
+.hud-metric-row .metric-sub {
+  font-size: 10px;
+  color: #64748b;
+}
+
+.hud-metric-row .highlight-cyan {
+  color: #38bdf8;
+}
+
+.hud-metric-row .highlight-magenta {
+  color: #f472b6;
+}
+
+.hud-metric-row .highlight-red {
+  color: #f87171;
+}
+
+.distortion-bar-bg {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 3px;
+}
+
+.distortion-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #f472b6, #ef4444);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.hud-scenario-desc {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.45;
+}
+
+.hud-scenario-desc strong {
+  display: block;
+  font-size: 13px;
+  color: #e2e8f0;
+  margin-bottom: 4px;
+}
+
+/* 우측 가이드 박스 */
+.galaxy-guide-box {
+  position: absolute;
+  top: 136px;
+  right: 20px;
+  width: min(90vw, 330px);
+  z-index: 20;
+}
+
+.btn-guide-toggle {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 20, 42, 0.85);
+  color: #f8fafc;
+  cursor: pointer;
+  text-align: left;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: all 0.2s ease;
+}
+
+.btn-guide-toggle:hover {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(56, 189, 248, 0.5);
+}
+
+.guide-content {
+  margin-top: 6px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(15, 20, 42, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  font-size: 12px;
+  line-height: 1.55;
+  color: #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+
+.guide-content strong {
+  color: #38bdf8;
+}
+
+/* 하단 제어 바 */
+.galaxy-control-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background: linear-gradient(0deg, rgba(8, 10, 28, 0.95) 0%, rgba(8, 10, 28, 0.75) 80%, transparent 100%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  z-index: 20;
+  flex-wrap: wrap;
+}
+
+.control-group-playback {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-ctrl-playback {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-ctrl-playback.pause {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.btn-ctrl-playback.pause:hover {
+  background: rgba(239, 68, 68, 0.5);
+  color: #ffffff;
+}
+
+.btn-ctrl-playback.play {
+  background: rgba(34, 197, 94, 0.25);
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.5);
+}
+
+.btn-ctrl-playback.play:hover {
+  background: rgba(34, 197, 94, 0.5);
+  color: #ffffff;
+}
+
+.btn-ctrl-playback.reset {
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5e1;
+}
+
+.btn-ctrl-playback.reset:hover {
+  background: rgba(148, 163, 184, 0.35);
+  color: #ffffff;
+}
+
+.control-group-speed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ctrl-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.chip-speed {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.6);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chip-speed:hover {
+  color: #ffffff;
+  border-color: rgba(192, 132, 252, 0.5);
+}
+
+.chip-speed.active {
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  color: #ffffff;
+  border-color: #c084fc;
+  box-shadow: 0 0 12px rgba(124, 58, 237, 0.5);
+}
+
+.control-group-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.galaxy-distance-slider {
+  width: 140px;
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+
+.slider-val-badge {
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: 800;
+  color: #38bdf8;
+  min-width: 65px;
+}
+
+
 
 
 
