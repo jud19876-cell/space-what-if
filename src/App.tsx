@@ -725,6 +725,12 @@ export default function App() {
               🕳️ 블랙홀 실험
             </button>
             <button
+              className={`category-tab category-tab-galaxy ${category === 'galaxy' ? 'on' : ''}`}
+              onClick={() => setCategory('galaxy')}
+            >
+              🌌 은하·천계 충돌
+            </button>
+            <button
               className={`category-tab category-tab-asteroid ${category === 'asteroid' ? 'on' : ''}`}
               onClick={() => setCategory('asteroid')}
             >
@@ -744,7 +750,7 @@ export default function App() {
             <button
               key={sc.id}
               id={`exp-${sc.id}`}
-              className={`btn exp ${sc.id === 'reset' ? 'exp-reset' : ''} ${sc.category === 'blackhole' ? 'exp-blackhole' : ''} ${sc.category === 'asteroid' ? 'exp-asteroid' : ''} ${sc.category === 'constellation' ? 'exp-constellation' : ''}`}
+              className={`btn exp ${sc.id === 'reset' ? 'exp-reset' : ''} ${sc.category === 'blackhole' ? 'exp-blackhole' : ''} ${sc.category === 'galaxy' ? 'exp-galaxy' : ''} ${sc.category === 'asteroid' ? 'exp-asteroid' : ''} ${sc.category === 'constellation' ? 'exp-constellation' : ''}`}
               onClick={() => runScenario(sc)}
             >
               <span className="exp-emoji">{sc.emoji}</span>

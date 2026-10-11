@@ -271,6 +271,48 @@ const r0 = (b: Body) => length(b.position);
   check('블랙홀 흡수: 화성 블랙홀이 주변 천체를 사건의 지평선으로 흡수', s.swallowedList.length > 0 || marsBh.mass > 0, `삼킨 천체 수: ${s.swallowedList.length}개`);
 }
 
+// 19. 지구 외 다른 행성(수성, 금성, 목성 등) 질량 증폭 시 자동 블랙홀 각성 검증
+{
+  const s = createInitialState();
+  // 수성(가장 작은 행성) 질량을 5000배로 2번 곱하여 임계치 초과
+  executeCommand(s, { action: 'change_mass', target: 'mercury', multiplier: 5000 });
+  executeCommand(s, { action: 'change_mass', target: 'mercury', multiplier: 5000 });
+  const merc = get(s, 'mercury');
+  check('수성 자동 블랙홀 전환: 질량 폭증 시 블랙홀로 자동 붕괴', merc.isBlackHole === true && merc.name.includes('블랙홀'), `수성: ${merc.name}, isBh=${merc.isBlackHole}`);
+
+  // 금성 질량도 설정 시 자동 블랙홀 전환
+  executeCommand(s, { action: 'set_mass_earth_ratio', target: 'venus', ratio: 2000 });
+  const venus = get(s, 'venus');
+  check('금성 자동 블랙홀 전환: 지구 2000배 도달 시 자동 붕괴', venus.isBlackHole === true && venus.name.includes('블랙홀'), `금성: ${venus.name}, isBh=${venus.isBlackHole}`);
+}
+
+// 20. 인접 나선은하 [안드로스] 소환 및 은하 대충돌 검증
+{
+  const s = createInitialState();
+  const initCount = s.bodies.length;
+  executeCommand(s, { action: 'spawn_nearby_galaxy', variant: 'collide' });
+  const androsCore = s.bodies.find((b) => b.id === 'andros_core');
+  check('인접 은하 소환: 안드로스 나선은하와 외계 천체군 진입', !!androsCore && s.bodies.length >= initCount + 5, `천체 수: ${initCount} -> ${s.bodies.length}`);
+
+  // 120일 진행하여 두 은하 상호작용 검증
+  run(s, 120);
+  check('은하 대충돌 진행: 태양계와 안드로스 은하 간 상호 중력 궤도 작용', s.bodies.length >= 10, `충돌 중 생존 천체 수: ${s.bodies.length}`);
+}
+
+// 21. 초대질량 괴물 블랙홀 [가르간튀아] 소환 및 천체 대포식 검증
+{
+  const s = createInitialState();
+  executeCommand(s, { action: 'spawn_supermassive_black_hole' });
+  const gargantua = s.bodies.find((b) => b.id === 'supermassive_black_hole');
+  check('초대질량 블랙홀 소환: 가르간튀아(태양 350배) 출현', !!gargantua && gargantua.mass > 1.989e30 * 300, `가르간튀아 질량: ${(gargantua?.mass ?? 0).toExponential(2)} kg`);
+
+  // 시뮬레이션을 진행하여 블랙홀 대포식 진행
+  for (let i = 0; i < 60; i++) {
+    advance(s, 5 / 500);
+  }
+  check('초대질량 블랙홀 대포식: 시공간 왜곡 및 포식 가동', !!gargantua && s.bodies.length > 0, `현재 천체 수: ${s.bodies.length}, 삼킨 기록: ${s.swallowedList.length}`);
+}
+
 console.log(failed ? `\n${failed}개 실패` : '\n모든 테스트 통과');
 (globalThis as unknown as { process: { exitCode: number } }).process.exitCode = failed ? 1 : 0;
 

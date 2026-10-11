@@ -152,4 +152,12 @@ export const BODY_INFO: Record<BodyId, BodyInfo> = {
   giant_asteroid: { emoji: '💥☄️', color: '#ff2244', lines: ['행성을 산산조각 낼 수 있는 거대 소행성이야!', '엄청난 충돌 에너지로 행성을 파괴해!'] },
   fragment: { emoji: '🪨', color: '#d0a87a', lines: ['행성이 폭발하면서 흩어진 파편이야!', '새로운 파편 조각들이 우주를 돌고 있어.'] },
   twin_nemesis: { emoji: '⭐🔵', color: '#60a5fa', lines: ['태양계를 침입한 거대한 청색 쌍성 네메시스야!', '질량이 태양의 1.3배에 달해 태양계 전체를 쌍성계 삼체 카오스로 뒤흔들고 있어!'] },
+  supermassive_black_hole: { emoji: '🕳️🌌', color: '#9333ea', lines: ['태양 350배 초대질량 괴물 블랙홀 [가르간튀아]야!', '태양계와 인접 은하 전체를 통째로 집어삼키는 시공간의 심연이야!'] },
+  andros_core: { emoji: '🌌⭐', color: '#c084fc', lines: ['인접 나선은하 안드로스의 거대 중심핵 항성이야!', '수많은 외계 별과 행성들을 거느리며 은하를 공전시키고 있어.'] },
+  andros_sirius: { emoji: '⭐🔵', color: '#60a5fa', lines: ['안드로스 은하의 외계 청색 거성 시리우스 프라임이야!', '찬란한 푸른빛과 강력한 중력장을 뿜어내고 있어.'] },
+  andros_betelgeuse: { emoji: '⭐🔴', color: '#f87171', lines: ['안드로스 은하의 적색 초거성 베텔게우스 오리온이야!', '거대한 팽창 항성으로 은하 중심부를 선회해.'] },
+  andros_elysium: { emoji: '🪐💜', color: '#e879f9', lines: ['안드로스 은하의 외계 슈퍼지구 엘리시움이야!', '보랏빛 대기와 신비로운 성운 에너지를 품고 있어.'] },
+  andros_oceanus: { emoji: '🪐🌊', color: '#2dd4bf', lines: ['안드로스 은하의 에메랄드 해양 외계행성 오케아누스야!', '행성 전체가 깊은 바다로 덮여 있어.'] },
+  andros_titan: { emoji: '🪐✨', color: '#38bdf8', lines: ['안드로스 은하의 거대 고리 가스행성 크로노스야!', '목성 크기의 거대한 얼음 고리 원반을 휘감고 있어.'] },
+  andros_valcan: { emoji: '🪐🌋', color: '#fb923c', lines: ['안드로스 은하의 초고온 마그마 행성 발칸이야!', '중심 항성 바로 곁에서 불타오르는 용암 행성이야.'] },
 };

@@ -72,9 +72,13 @@ export const AU_PER_DAY_TO_KM_S = 1.495978707e8 / 86400;
 
 const KM_TO_AU = 1 / 1.495978707e8;
 
-/** 천체가 블랙홀인지 판정: ID에 black_hole이 포함되거나, 플래그가 켜졌거나, 태양 질량 1.5배 이상으로 중력 붕괴한 경우 */
+/** 천체가 블랙홀인지 판정: ID에 black_hole이 포함되거나, 플래그가 켜졌거나, 태양 제외 지구 질량 1,500배 이상으로 중력 붕괴한 경우 */
 export function isBlackHoleBody(b: Body): boolean {
-  return b.id.includes('black_hole') || b.isBlackHole === true || (b.id !== 'sun' && b.mass >= SUN_MASS * 1.5);
+  return (
+    b.id.includes('black_hole') ||
+    b.isBlackHole === true ||
+    (b.id !== 'sun' && !b.id.includes('core') && b.mass >= 5.972e24 * 1500)
+  );
 }
 
 // 소프트닝: 두 천체가 겹칠 때 힘이 무한대로 커지는 것을 막는다.
@@ -93,13 +97,20 @@ const ETA = 0.02; // 가까이 접근하면 스텝을 자동으로 줄이는 비
 export function getBlackHoleCaptureRadius(bh: Body): number {
   const isMini = bh.id.includes('mini');
   if (isMini) return 0.003; // 약 45만 km
+  const isSupermassive = bh.id.includes('supermassive') || bh.mass >= SUN_MASS * 80;
+  if (isSupermassive) {
+    // 초대질량 괴물 블랙홀: 거대한 흡수 반경
+    const massRatio = bh.mass / SUN_MASS;
+    return Math.min(3.8, 0.45 * Math.pow(massRatio / 100, 0.5));
+  }
   const massRatio = Math.max(0.1, bh.mass / SUN_MASS);
   return 0.055 * Math.pow(massRatio, 0.55);
 }
 
 /** 블랙홀 상대론적 조석 붕괴 및 소용돌이 나선 낙하 영역 (ISCO / Accretion Basin, AU) */
 export function getBlackHoleInspiralRadius(bh: Body): number {
-  return getBlackHoleCaptureRadius(bh) * 3.4;
+  const isSupermassive = bh.id.includes('supermassive') || bh.mass >= SUN_MASS * 80;
+  return getBlackHoleCaptureRadius(bh) * (isSupermassive ? 4.2 : 3.4);
 }
 
 /** 천체 충돌 유효 감지 반경 (AU) */

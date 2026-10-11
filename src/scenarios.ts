@@ -1,14 +1,14 @@
 // 하단의 "만약에?" 실험 버튼. 각 실험은 Simulation Command 목록일 뿐이다.
 import type { SimCommand } from './simulation.ts';
 
-export type ScenarioCategory = 'all' | 'solar' | 'blackhole' | 'asteroid' | 'constellation';
+export type ScenarioCategory = 'all' | 'solar' | 'blackhole' | 'asteroid' | 'galaxy' | 'constellation';
 
 export interface Scenario {
   id: string;
   emoji: string;
   label: string;
   message: string; // 실행 후 잠깐 보여 줄 말
-  category?: 'solar' | 'blackhole' | 'asteroid' | 'constellation';
+  category?: 'solar' | 'blackhole' | 'asteroid' | 'galaxy' | 'constellation';
   commands: SimCommand[];
 }
 
@@ -132,12 +132,62 @@ export const SCENARIOS: Scenario[] = [
     commands: [{ action: 'spawn_black_hole', variant: 'jupiter_replace' }],
   },
   {
+    id: 'all-planets-blackhole',
+    emoji: '🪐🕳️',
+    label: '전 행성 동시 블랙홀 붕괴',
+    category: 'blackhole',
+    message: '태양계의 모든 행성이 임계 중력 붕괴를 일으켜 일제히 블랙홀로 변모했습니다!',
+    commands: [{ action: 'collapse_all_planets_to_black_holes' }],
+  },
+  {
+    id: 'mars-blackhole',
+    emoji: '🔴🕳️',
+    label: '화성 블랙홀 각성 & 내행성 흡수',
+    category: 'blackhole',
+    message: '화성이 초고밀도 블랙홀로 붕괴하여 인접한 지구와 내행성들을 강하게 끌어당깁니다!',
+    commands: [{ action: 'collapse_to_black_hole', target: 'mars' }],
+  },
+  {
+    id: 'earth-blackhole',
+    emoji: '🌍🕳️',
+    label: '지구 블랙홀 각성',
+    category: 'blackhole',
+    message: '지구가 중력 붕괴하여 블랙홀로 변신했습니다! 달과 주변 행성들의 운명은?!',
+    commands: [{ action: 'collapse_to_black_hole', target: 'earth' }],
+  },
+  {
     id: 'remove-blackhole',
     emoji: '🕳️❌',
     label: '블랙홀 없애기',
     category: 'blackhole',
     message: '모든 블랙홀이 사라졌어!',
     commands: [{ action: 'remove_all_black_holes' }],
+  },
+
+  // --- 인접 은하·천계 및 은하 대충돌 & 초대질량 블랙홀 포식 시뮬레이션 ---
+  {
+    id: 'spawn-nearby-galaxy',
+    emoji: '🌌✨',
+    label: '인접 나선은하 "안드로스" 소환',
+    category: 'galaxy',
+    message: '태양계 인근에 독자적 거대 중심핵과 외계 항성·행성들을 품은 나선은하 [안드로스]가 출현했습니다!',
+    commands: [{ action: 'spawn_nearby_galaxy', variant: 'drift' }],
+  },
+  {
+    id: 'galaxy-collision',
+    emoji: '💥🌌',
+    label: '태양계 vs 안드로스 은하 정면 대충돌',
+    category: 'galaxy',
+    message: '두 은하계가 초속 수십 km/s로 정면 대충돌합니다! 궤도 붕괴와 중력 난투극을 관찰하세요!',
+    commands: [{ action: 'spawn_nearby_galaxy', variant: 'collide' }],
+  },
+  {
+    id: 'supermassive-blackhole-feast',
+    emoji: '🕳️🌌',
+    label: '초대질량 블랙홀 [가르간튀아]의 은하 대포식',
+    category: 'galaxy',
+    message: '태양 350배 초대질량 블랙홀 [가르간튀아]가 시공간을 뒤틀며 태양계와 안드로스 은하를 통째로 집어삼킵니다!',
+    commands: [{ action: 'spawn_supermassive_black_hole' }],
   },
 
   // --- 3D 입체 별자리 탐험 실험 (평면 vs 실제 3D 깊이 거리) ---

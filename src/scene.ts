@@ -198,7 +198,7 @@ export function createSpaceScene(
   controls.enableDamping = true;
   controls.enablePan = false;
   controls.minDistance = 4;
-  controls.maxDistance = 400;
+  controls.maxDistance = 1400;
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.35));
   const sunLight = new THREE.PointLight(0xfff2d0, 3.2, 0, 0);
@@ -242,8 +242,12 @@ export function createSpaceScene(
       sphere = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: 0x010103 }));
       group.add(sphere);
 
+      const isSupermassive = id === 'supermassive_black_hole';
+      const diskInner = isSupermassive ? 1.6 : 1.25;
+      const diskOuter = isSupermassive ? 5.0 : 3.2;
+
       // 강착원반 (Accretion Disk)
-      const diskGeo = new THREE.RingGeometry(1.25, 3.2, 64);
+      const diskGeo = new THREE.RingGeometry(diskInner, diskOuter, 64);
       const diskMat = new THREE.MeshBasicMaterial({
         map: makeAccretionDiskTexture(),
         side: THREE.DoubleSide,
@@ -258,12 +262,12 @@ export function createSpaceScene(
       group.add(accretionDisk);
 
       // 중력 렌징 광자 고리 (Gravitational Lensing Halo Ring)
-      const lensGeo = new THREE.RingGeometry(1.05, 1.45, 64);
+      const lensGeo = new THREE.RingGeometry(diskInner * 0.85, diskInner * 1.35, 64);
       const lensMat = new THREE.MeshBasicMaterial({
         map: makeAccretionDiskTexture(),
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.7,
+        opacity: 0.75,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       });
@@ -323,6 +327,18 @@ export function createSpaceScene(
         group.add(makeProceduralRing('saturn', 1.35, 2.45, 0.45));
       } else if (id === 'uranus') {
         group.add(makeProceduralRing('uranus', 1.25, 1.85, 1.7));
+      } else if (id === 'andros_titan') {
+        group.add(makeProceduralRing('saturn', 1.45, 2.8, 0.4));
+      }
+
+      // 인접 나선은하 안드로스 중심핵 및 외계 거성 효과
+      if (id === 'andros_core') {
+        group.add(makeSpiralGalaxyDisc());
+        group.add(makeAtmosphereGlow(0xc084fc, 1.15));
+      } else if (id === 'andros_sirius') {
+        group.add(makeAtmosphereGlow(0x60a5fa, 1.12));
+      } else if (id === 'andros_betelgeuse') {
+        group.add(makeAtmosphereGlow(0xf87171, 1.15));
       }
     }
 
@@ -670,6 +686,9 @@ export function createSpaceScene(
       v.sphere.scale.setScalar(b.visualRadius);
       v.hit.scale.setScalar(Math.max(b.visualRadius * 1.6, 1.1));
       v.sphere.rotation.y += 0.01;
+      if (b.id === 'andros_core') {
+        v.group.rotation.y += 0.003;
+      }
 
       // 블랙홀 강착원반 & 렌징 링 회전 애니메이션
       if (v.accretionDisk) {
@@ -1351,6 +1370,97 @@ function makeBlackHoleGlow(): THREE.Sprite {
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false }));
   sprite.scale.setScalar(14);
   return sprite;
+}
+
+/** 나선은하 안드로스(Andros) 3D 성운 원반 & 나선팔 별무리 파티클 시스템 */
+function makeSpiralGalaxyDisc(): THREE.Group {
+  const group = new THREE.Group();
+
+  // 1. 은하 중심 성운 글로우 원반
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 512;
+  const ctx = c.getContext('2d')!;
+  const grad = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+  grad.addColorStop(0, 'rgba(235, 215, 255, 0.95)');
+  grad.addColorStop(0.12, 'rgba(190, 130, 255, 0.75)');
+  grad.addColorStop(0.35, 'rgba(90, 140, 255, 0.45)');
+  grad.addColorStop(0.65, 'rgba(147, 51, 234, 0.2)');
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 512, 512);
+
+  // 2개의 주 나선팔 그리기
+  ctx.strokeStyle = 'rgba(192, 132, 252, 0.35)';
+  ctx.lineWidth = 16;
+  for (let arm = 0; arm < 2; arm++) {
+    ctx.beginPath();
+    const baseAngle = arm * Math.PI;
+    for (let r = 25; r < 240; r += 5) {
+      const theta = baseAngle + r * 0.026;
+      const x = 256 + Math.cos(theta) * r;
+      const y = 256 + Math.sin(theta) * r;
+      if (r === 25) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const planeGeo = new THREE.PlaneGeometry(36, 36);
+  const planeMat = new THREE.MeshBasicMaterial({
+    map: tex,
+    transparent: true,
+    opacity: 0.85,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const plane = new THREE.Mesh(planeGeo, planeMat);
+  plane.rotation.x = -Math.PI / 2;
+  group.add(plane);
+
+  // 2. 나선팔 별무리 파티클들 (600개 입체 별무리)
+  const starCount = 600;
+  const starPos = new Float32Array(starCount * 3);
+  const colors = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i++) {
+    const arm = i % 2;
+    const r = 2.0 + Math.pow(Math.random(), 1.4) * 16.0;
+    const theta = arm * Math.PI + r * 0.42 + (Math.random() - 0.5) * 0.55;
+    const x = Math.cos(theta) * r + (Math.random() - 0.5) * 0.9;
+    const z = Math.sin(theta) * r + (Math.random() - 0.5) * 0.9;
+    const y = (Math.random() - 0.5) * 0.7 * Math.max(0.2, 1.0 - r / 18.0);
+    starPos[i * 3] = x;
+    starPos[i * 3 + 1] = y;
+    starPos[i * 3 + 2] = z;
+
+    const colRand = Math.random();
+    if (colRand < 0.35) {
+      colors[i * 3] = 0.45; colors[i * 3 + 1] = 0.7; colors[i * 3 + 2] = 1.0;
+    } else if (colRand < 0.75) {
+      colors[i * 3] = 0.85; colors[i * 3 + 1] = 0.45; colors[i * 3 + 2] = 1.0;
+    } else {
+      colors[i * 3] = 1.0; colors[i * 3 + 1] = 0.92; colors[i * 3 + 2] = 0.65;
+    }
+  }
+
+  const starGeo = new THREE.BufferGeometry();
+  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+  starGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const starMat = new THREE.PointsMaterial({
+    size: 0.38,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.92,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const stars = new THREE.Points(starGeo, starMat);
+  group.add(stars);
+
+  return group;
 }
 
 /** 소행성 표면 텍스처 (크레이터 및 불타는 균열) */

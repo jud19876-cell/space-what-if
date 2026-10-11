@@ -613,6 +613,11 @@ body,
   background: linear-gradient(135deg, #7c3aed, #db2777);
   box-shadow: 0 0 18px rgba(219, 39, 119, 0.5);
 }
+.category-tab-galaxy.on {
+  background: linear-gradient(135deg, #9333ea, #3b82f6);
+  box-shadow: 0 0 18px rgba(147, 51, 234, 0.6);
+  border-color: #c084fc;
+}
 .category-tab-asteroid.on {
   background: linear-gradient(135deg, #ea580c, #dc2626);
   box-shadow: 0 0 18px rgba(234, 88, 12, 0.6);
@@ -671,6 +676,15 @@ body,
 .exp-blackhole {
   background: linear-gradient(135deg, rgba(60, 15, 100, 0.75), rgba(20, 5, 45, 0.85));
   border-color: rgba(185, 90, 255, 0.5);
+}
+.exp-galaxy {
+  background: linear-gradient(135deg, rgba(67, 24, 115, 0.75), rgba(20, 20, 70, 0.85));
+  border-color: rgba(192, 132, 252, 0.55);
+}
+.exp-galaxy:hover {
+  background: linear-gradient(135deg, rgba(107, 33, 168, 0.88), rgba(30, 27, 75, 0.95));
+  border-color: #c084fc;
+  box-shadow: 0 6px 24px rgba(168, 85, 247, 0.6);
 }
 .exp-asteroid {
   background: linear-gradient(135deg, rgba(120, 40, 10, 0.75), rgba(50, 15, 10, 0.85));

@@ -77,7 +77,10 @@ export type SimCommand =
   | { action: 'set_condition_slider'; param: 'gravity' | 'sunMass' | 'orbitSpeed'; value: number }
   | { action: 'toggle_extreme_anomaly'; anomaly: 'antiGravity' | 'darkMatterHalo' | 'twinNemesis' | 'asteroidStorm' | 'retrogradeFlip' | 'solarWindRepulsion'; enable: boolean }
   | { action: 'collapse_to_black_hole'; target: string }
-  | { action: 'restore_from_black_hole'; target: string };
+  | { action: 'restore_from_black_hole'; target: string }
+  | { action: 'spawn_nearby_galaxy'; variant?: 'drift' | 'collide' }
+  | { action: 'spawn_supermassive_black_hole' }
+  | { action: 'collapse_all_planets_to_black_holes' };
 
 export interface SwallowedRecord {
   id: string;
@@ -179,6 +182,54 @@ export function findHost(bodies: Body[], body: Body): Body | undefined {
 
 function satellitesOf(bodies: Body[], body: Body): Body[] {
   return bodies.filter((b) => b !== body && findHost(bodies, b) === body);
+}
+
+/** 인접 나선은하 안드로스(Andros) 천계 생성 (중심핵 항성 + 외계 항성 및 행성군) */
+export function createAndrosGalaxy(center: Vec3, bulkVelocity: Vec3): Body[] {
+  const bodies: Body[] = [];
+  const coreMass = SUN_MASS * 4.5;
+
+  // 1. 은하 중심핵 거대 항성 (Andros Core Star)
+  bodies.push({
+    id: 'andros_core',
+    name: '안드로스 은하 중심핵',
+    mass: coreMass,
+    position: [...center],
+    velocity: [...bulkVelocity],
+    physicalRadius: 1200000,
+    visualRadius: 3.5,
+  });
+
+  // 2. 은하 소속 천체들 (외계 거성, 슈퍼지구, 해양행성, 고리행성 등)
+  const members: Array<{ id: string; name: string; mass: number; r: number; theta: number; physR: number; visR: number; isBh?: boolean }> = [
+    { id: 'andros_valcan', name: '용암행성 발칸', mass: EARTH_MASS * 3.2, r: 1.5, theta: 0.5, physR: 7800, visR: 0.7 },
+    { id: 'andros_elysium', name: '외계슈퍼지구 엘리시움', mass: EARTH_MASS * 6.5, r: 3.0, theta: 2.1, physR: 11000, visR: 0.95 },
+    { id: 'andros_oceanus', name: '해양행성 오케아누스', mass: EARTH_MASS * 4.2, r: 4.6, theta: 3.7, physR: 8900, visR: 0.85 },
+    { id: 'andros_sirius', name: '청색거성 시리우스 프라임', mass: SUN_MASS * 2.2, r: 6.8, theta: 5.1, physR: 980000, visR: 2.5 },
+    { id: 'andros_titan', name: '고리행성 크로노스', mass: EARTH_MASS * 320, r: 9.2, theta: 1.1, physR: 71000, visR: 1.7 },
+    { id: 'andros_betelgeuse', name: '적색초거성 베텔게우스', mass: SUN_MASS * 3.5, r: 12.5, theta: 2.9, physR: 1600000, visR: 3.2 },
+  ];
+
+  for (const m of members) {
+    const rx = Math.cos(m.theta) * m.r;
+    const ry = Math.sin(m.theta) * m.r;
+    const vCirc = Math.sqrt((G * (coreMass + m.mass)) / m.r);
+    const vx = -Math.sin(m.theta) * vCirc;
+    const vy = Math.cos(m.theta) * vCirc;
+
+    bodies.push({
+      id: m.id,
+      name: m.name,
+      mass: m.mass,
+      position: [center[0] + rx, center[1] + ry, center[2]],
+      velocity: [bulkVelocity[0] + vx, bulkVelocity[1] + vy, bulkVelocity[2]],
+      physicalRadius: m.physR,
+      visualRadius: m.visR,
+      isBlackHole: m.isBh,
+    });
+  }
+
+  return bodies;
 }
 
 /**
@@ -544,10 +595,61 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       }
       return true;
     }
+
+    case 'spawn_nearby_galaxy': {
+      const isCollide = cmd.variant === 'collide';
+      state.bodies = state.bodies.filter((b) => !b.id.startsWith('andros_'));
+      const center: Vec3 = isCollide ? [20.0, 13.0, 0] : [32.0, 22.0, 0];
+      const bulkVel: Vec3 = isCollide ? [-0.018, -0.012, 0] : [-0.003, 0.003, 0];
+      const galaxyBodies = createAndrosGalaxy(center, bulkVel);
+      for (const gb of galaxyBodies) {
+        state.bodies.push(gb);
+      }
+      return true;
+    }
+
+    case 'spawn_supermassive_black_hole': {
+      state.bodies = state.bodies.filter((b) => b.id !== 'supermassive_black_hole');
+      state.bodies.push({
+        id: 'supermassive_black_hole',
+        name: '초대질량 블랙홀 [가르간튀아]',
+        mass: SUN_MASS * 350,
+        position: [16.0, 11.0, 0],
+        velocity: [-0.003, -0.002, 0],
+        physicalRadius: 300000,
+        visualRadius: 6.8,
+        isBlackHole: true,
+      });
+
+      const hasAndros = state.bodies.some((b) => b.id === 'andros_core');
+      if (!hasAndros) {
+        const galaxyBodies = createAndrosGalaxy([26.0, 20.0, 0], [-0.008, -0.006, 0]);
+        for (const gb of galaxyBodies) {
+          state.bodies.push(gb);
+        }
+      }
+      return true;
+    }
+
+    case 'collapse_all_planets_to_black_holes': {
+      for (const b of state.bodies) {
+        if (b.id === 'sun' || b.id.includes('black_hole')) continue;
+        b.isBlackHole = true;
+        if (!b.name.includes('블랙홀')) {
+          b.name = `${b.name} 블랙홀`;
+        }
+        b.mass = Math.max(EARTH_MASS * 2500, b.mass * 2.0);
+        b.visualRadius = Math.max(1.3, Math.min(3.5, 1.0 * Math.pow(b.mass / EARTH_MASS, 0.16)));
+        b.physicalRadius = 30;
+      }
+      return true;
+    }
   }
 
   const body = findBody(state, cmd.target);
   if (!body) return false;
+
+  const BLACK_HOLE_COLLAPSE_THRESHOLD = EARTH_MASS * 1500;
 
   switch (cmd.action) {
     case 'remove_body':
@@ -560,8 +662,8 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
         return true;
       }
       body.mass *= cmd.multiplier;
-      // 질량이 태양 1.5배(약 50만 지구 질량) 이상에 도달하면 찬드라세카르/TOV 한계 돌파로 블랙홀 자동 각성
-      if (body.id !== 'sun' && body.mass >= SUN_MASS * 1.5 && !body.isBlackHole) {
+      // 질량이 임계치(지구 1500배) 이상에 도달하면 찬드라세카르/TOV 한계 돌파로 블랙홀 자동 각성
+      if (body.id !== 'sun' && !body.id.includes('core') && body.mass >= BLACK_HOLE_COLLAPSE_THRESHOLD && !body.isBlackHole) {
         body.isBlackHole = true;
         if (!body.name.includes('블랙홀')) {
           body.name = `${body.name} 블랙홀`;
@@ -576,7 +678,7 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       const targetMass = Math.max(1e18, cmd.massKg);
       const ratio = targetMass / body.mass;
       body.mass = targetMass;
-      if (body.id !== 'sun' && body.mass >= SUN_MASS * 1.5 && !body.isBlackHole) {
+      if (body.id !== 'sun' && !body.id.includes('core') && body.mass >= BLACK_HOLE_COLLAPSE_THRESHOLD && !body.isBlackHole) {
         body.isBlackHole = true;
         if (!body.name.includes('블랙홀')) {
           body.name = `${body.name} 블랙홀`;
@@ -591,7 +693,7 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       const targetMass = Math.max(1e18, EARTH_MASS * cmd.ratio);
       const ratio = targetMass / body.mass;
       body.mass = targetMass;
-      if (body.id !== 'sun' && body.mass >= SUN_MASS * 1.5 && !body.isBlackHole) {
+      if (body.id !== 'sun' && !body.id.includes('core') && body.mass >= BLACK_HOLE_COLLAPSE_THRESHOLD && !body.isBlackHole) {
         body.isBlackHole = true;
         if (!body.name.includes('블랙홀')) {
           body.name = `${body.name} 블랙홀`;
@@ -607,9 +709,9 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       if (!body.name.includes('블랙홀')) {
         body.name = `${body.name} 블랙홀`;
       }
-      // 태양의 2.5배 (약 83만 지구 질량) 블랙홀 임계 질량 부여
-      body.mass = Math.max(SUN_MASS * 2.5, body.mass * 1.5);
-      body.visualRadius = Math.max(1.8, Math.min(6.5, 1.3 * Math.pow(body.mass / SUN_MASS, 0.35)));
+      // 블랙홀 임계 질량 부여 (지구의 2500배 이상)
+      body.mass = Math.max(EARTH_MASS * 2500, body.mass * 2.0);
+      body.visualRadius = Math.max(1.6, Math.min(6.5, 1.2 * Math.pow(body.mass / EARTH_MASS, 0.18)));
       body.physicalRadius = 30; // 슈바르츠실트 반경 (km)
       return true;
     }
