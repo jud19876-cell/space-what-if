@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AU_PER_DAY_TO_KM_S, length } from './physics.ts';
+import { AU_PER_DAY_TO_KM_S, isBlackHoleBody, length } from './physics.ts';
 import { findBody, type SimCommand, type SimState } from './simulation.ts';
 import { BODY_INFO, EARTH_MASS, type BodyId } from './solarSystem.ts';
 
@@ -27,7 +27,7 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
   if (!body) return null;
 
   const isSun = body.id === 'sun';
-  const isBlackHole = body.id.includes('black_hole');
+  const isBlackHole = isBlackHoleBody(body);
   const info = BODY_INFO[body.id as BodyId] ?? (
     isBlackHole
       ? BODY_INFO['black_hole']
@@ -150,18 +150,77 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
           </button>
         </div>
 
+        {/* 💥🕳️ 초신성 중력 붕괴 & 블랙홀 각성 이벤트 */}
+        <div className={`blackhole-event-card ${isBlackHole ? 'active-bh' : ''}`}>
+          <div className="bh-card-header">
+            <span className="bh-card-icon">🕳️</span>
+            <div className="bh-card-info">
+              <strong className="bh-card-title">
+                {isBlackHole ? '사건의 지평선 활성화 (블랙홀 각성)' : '초신성 중력 붕괴 & 블랙홀 각성 이벤트'}
+              </strong>
+              <small className="bh-card-desc">
+                {isBlackHole
+                  ? '강력한 시공간 왜곡으로 접근하는 모든 천체를 소용돌이치며 빨아들여 삼킵니다!'
+                  : '질량이 초거대 임계치에 도달하거나 붕괴를 일으키면 모든 것을 빨아들이는 블랙홀로 변신합니다'}
+              </small>
+            </div>
+          </div>
+          {isBlackHole ? (
+            <div className="bh-status-panel">
+              <div className="bh-swallowed-stat">
+                🍽️ 삼킨 천체:{' '}
+                <strong>
+                  {state.swallowedList.filter((s) => s.by === body.id || s.by === body.name).length}개
+                </strong>
+              </div>
+              <button
+                className="btn-restore-planet"
+                onClick={() => onRunCommands([{ action: 'restore_from_black_hole', target: body.id }])}
+                title="블랙홀 상태를 해제하고 일반 행성 물리 상태로 복원합니다"
+              >
+                🔄 일반 행성 상태로 복원하기
+              </button>
+            </div>
+          ) : (
+            <button
+              className="btn-trigger-blackhole"
+              onClick={() => onRunCommands([{ action: 'collapse_to_black_hole', target: body.id }])}
+              title="이 천체를 즉시 초신성 중력 붕괴시켜 사건의 지평선과 강착원반을 가진 블랙홀로 변신시킵니다"
+            >
+              💥🕳️ [초신성 중력 붕괴] 즉시 블랙홀로 변신 & 흡수 가동!
+            </button>
+          )}
+        </div>
+
         {/* 📐 시각 크기(반경) 자유 배수 조절 */}
         <div className="inspector-slider-block">
           <div className="slider-label-row">
-            <span className="controls-section-title">📐 시각 크기(반경) 자유 조절</span>
+            <span className="controls-section-title">📐 시각 크기(반경) 조절</span>
             <span className="slider-current-val">{body.visualRadius.toFixed(2)}x</span>
           </div>
+
+          <div className="multiplier-row">
+            <span className="multiplier-sublabel">🚀 누를 때마다 크기 배수 계속 증폭 (누적 곱셈):</span>
+            <div className="btn-group-row">
+              {[1.2, 1.5, 2.0, 5.0, 10.0, 50.0].map((m) => (
+                <button
+                  key={m}
+                  className="ctrl-chip-btn multiply-btn"
+                  onClick={() => onRunCommands([{ action: 'change_visual_radius', target: body.id, multiplier: m }])}
+                  title={`현재 크기에 ${m}배를 누적 곱합니다 (계속 커짐)`}
+                >
+                  ×{m}배
+                </button>
+              ))}
+            </div>
+          </div>
+
           <input
             type="range"
             min="0.1"
-            max="25.0"
+            max="40.0"
             step="0.1"
-            value={Math.min(25.0, body.visualRadius)}
+            value={Math.min(40.0, body.visualRadius)}
             onChange={(e) => handleApplyCustomRadius(Number(e.target.value))}
             className="inspector-range-slider"
             aria-label="시각 크기 슬라이더"
@@ -170,8 +229,8 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
             <input
               type="number"
               min="0.05"
-              max="100.0"
-              step="0.1"
+              max="1000.0"
+              step="any"
               placeholder="직접 크기 배수 입력 (예: 15.5)"
               value={customRadiusInput}
               onChange={(e) => setCustomRadiusInput(e.target.value)}
@@ -190,34 +249,52 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
                 setCustomRadiusInput('');
               }}
             >
-              적용
+              절대값 적용
             </button>
-          </div>
-          <div className="btn-group-row">
-            {[0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0].map((scale) => (
-              <button
-                key={scale}
-                className={`ctrl-chip-btn ${Math.abs(body.visualRadius - scale) < 0.1 ? 'active' : ''}`}
-                onClick={() => handleApplyCustomRadius(scale)}
-                title={`크기를 ${scale}배로 설정`}
-              >
-                {scale}x
-              </button>
-            ))}
+            <button
+              className="ctrl-apply-btn multiply-action-btn"
+              onClick={() => {
+                const val = Number(customRadiusInput);
+                if (!isNaN(val) && val > 0) {
+                  onRunCommands([{ action: 'change_visual_radius', target: body.id, multiplier: val }]);
+                  setCustomRadiusInput('');
+                }
+              }}
+              title="입력한 배수만큼 현재 크기에 곱합니다"
+            >
+              ×배수 곱하기
+            </button>
           </div>
         </div>
 
         {/* ⚖️ 질량(무게) 자유 배수 조절 */}
         <div className="inspector-slider-block">
           <div className="slider-label-row">
-            <span className="controls-section-title">⚖️ 질량(무게) 자유 배수 조절</span>
-            <span className="slider-current-val">지구의 {massRatioText}배</span>
+            <span className="controls-section-title">⚖️ 질량(무게) 조절</span>
+            <span className="slider-current-val">지구의 {massRatioText}배 ({body.mass.toExponential(2)} kg)</span>
           </div>
-          {/* 로그 슬라이더: 0.01x ~ 3000x */}
+
+          <div className="multiplier-row">
+            <span className="multiplier-sublabel">🚀 누를 때마다 질량 배수 계속 증폭 (누적 곱셈):</span>
+            <div className="btn-group-row">
+              {[2, 5, 10, 50, 500, 5000].map((m) => (
+                <button
+                  key={m}
+                  className={`ctrl-chip-btn multiply-btn ${m >= 500 ? 'danger-glow' : ''}`}
+                  onClick={() => onRunCommands([{ action: 'change_mass', target: body.id, multiplier: m }])}
+                  title={`현재 질량에 ${m}배를 누적 곱합니다 (중력이 기하급수적으로 폭증)`}
+                >
+                  ×{m.toLocaleString()}배
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 초광범위 로그 슬라이더: 0.01x ~ 10,000,000x (30배 태양 질량) */}
           <input
             type="range"
             min="-2"
-            max="3.5"
+            max="7.0"
             step="0.05"
             value={Math.log10(Math.max(0.01, massRatio))}
             onChange={(e) => handleApplyCustomMass(Math.pow(10, Number(e.target.value)))}
@@ -228,9 +305,9 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
             <input
               type="number"
               min="0.001"
-              max="100000"
+              max="100000000"
               step="any"
-              placeholder="지구 대비 배수 직접 입력 (예: 318)"
+              placeholder="지구 대비 배수 입력 (예: 50000)"
               value={customMassInput}
               onChange={(e) => setCustomMassInput(e.target.value)}
               onKeyDown={(e) => {
@@ -248,18 +325,30 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
                 setCustomMassInput('');
               }}
             >
-              적용
+              절대값 적용
+            </button>
+            <button
+              className="ctrl-apply-btn multiply-action-btn"
+              onClick={() => {
+                const val = Number(customMassInput);
+                if (!isNaN(val) && val > 0) {
+                  onRunCommands([{ action: 'change_mass', target: body.id, multiplier: val }]);
+                  setCustomMassInput('');
+                }
+              }}
+              title="입력한 숫자만큼 현재 질량에 곱합니다"
+            >
+              ×배수 곱하기
             </button>
           </div>
           <div className="btn-group-row">
             {[
               { val: 0.01, label: '0.01x(왜소)' },
-              { val: 0.1, label: '0.1x' },
               { val: 1.0, label: '1x(지구)' },
-              { val: 17.0, label: '17x(해왕성)' },
               { val: 318.0, label: '318x(목성)' },
-              { val: 1000.0, label: '1000x(갈색왜성)' },
-              { val: 5000.0, label: '5000x(초중력)' },
+              { val: 333000.0, label: '33만x(태양급)' },
+              { val: 1000000.0, label: '100만x(초중력)' },
+              { val: 10000000.0, label: '1천만x(괴물별)' },
             ].map(({ val, label }) => (
               <button
                 key={val}

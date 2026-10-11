@@ -75,7 +75,9 @@ export type SimCommand =
   | { action: 'set_speed_magnitude'; target: string; speedAuDay: number }
   | { action: 'spawn_custom_planet'; name: string; typeId: string; distanceAU?: number; position?: Vec3; visualRadius: number; massMultiplier: number; hasRings?: boolean }
   | { action: 'set_condition_slider'; param: 'gravity' | 'sunMass' | 'orbitSpeed'; value: number }
-  | { action: 'toggle_extreme_anomaly'; anomaly: 'antiGravity' | 'darkMatterHalo' | 'twinNemesis' | 'asteroidStorm' | 'retrogradeFlip' | 'solarWindRepulsion'; enable: boolean };
+  | { action: 'toggle_extreme_anomaly'; anomaly: 'antiGravity' | 'darkMatterHalo' | 'twinNemesis' | 'asteroidStorm' | 'retrogradeFlip' | 'solarWindRepulsion'; enable: boolean }
+  | { action: 'collapse_to_black_hole'; target: string }
+  | { action: 'restore_from_black_hole'; target: string };
 
 export interface SwallowedRecord {
   id: string;
@@ -558,8 +560,15 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
         return true;
       }
       body.mass *= cmd.multiplier;
-      body.visualRadius = Math.max(0.08, Math.min(100.0, body.visualRadius * Math.pow(cmd.multiplier, 0.25)));
-      body.physicalRadius *= Math.cbrt(cmd.multiplier);
+      // 질량이 태양 1.5배(약 50만 지구 질량) 이상에 도달하면 찬드라세카르/TOV 한계 돌파로 블랙홀 자동 각성
+      if (body.id !== 'sun' && body.mass >= SUN_MASS * 1.5 && !body.isBlackHole) {
+        body.isBlackHole = true;
+        if (!body.name.includes('블랙홀')) {
+          body.name = `${body.name} 블랙홀`;
+        }
+      }
+      body.visualRadius = Math.max(0.08, Math.min(60.0, body.visualRadius * Math.pow(cmd.multiplier, 0.18)));
+      body.physicalRadius = Math.min(1500000, Math.round(body.physicalRadius * Math.cbrt(cmd.multiplier)));
       return true;
     }
 
@@ -567,8 +576,14 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       const targetMass = Math.max(1e18, cmd.massKg);
       const ratio = targetMass / body.mass;
       body.mass = targetMass;
-      body.visualRadius = Math.max(0.08, Math.min(100.0, body.visualRadius * Math.pow(ratio, 0.2)));
-      body.physicalRadius = Math.round(body.physicalRadius * Math.cbrt(ratio));
+      if (body.id !== 'sun' && body.mass >= SUN_MASS * 1.5 && !body.isBlackHole) {
+        body.isBlackHole = true;
+        if (!body.name.includes('블랙홀')) {
+          body.name = `${body.name} 블랙홀`;
+        }
+      }
+      body.visualRadius = Math.max(0.08, Math.min(60.0, body.visualRadius * Math.pow(ratio, 0.18)));
+      body.physicalRadius = Math.min(1500000, Math.round(body.physicalRadius * Math.cbrt(ratio)));
       return true;
     }
 
@@ -576,8 +591,35 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       const targetMass = Math.max(1e18, EARTH_MASS * cmd.ratio);
       const ratio = targetMass / body.mass;
       body.mass = targetMass;
-      body.visualRadius = Math.max(0.08, Math.min(100.0, body.visualRadius * Math.pow(ratio, 0.2)));
-      body.physicalRadius = Math.round(body.physicalRadius * Math.cbrt(ratio));
+      if (body.id !== 'sun' && body.mass >= SUN_MASS * 1.5 && !body.isBlackHole) {
+        body.isBlackHole = true;
+        if (!body.name.includes('블랙홀')) {
+          body.name = `${body.name} 블랙홀`;
+        }
+      }
+      body.visualRadius = Math.max(0.08, Math.min(60.0, body.visualRadius * Math.pow(ratio, 0.18)));
+      body.physicalRadius = Math.min(1500000, Math.round(body.physicalRadius * Math.cbrt(ratio)));
+      return true;
+    }
+
+    case 'collapse_to_black_hole': {
+      body.isBlackHole = true;
+      if (!body.name.includes('블랙홀')) {
+        body.name = `${body.name} 블랙홀`;
+      }
+      // 태양의 2.5배 (약 83만 지구 질량) 블랙홀 임계 질량 부여
+      body.mass = Math.max(SUN_MASS * 2.5, body.mass * 1.5);
+      body.visualRadius = Math.max(1.8, Math.min(6.5, 1.3 * Math.pow(body.mass / SUN_MASS, 0.35)));
+      body.physicalRadius = 30; // 슈바르츠실트 반경 (km)
+      return true;
+    }
+
+    case 'restore_from_black_hole': {
+      body.isBlackHole = false;
+      body.name = body.name.replace(' 블랙홀', '').replace('블랙홀 ', '');
+      body.mass = body.id === 'earth' ? EARTH_MASS : body.id === 'mars' ? 6.417e23 : body.id === 'jupiter' ? 1.898e27 : EARTH_MASS * 10;
+      body.visualRadius = body.id === 'jupiter' ? 1.6 : 0.6;
+      body.physicalRadius = body.id === 'jupiter' ? 69911 : 6371;
       return true;
     }
 

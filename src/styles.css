@@ -3272,6 +3272,150 @@ body,
   box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
 }
 
+/* ==========================================================================
+   🚀 연속 배수 증폭기 (Multiplier Rows) & 블랙홀 변신 카드
+   ========================================================================== */
+.multiplier-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.multiplier-sublabel {
+  font-size: 11px;
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.multiply-btn {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: rgba(56, 189, 248, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #e0f2fe;
+}
+.multiply-btn:hover {
+  background: rgba(56, 189, 248, 0.4);
+  border-color: #38bdf8;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+.multiply-btn.danger-glow {
+  background: rgba(244, 63, 94, 0.2);
+  border-color: rgba(244, 63, 94, 0.5);
+  color: #fecdd3;
+}
+.multiply-btn.danger-glow:hover {
+  background: rgba(244, 63, 94, 0.45);
+  border-color: #f43f5e;
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.6);
+}
+
+.multiply-action-btn {
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.35), rgba(168, 85, 247, 0.4));
+  border-color: #ec4899;
+  color: #fdf2f8;
+}
+.multiply-action-btn:hover {
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.6), rgba(168, 85, 247, 0.7));
+  box-shadow: 0 0 14px rgba(236, 72, 153, 0.5);
+}
+
+/* 💥🕳️ 초신성 중력 붕괴 & 블랙홀 각성 이벤트 카드 */
+.blackhole-event-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(30, 27, 75, 0.7));
+  border: 1px solid rgba(192, 132, 252, 0.35);
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+  transition: all 0.25s ease;
+}
+.blackhole-event-card.active-bh {
+  border-color: #c084fc;
+  background: linear-gradient(135deg, rgba(30, 27, 75, 0.9), rgba(88, 28, 135, 0.5));
+  box-shadow: 0 0 24px rgba(192, 132, 252, 0.4);
+}
+
+.bh-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bh-card-icon {
+  font-size: 22px;
+  animation: pulseBhIcon 2s ease-in-out infinite alternate;
+}
+@keyframes pulseBhIcon {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.2); }
+}
+
+.bh-card-info {
+  display: flex;
+  flex-direction: column;
+}
+.bh-card-title {
+  font-size: 13px;
+  color: #f3e8ff;
+}
+.bh-card-desc {
+  font-size: 10px;
+  color: #c084fc;
+}
+
+.btn-trigger-blackhole {
+  font-family: inherit;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(192, 132, 252, 0.6);
+  background: linear-gradient(135deg, rgba(147, 51, 234, 0.4), rgba(219, 39, 119, 0.45));
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 16px rgba(147, 51, 234, 0.35);
+}
+.btn-trigger-blackhole:hover {
+  background: linear-gradient(135deg, rgba(147, 51, 234, 0.7), rgba(219, 39, 119, 0.75));
+  box-shadow: 0 0 24px rgba(219, 39, 119, 0.6);
+  transform: translateY(-1px);
+}
+
+.bh-status-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bh-swallowed-stat {
+  font-size: 11px;
+  color: #e9d5ff;
+}
+.bh-swallowed-stat strong {
+  color: #f472b6;
+  font-family: monospace;
+}
+.btn-restore-planet {
+  font-family: inherit;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(30, 41, 59, 0.7);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-restore-planet:hover {
+  background: rgba(51, 65, 85, 0.9);
+  color: #ffffff;
+}
+
 
 
 

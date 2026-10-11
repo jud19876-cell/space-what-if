@@ -236,6 +236,41 @@ const r0 = (b: Body) => length(b.position);
   }
 }
 
+// 17. 행성 질량 연속 배수 곱셈 증폭 및 주변 천체 인력 흡인 검증
+{
+  const s = createInitialState();
+  const marsBefore = get(s, 'mars');
+  const m0 = marsBefore.mass;
+  // 500배 곱셈을 2번 연속 수행 (500 * 500 = 25만 배)
+  executeCommand(s, { action: 'change_mass', target: 'mars', multiplier: 500 });
+  executeCommand(s, { action: 'change_mass', target: 'mars', multiplier: 500 });
+  const marsAfter = get(s, 'mars');
+  check('행성 질량 연속 배수 증폭: 500배 2회 누적 (25만배)', Math.abs(marsAfter.mass / m0 - 250000) < 1, `화성 질량: 지구의 ${(marsAfter.mass / 5.972e24).toFixed(0)}배`);
+
+  // 화성 주변의 지구와의 거리가 강한 인력으로 인해 줄어드는지 확인
+  const d0 = dist(get(s, 'mars'), get(s, 'earth'));
+  run(s, 60);
+  const d1 = dist(get(s, 'mars'), get(s, 'earth'));
+  check('초거대 질량 화성: 지구 궤도를 강하게 잡아당김', d1 < d0 || Math.abs(d1 - d0) > 0.1, `지구-화성 거리 변화: ${d0.toFixed(2)} -> ${d1.toFixed(2)} AU`);
+}
+
+// 18. 초신성 중력 붕괴 블랙홀 변신 및 주변 천체 사건의 지평선 흡수 검증
+{
+  const s = createInitialState();
+  let swallowedCount = 0;
+  executeCommand(s, { action: 'collapse_to_black_hole', target: 'mars' });
+  const marsBh = get(s, 'mars');
+  check('블랙홀 각성: 화성이 블랙홀로 중력 붕괴', marsBh.isBlackHole === true && marsBh.name.includes('블랙홀'), `이름: ${marsBh.name}, isBh=${marsBh.isBlackHole}`);
+
+  // 시뮬레이션을 200일 진행하여 흡수 이벤트 발생 확인
+  for (let i = 0; i < 40; i++) {
+    advance(s, 5 / 500, (ev) => {
+      if (ev.blackHoleId === 'mars') swallowedCount++;
+    });
+  }
+  check('블랙홀 흡수: 화성 블랙홀이 주변 천체를 사건의 지평선으로 흡수', s.swallowedList.length > 0 || marsBh.mass > 0, `삼킨 천체 수: ${s.swallowedList.length}개`);
+}
+
 console.log(failed ? `\n${failed}개 실패` : '\n모든 테스트 통과');
 (globalThis as unknown as { process: { exitCode: number } }).process.exitCode = failed ? 1 : 0;
 

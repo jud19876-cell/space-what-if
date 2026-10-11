@@ -12,6 +12,7 @@ export interface Body {
   velocity: Vec3; // AU / day
   physicalRadius: number; // km (실제 반지름, 정보 표시용)
   visualRadius: number; // 화면 단위 (보기 좋게 조절한 크기)
+  isBlackHole?: boolean;
 }
 
 export interface AbsorptionEvent {
@@ -71,11 +72,17 @@ export const AU_PER_DAY_TO_KM_S = 1.495978707e8 / 86400;
 
 const KM_TO_AU = 1 / 1.495978707e8;
 
+/** 천체가 블랙홀인지 판정: ID에 black_hole이 포함되거나, 플래그가 켜졌거나, 태양 질량 1.5배 이상으로 중력 붕괴한 경우 */
+export function isBlackHoleBody(b: Body): boolean {
+  return b.id.includes('black_hole') || b.isBlackHole === true || (b.id !== 'sun' && b.mass >= SUN_MASS * 1.5);
+}
+
 // 소프트닝: 두 천체가 겹칠 때 힘이 무한대로 커지는 것을 막는다.
+// 초거대 질량 천체에서도 중력이 약화되지 않도록 소프트닝 거리를 최대 0.004 AU로 제어한다.
 function softening2(a: Body, b: Body): number {
-  const isBh = a.id.includes('black_hole') || b.id.includes('black_hole');
+  const isBh = isBlackHoleBody(a) || isBlackHoleBody(b);
   const minKm = isBh ? 40000 : 0;
-  const s = Math.max(a.physicalRadius + b.physicalRadius, minKm) * KM_TO_AU;
+  const s = Math.min(0.004, Math.max(a.physicalRadius + b.physicalRadius, minKm) * KM_TO_AU);
   return s * s;
 }
 
@@ -97,7 +104,7 @@ export function getBlackHoleInspiralRadius(bh: Body): number {
 
 /** 천체 충돌 유효 감지 반경 (AU) */
 export function getCollisionRadius(b: Body): number {
-  if (b.id.includes('black_hole')) {
+  if (isBlackHoleBody(b)) {
     return getBlackHoleCaptureRadius(b);
   }
   if (b.id === 'sun') return 0.08;
@@ -113,10 +120,10 @@ function computeAccelerations(bodies: Body[]): { acc: Float64Array; tmin: number
   let tmin = Infinity;
   for (let i = 0; i < n; i++) {
     const a = bodies[i];
-    const isBhA = a.id.includes('black_hole');
+    const isBhA = isBlackHoleBody(a);
     for (let j = i + 1; j < n; j++) {
       const b = bodies[j];
-      const isBhB = b.id.includes('black_hole');
+      const isBhB = isBlackHoleBody(b);
 
       const dx = b.position[0] - a.position[0];
       const dy = b.position[1] - a.position[1];
@@ -226,14 +233,14 @@ export function stepBodies(
     // 1. 블랙홀 조석 제동 및 흡수 검사
     for (let i = 0; i < bodies.length; i++) {
       const bh = bodies[i];
-      if (!bh.id.includes('black_hole') || absorbedSet.has(bh.id)) continue;
+      if (!isBlackHoleBody(bh) || absorbedSet.has(bh.id)) continue;
       const rCap = getBlackHoleCaptureRadius(bh);
       const rInsp = getBlackHoleInspiralRadius(bh);
 
       for (let j = 0; j < bodies.length; j++) {
         if (i === j) continue;
         const p = bodies[j];
-        if (p.id.includes('black_hole') || absorbedSet.has(p.id) || destroyedSet.has(p.id)) continue;
+        if (isBlackHoleBody(p) || absorbedSet.has(p.id) || destroyedSet.has(p.id)) continue;
 
         const dx = p.position[0] - bh.position[0];
         const dy = p.position[1] - bh.position[1];
@@ -280,7 +287,7 @@ export function stepBodies(
         const isAstB = b.id.includes('asteroid') || b.id.includes('fragment');
 
         if ((isAstA && isAstB) || (!isAstA && !isAstB)) continue;
-        if (a.id.includes('black_hole') || b.id.includes('black_hole')) continue;
+        if (isBlackHoleBody(a) || isBlackHoleBody(b)) continue;
 
         const projectile = isAstA ? a : b;
         const target = isAstA ? b : a;

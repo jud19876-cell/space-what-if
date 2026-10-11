@@ -2,7 +2,7 @@
 // 여기서는 물리 상태를 읽기만 하고 바꾸지 않는다. (시간 진행 advance() 만 호출)
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { AU_PER_DAY_TO_KM_S, G, length, SUN_MASS, calculateCircularSpeed, type Body, type Vec3, type AbsorptionEvent, type CollisionEvent } from './physics.ts';
+import { AU_PER_DAY_TO_KM_S, G, length, SUN_MASS, calculateCircularSpeed, isBlackHoleBody, type Body, type Vec3, type AbsorptionEvent, type CollisionEvent } from './physics.ts';
 import { advance, findHost, type SimState } from './simulation.ts';
 import { BODY_INFO, ORBIT_RADII, type BodyId } from './solarSystem.ts';
 import { createPlanetTexture, createNormalMap, createRingTexture } from './planetTextures.ts';
@@ -227,7 +227,7 @@ export function createSpaceScene(
 
   function createVisualForBody(b: Body): Visual {
     const id = b.id as BodyId;
-    const isBlackHole = b.id.includes('black_hole');
+    const isBlackHole = isBlackHoleBody(b);
     const isAsteroid = b.id.includes('asteroid') || b.id.includes('fragment');
     const isGiant = b.id.includes('giant');
     const info = BODY_INFO[id] ?? (isBlackHole ? BODY_INFO['black_hole'] : isAsteroid ? (isGiant ? BODY_INFO['giant_asteroid'] : BODY_INFO['asteroid']) : { emoji: '🪐', color: '#888888', lines: [] });
@@ -613,9 +613,28 @@ export function createSpaceScene(
   let raf = 0;
 
   function updateVisuals(bodies: Body[]) {
-    // 새로운 천체가 생겼으면 비주얼 등록
+    // 새로운 천체가 생겼거나 블랙홀 변신 상태가 전환된 경우 비주얼 동기화
     for (const b of bodies) {
-      if (!visuals.has(b.id)) {
+      let v = visuals.get(b.id);
+      const isBh = isBlackHoleBody(b);
+      if (v) {
+        const hasDisk = !!v.accretionDisk;
+        if (isBh !== hasDisk) {
+          scene.remove(v.group);
+          scene.remove(v.trail);
+          if (v.orbitLine) scene.remove(v.orbitLine);
+          visuals.delete(b.id);
+          const hitIdx = hitMeshes.indexOf(v.hit);
+          if (hitIdx >= 0) hitMeshes.splice(hitIdx, 1);
+          v = createVisualForBody(b);
+          if (isBh) {
+            triggerShockwave(v.vis, 0xcc33ff, 2.6);
+            triggerExplosionSparks(v.vis, true);
+            startCameraShake(1.2);
+            playExplosionSound();
+          }
+        }
+      } else {
         createVisualForBody(b);
       }
     }
@@ -635,7 +654,7 @@ export function createSpaceScene(
     // 2차: 위성은 행성 옆에 보이도록 (블랙홀은 위성 호스트 제외)
     for (const b of bodies) {
       const host = findHost(bodies, b);
-      if (!host || host.id.includes('black_hole')) continue;
+      if (!host || isBlackHoleBody(host)) continue;
       const v = visuals.get(b.id)!;
       const hv = visuals.get(host.id)!;
       const d: Vec3 = [b.position[0] - host.position[0], b.position[1] - host.position[1], b.position[2] - host.position[2]];

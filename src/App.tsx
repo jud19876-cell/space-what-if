@@ -46,6 +46,24 @@ export default function App() {
     for (const c of commands) {
       executeCommand(s, c);
       if (c.action === 'reset') sceneRef.current?.clearTrails();
+      if (c.action === 'collapse_to_black_hole') {
+        const body = findBody(s, c.target);
+        setToast({
+          key: Date.now(),
+          emoji: '💥🕳️',
+          text: `초신성 대폭발! [${body?.name ?? '천체'}]이(가) 엄청난 중력 붕괴를 일으키며 거대 블랙홀로 각성했습니다! 주변 모든 천체를 빨아들입니다!`,
+          type: 'explosion',
+        });
+      }
+      if (c.action === 'restore_from_black_hole') {
+        const body = findBody(s, c.target);
+        setToast({
+          key: Date.now(),
+          emoji: '🪐✨',
+          text: `[${body?.name ?? '천체'}]이(가) 블랙홀 상태에서 안정적인 일반 행성으로 복원되었습니다.`,
+          type: 'normal',
+        });
+      }
     }
     setSelected((id) => (id && findBody(s, id) ? id : null));
     setTick((t) => t + 1);
