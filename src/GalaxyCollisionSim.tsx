@@ -69,6 +69,7 @@ export default function GalaxyCollisionSim({
   const [isPlaying, setIsPlaying] = useState(true);
   const [speed, setSpeed] = useState(10);
   const [cameraView, setCameraView] = useState<GalaxyCameraView>('overview');
+  const [showCosmicWeb, setShowCosmicWeb] = useState(true);
   const [showGasClouds, setShowGasClouds] = useState(true);
   const [showTrails, setShowTrails] = useState(true);
   const [customDistance, setCustomDistance] = useState(240);
@@ -128,6 +129,12 @@ export default function GalaxyCollisionSim({
   const handleViewChange = (v: GalaxyCameraView) => {
     setCameraView(v);
     sceneRef.current?.setViewMode(v);
+  };
+
+  const handleToggleCosmicWeb = () => {
+    const next = !showCosmicWeb;
+    setShowCosmicWeb(next);
+    sceneRef.current?.setShowCosmicWeb(next);
   };
 
   const handleToggleGas = () => {
@@ -190,11 +197,18 @@ export default function GalaxyCollisionSim({
       <div className="galaxy-viewmode-bar">
         <div className="view-mode-pill">
           <button
+            className={`btn-view-toggle highlight-universe ${cameraView === 'universe' ? 'active' : ''}`}
+            onClick={() => handleViewChange('universe')}
+            title="지름 930억 광년 관측 가능한 전체 우주 & 거대 우주망(Cosmic Web) 초원경 조망"
+          >
+            <span>🌐 전체 우주 (Cosmic Web)</span>
+          </button>
+          <button
             className={`btn-view-toggle ${cameraView === 'overview' ? 'active' : ''}`}
             onClick={() => handleViewChange('overview')}
             title="국부은하군 우주 전체에서 모든 은하의 조화로운 배치 조망"
           >
-            <span>🔭 전체 은하군 조망</span>
+            <span>🔭 국부은하군 조망</span>
           </button>
           <button
             className={`btn-view-toggle highlight-gold ${cameraView === 'solarsystem' ? 'active' : ''}`}
@@ -254,6 +268,14 @@ export default function GalaxyCollisionSim({
         {/* 보조 시각 토글 */}
         <div className="aux-toggles">
           <button
+            className={`btn-aux-toggle ${showCosmicWeb ? 'active' : ''}`}
+            onClick={handleToggleCosmicWeb}
+            title="초은하단 필라멘트와 우주 거대망(Cosmic Web) 시각화 ON/OFF"
+          >
+            <span>🕸️</span>
+            <span>우주 거대망 {showCosmicWeb ? 'ON' : 'OFF'}</span>
+          </button>
+          <button
             className={`btn-aux-toggle ${showGasClouds ? 'active' : ''}`}
             onClick={handleToggleGas}
             title="광원에 구름처럼 우주전체로 도는 에테르풍 성운 가스 구름"
@@ -275,46 +297,80 @@ export default function GalaxyCollisionSim({
       {/* 좌측 상단: 실시간 천체물리 모니터링 HUD */}
       <aside className="galaxy-hud-panel">
         <div className="hud-header">
-          <span className="hud-icon">📊</span>
-          <span className="hud-title">국부은하군 천체물리 지표</span>
+          <span className="hud-icon">{cameraView === 'universe' ? '🌐' : '📊'}</span>
+          <span className="hud-title">
+            {cameraView === 'universe' ? '관측 가능한 우주 & 거대 우주망' : '국부은하군 천체물리 지표'}
+          </span>
         </div>
 
         <div className="hud-metrics-list">
-          <div className="hud-metric-row">
-            <span className="metric-label">☀️ 우리 태양계 위치</span>
-            <strong className="metric-val highlight-gold">우리은하 오리온 팔 (Orion Arm)</strong>
-            <small className="metric-sub">은하 중심(궁수자리 A*)에서 약 26,000 광년 (8.2 kpc)</small>
-          </div>
-          <div className="hud-metric-row">
-            <span className="metric-label">⏳ 경과 시간</span>
-            <strong className="metric-val">{metrics.timeMyr.toFixed(1)} 백만 년 (Myr)</strong>
-          </div>
-          <div className="hud-metric-row">
-            <span className="metric-label">📏 안드로메다 은하 거리</span>
-            <strong className="metric-val highlight-cyan">{Math.round(metrics.distanceKpc)} kpc</strong>
-            <small className="metric-sub">약 {Math.round(metrics.distanceKpc * 3260).toLocaleString()} 광년</small>
-          </div>
-          <div className="hud-metric-row">
-            <span className="metric-label">🌊 은하 조석 섭동 변형률</span>
-            <strong className="metric-val highlight-magenta">{(metrics.tidalDistortion * 100).toFixed(1)}%</strong>
-            <div className="distortion-bar-bg">
-              <div
-                className="distortion-bar-fill"
-                style={{ width: `${Math.min(100, metrics.tidalDistortion * 100)}%` }}
-              />
-            </div>
-          </div>
-          {activeScenario === 'supermassive' && (
-            <div className="hud-metric-row">
-              <span className="metric-label">🍽️ 블랙홀 삼킨 별</span>
-              <strong className="metric-val highlight-red">{metrics.swallowedCount}개</strong>
-            </div>
+          {cameraView === 'universe' ? (
+            <>
+              <div className="hud-metric-row">
+                <span className="metric-label">🌐 우주 공간 규모</span>
+                <strong className="metric-val highlight-universe">관측 가능한 우주 (Observable Universe)</strong>
+                <small className="metric-sub">지름 약 930억 광년 (28.5 Gpc) 거대 시공간</small>
+              </div>
+              <div className="hud-metric-row">
+                <span className="metric-label">✨ 추정 은하 수</span>
+                <strong className="metric-val highlight-cyan">약 2조 개 (2,000,000,000,000)</strong>
+                <small className="metric-sub">우주 거대 필라멘트 및 초은하단에 밀집 분포</small>
+              </div>
+              <div className="hud-metric-row">
+                <span className="metric-label">📍 우리들의 우주 주소</span>
+                <strong className="metric-val highlight-gold">라니아케아 초은하단 외곽</strong>
+                <small className="metric-sub">처녀자리 은하단 &gt; 국부은하군 &gt; 우리은하 &gt; 태양계</small>
+              </div>
+              <div className="hud-metric-row">
+                <span className="metric-label">🕸️ 우주 거대구조 (Cosmic Web)</span>
+                <strong className="metric-val highlight-magenta">필라멘트 &amp; 거대 보이드(공동)</strong>
+                <small className="metric-sub">슬론 장성, 목동자리 보이드, 샤플리 초은하단</small>
+              </div>
+              <div className="hud-metric-row">
+                <span className="metric-label">📡 우주 배경 복사 (CMB)</span>
+                <strong className="metric-val">빅뱅 후 38만 년 (2.725 K)</strong>
+                <small className="metric-sub">우주 지평선 외곽 구체에 형성된 태초의 빛</small>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="hud-metric-row">
+                <span className="metric-label">☀️ 우리 태양계 위치</span>
+                <strong className="metric-val highlight-gold">우리은하 오리온 팔 (Orion Arm)</strong>
+                <small className="metric-sub">은하 중심(궁수자리 A*)에서 약 26,000 광년 (8.2 kpc)</small>
+              </div>
+              <div className="hud-metric-row">
+                <span className="metric-label">⏳ 경과 시간</span>
+                <strong className="metric-val">{metrics.timeMyr.toFixed(1)} 백만 년 (Myr)</strong>
+              </div>
+              <div className="hud-metric-row">
+                <span className="metric-label">📏 안드로메다 은하 거리</span>
+                <strong className="metric-val highlight-cyan">{Math.round(metrics.distanceKpc)} kpc</strong>
+                <small className="metric-sub">약 {Math.round(metrics.distanceKpc * 3260).toLocaleString()} 광년</small>
+              </div>
+              <div className="hud-metric-row">
+                <span className="metric-label">🌊 은하 조석 섭동 변형률</span>
+                <strong className="metric-val highlight-magenta">{(metrics.tidalDistortion * 100).toFixed(1)}%</strong>
+                <div className="distortion-bar-bg">
+                  <div
+                    className="distortion-bar-fill"
+                    style={{ width: `${Math.min(100, metrics.tidalDistortion * 100)}%` }}
+                  />
+                </div>
+              </div>
+              {activeScenario === 'supermassive' && (
+                <div className="hud-metric-row">
+                  <span className="metric-label">🍽️ 블랙홀 삼킨 별</span>
+                  <strong className="metric-val highlight-red">{metrics.swallowedCount}개</strong>
+                </div>
+              )}
+              <div className="hud-metric-row">
+                <span className="metric-label">✨ 관측 중인 은하 군집</span>
+                <strong className="metric-val">5대 은하 (4,450개 천체)</strong>
+                <small className="metric-sub">우리은하, 안드로메다, 삼각형자리, 대/소 마젤란</small>
+              </div>
+            </>
           )}
-          <div className="hud-metric-row">
-            <span className="metric-label">✨ 관측 중인 은하 군집</span>
-            <strong className="metric-val">5대 은하 (4,450개 천체)</strong>
-            <small className="metric-sub">우리은하, 안드로메다, 삼각형자리, 대/소 마젤란</small>
-          </div>
         </div>
 
         {/* 시나리오 설명 */}
@@ -329,10 +385,20 @@ export default function GalaxyCollisionSim({
       {/* 우측 상단: 천문학 가이드 토글 패널 */}
       <div className="galaxy-guide-box">
         <button className="btn-guide-toggle" onClick={() => setIsGuideOpen(!isGuideOpen)}>
-          <span>💡 우리은하와 국부은하군의 비밀 {isGuideOpen ? '▲ 접기' : '▼ 펼치기'}</span>
+          <span>💡 우주와 국부은하군의 비밀 {isGuideOpen ? '▲ 접기' : '▼ 펼치기'}</span>
         </button>
         {isGuideOpen && (
           <div className="guide-content">
+            <p>
+              <strong>🌐 관측 가능한 전체 우주와 거대 우주망(Cosmic Web):</strong>
+              <br />
+              우주를 수억~수십억 광년 단위로 멀리서 조망하면, 은하들은 거미줄처럼 이어진 <strong>우주 필라멘트(Cosmic Filaments)</strong>를 따라 늘어서 있고, 그 사이에는 은하가 거의 없는 수억 광년 크기의 <strong>우주 보이드(거대 공동)</strong>가 존재합니다.
+            </p>
+            <p>
+              <strong>📍 우리의 우주 속 주소 (Cosmic Address):</strong>
+              <br />
+              태양계 ➡️ 오리온자리 나선팔 ➡️ 우리은하 ➡️ 국부은하군 ➡️ 처녀자리 초은하단 ➡️ <strong>라니아케아 초은하단(Laniakea Supercluster)</strong> ➡️ 관측 가능한 우주
+            </p>
             <p>
               <strong>☀️ 태양계는 은하 어디에 있나요?</strong>
               <br />
@@ -345,12 +411,6 @@ export default function GalaxyCollisionSim({
               우리은하와 가장 가까운 거대 은하인 <strong>안드로메다 은하(M31)</strong>, 세 번째로 큰
               <strong>삼각형자리 은하(M33)</strong>, 그리고 우리은하 주위를 도는 위성은하인
               <strong>대마젤란은하(LMC)</strong>와 <strong>소마젤란은하(SMC)</strong> 등 50여 개 은하들이 중력으로 묶인 은하 군집입니다.
-            </p>
-            <p>
-              <strong>💥 약 45억 년 뒤 일어날 일:</strong>
-              <br />
-              우리은하와 안드로메다 은하는 현재 초속 110km로 서로를 향해 접근 중이며,
-              먼 미래에 충돌하여 하나의 거대한 <strong>밀코메다(Milkomeda) 타원 은하</strong>로 합병될 예정입니다!
             </p>
           </div>
         )}

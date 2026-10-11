@@ -3635,6 +3635,24 @@ body,
   box-shadow: 0 0 16px rgba(245, 158, 11, 0.65);
 }
 
+.galaxy-viewmode-bar .btn-view-toggle.highlight-universe {
+  border-color: rgba(168, 85, 247, 0.45);
+  color: #e9d5ff;
+}
+
+.galaxy-viewmode-bar .btn-view-toggle.highlight-universe:hover {
+  background: rgba(168, 85, 247, 0.18);
+  border-color: #c084fc;
+  color: #f3e8ff;
+}
+
+.galaxy-viewmode-bar .btn-view-toggle.highlight-universe.active {
+  background: linear-gradient(135deg, #7c3aed, #4338ca);
+  color: #ffffff;
+  border-color: #c084fc;
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.75);
+}
+
 .galaxy-viewmode-bar .aux-toggles {
   display: flex;
   gap: 6px;
@@ -3737,6 +3755,10 @@ body,
 
 .hud-metric-row .highlight-gold {
   color: #fbbf24;
+}
+
+.hud-metric-row .highlight-universe {
+  color: #c084fc;
 }
 
 .distortion-bar-bg {

@@ -15,6 +15,7 @@ import {
 
 export type GalaxyCameraView =
   | 'overview'      // 국부은하군 전체 조망
+  | 'universe'      // 🌐 관측 가능한 전체 우주 & 거대 우주망 (Cosmic Web)
   | 'solarsystem'   // ☀️ 우리들의 태양계 (오리온 팔)
   | 'milkyway'      // 🌌 우리은하 중심핵 (궁수자리 A*)
   | 'andromeda'     // 💜 안드로메다 은하 (M31)
@@ -30,6 +31,7 @@ export interface GalaxyScene {
   setViewMode(mode: GalaxyCameraView): void;
   setShowGasClouds(show: boolean): void;
   setShowTrails(show: boolean): void;
+  setShowCosmicWeb(show: boolean): void;
   setGalaxyDistance(kpc: number): void;
   reset(): void;
   dispose(): void;
@@ -164,6 +166,280 @@ function makeCoreLabelSprite(name: string, color: string): THREE.Sprite {
   return sprite;
 }
 
+/** 우주 배경 복사 (CMB) 파동 텍스처 (WMAP / 플랑크 전천 지도 느낌) */
+function makeCMBTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 256;
+  const g = c.getContext('2d')!;
+
+  g.fillStyle = '#030514';
+  g.fillRect(0, 0, 512, 256);
+
+  const colors = [
+    'rgba(56, 189, 248, 0.18)',
+    'rgba(168, 85, 247, 0.14)',
+    'rgba(245, 158, 11, 0.16)',
+    'rgba(239, 68, 68, 0.12)',
+    'rgba(45, 212, 191, 0.14)',
+  ];
+
+  for (let i = 0; i < 380; i++) {
+    const x = Math.random() * 512;
+    const y = Math.random() * 256;
+    const rad = 15 + Math.random() * 55;
+    const grad = g.createRadialGradient(x, y, 0, x, y, rad);
+    const col = colors[Math.floor(Math.random() * colors.length)];
+    grad.addColorStop(0, col);
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(x, y, rad, 0, Math.PI * 2);
+    g.fill();
+  }
+
+  // 지평선 미세 위경도 그리드 선
+  g.strokeStyle = 'rgba(148, 163, 184, 0.08)';
+  g.lineWidth = 1;
+  for (let y = 32; y < 256; y += 32) {
+    g.beginPath();
+    g.moveTo(0, y);
+    g.lineTo(512, y);
+    g.stroke();
+  }
+  for (let x = 64; x < 512; x += 64) {
+    g.beginPath();
+    g.moveTo(x, 0);
+    g.lineTo(x, 256);
+    g.stroke();
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** 거대 우주 구조용 고해상도 3D 명칭 라벨 */
+function makeCosmicBillboardSprite(title: string, sub: string, color: string, scaleW: number = 70, scaleH: number = 18): THREE.Sprite {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 128;
+  const g = c.getContext('2d')!;
+
+  g.fillStyle = 'rgba(8, 12, 28, 0.86)';
+  g.strokeStyle = color;
+  g.lineWidth = 3;
+  g.beginPath();
+  g.roundRect(8, 8, 496, 112, 20);
+  g.fill();
+  g.stroke();
+
+  g.fillStyle = color;
+  g.font = 'bold 30px sans-serif';
+  g.textAlign = 'center';
+  g.fillText(title, 256, 52);
+
+  g.fillStyle = '#cbd5e1';
+  g.font = '20px sans-serif';
+  g.fillText(sub, 256, 92);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(scaleW, scaleH, 1);
+  return sprite;
+}
+
+/** 관측 가능한 우주 (Observable Universe) & 우주 거대구조 (Cosmic Web) 생성기 */
+function buildCosmicWebVisuals(scene: THREE.Scene) {
+  const cosmicGroup = new THREE.Group();
+
+  // 1. 관측 가능한 우주 지평선 구체 (지름 약 930억 광년 상징 구체)
+  const cmbGeo = new THREE.SphereGeometry(3200, 36, 24);
+  const cmbMat = new THREE.MeshBasicMaterial({
+    map: makeCMBTexture(),
+    side: THREE.BackSide,
+    transparent: true,
+    opacity: 0.52,
+    depthWrite: false,
+  });
+  const cmbSphere = new THREE.Mesh(cmbGeo, cmbMat);
+  cosmicGroup.add(cmbSphere);
+
+  // 2. 주요 초은하단 노드들 정의
+  interface ClusterNode {
+    name: string;
+    sub: string;
+    pos: [number, number, number];
+    color: string;
+    isMajor?: boolean;
+  }
+
+  const majorNodes: ClusterNode[] = [
+    { name: '📍 [국부은하군]', sub: '우리은하 & 태양계 (Home)', pos: [0, 0, 0], color: '#38bdf8', isMajor: true },
+    { name: '처녀자리 초은하단', sub: 'Virgo (5,400만 광년)', pos: [220, 140, -110], color: '#a78bfa', isMajor: true },
+    { name: '거대 인력체 (Great Attractor)', sub: '노르마 은하단 (2.5억 광년)', pos: [-380, -160, 210], color: '#f59e0b', isMajor: true },
+    { name: '페르세우스-물고기자리 초은하단', sub: 'Perseus-Pisces (2.5억 광년)', pos: [480, 310, -260], color: '#34d399', isMajor: true },
+    { name: '샤플리 초은하단', sub: 'Shapley (6.5억 광년, 초대질량)', pos: [-750, -320, 420], color: '#f43f5e', isMajor: true },
+    { name: '코마 초은하단', sub: 'Coma Cluster (3.2억 광년)', pos: [120, 620, -310], color: '#38bdf8', isMajor: true },
+    { name: '헤라클레스자리 초은하단', sub: 'Hercules (10억 광년)', pos: [-640, -430, -390], color: '#fbbf24', isMajor: true },
+    { name: '목동자리 거대 보이드', sub: 'Boötes Void (3.3억 광년 공허)', pos: [360, 510, 320], color: '#94a3b8', isMajor: true },
+    { name: '슬론 장성 (Sloan Great Wall)', sub: '13.8억 광년 길이 거대벽', pos: [-880, 320, -680], color: '#e879f9', isMajor: true },
+  ];
+
+  // 총 150여 개 은하단 클러스터 노드들
+  const allNodes: { pos: THREE.Vector3; color: THREE.Color }[] = [];
+  for (const m of majorNodes) {
+    allNodes.push({ pos: new THREE.Vector3(...m.pos), color: new THREE.Color(m.color) });
+  }
+
+  const voidCenter = new THREE.Vector3(360, 510, 320);
+  const voidRadius = 240;
+
+  for (let i = 0; i < 140; i++) {
+    const rad = 350 + Math.random() * 2200;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(Math.random() * 2 - 1);
+    const p = new THREE.Vector3(
+      rad * Math.sin(phi) * Math.cos(theta),
+      rad * Math.sin(phi) * Math.sin(theta) * 0.75,
+      rad * Math.cos(phi),
+    );
+
+    if (p.distanceTo(voidCenter) < voidRadius) continue;
+
+    const hue = 0.55 + (Math.random() - 0.5) * 0.35;
+    allNodes.push({ pos: p, color: new THREE.Color().setHSL(hue, 0.8, 0.7) });
+  }
+
+  // 3. 은하단 간 우주 필라멘트 선
+  const linePositions: number[] = [];
+  const lineColors: number[] = [];
+  const filamentStarPositions: number[] = [];
+  const filamentStarColors: number[] = [];
+
+  for (let i = 0; i < allNodes.length; i++) {
+    for (let j = i + 1; j < allNodes.length; j++) {
+      const d = allNodes[i].pos.distanceTo(allNodes[j].pos);
+      if (d < 450) {
+        const p1 = allNodes[i].pos;
+        const p2 = allNodes[j].pos;
+        const c1 = allNodes[i].color;
+        const c2 = allNodes[j].color;
+
+        linePositions.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+        lineColors.push(c1.r * 0.65, c1.g * 0.65, c1.b * 0.65, c2.r * 0.65, c2.g * 0.65, c2.b * 0.65);
+
+        const steps = Math.floor(d / 75);
+        for (let s = 1; s < steps; s++) {
+          const t = s / steps;
+          const jitter = 16;
+          const fx = p1.x + (p2.x - p1.x) * t + (Math.random() - 0.5) * jitter;
+          const fy = p1.y + (p2.y - p1.y) * t + (Math.random() - 0.5) * jitter;
+          const fz = p1.z + (p2.z - p1.z) * t + (Math.random() - 0.5) * jitter;
+          filamentStarPositions.push(fx, fy, fz);
+          filamentStarColors.push(
+            c1.r * (1 - t) + c2.r * t,
+            c1.g * (1 - t) + c2.g * t,
+            c1.b * (1 - t) + c2.b * t,
+          );
+        }
+      }
+    }
+  }
+
+  const filamentLineGeo = new THREE.BufferGeometry();
+  filamentLineGeo.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
+  filamentLineGeo.setAttribute('color', new THREE.Float32BufferAttribute(lineColors, 3));
+  const filamentLineMat = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.38,
+    blending: THREE.AdditiveBlending,
+  });
+  const filamentLines = new THREE.LineSegments(filamentLineGeo, filamentLineMat);
+  cosmicGroup.add(filamentLines);
+
+  // 4. 필라멘트 상의 수천 개 은하 군집 (Points)
+  const filPointsGeo = new THREE.BufferGeometry();
+  filPointsGeo.setAttribute('position', new THREE.Float32BufferAttribute(filamentStarPositions, 3));
+  filPointsGeo.setAttribute('color', new THREE.Float32BufferAttribute(filamentStarColors, 3));
+  const filPointsMat = new THREE.PointsMaterial({
+    size: 2.4,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.65,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const filPoints = new THREE.Points(filPointsGeo, filPointsMat);
+  cosmicGroup.add(filPoints);
+
+  // 5. 은하단 중심 노드 점무리
+  const nodeGeo = new THREE.BufferGeometry();
+  const nodePosArr = new Float32Array(allNodes.length * 3);
+  const nodeColArr = new Float32Array(allNodes.length * 3);
+  for (let i = 0; i < allNodes.length; i++) {
+    nodePosArr[i * 3] = allNodes[i].pos.x;
+    nodePosArr[i * 3 + 1] = allNodes[i].pos.y;
+    nodePosArr[i * 3 + 2] = allNodes[i].pos.z;
+    nodeColArr[i * 3] = allNodes[i].color.r;
+    nodeColArr[i * 3 + 1] = allNodes[i].color.g;
+    nodeColArr[i * 3 + 2] = allNodes[i].color.b;
+  }
+  nodeGeo.setAttribute('position', new THREE.BufferAttribute(nodePosArr, 3));
+  nodeGeo.setAttribute('color', new THREE.BufferAttribute(nodeColArr, 3));
+  const nodeMat = new THREE.PointsMaterial({
+    size: 5.5,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.9,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  cosmicGroup.add(new THREE.Points(nodeGeo, nodeMat));
+
+  // 6. 국부은하군 위치 거대 레이더 비콘 링
+  const localRingGeo = new THREE.RingGeometry(25, 32, 48);
+  const localRingMat = new THREE.MeshBasicMaterial({
+    color: 0x38bdf8,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.85,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const localRadarRing = new THREE.Mesh(localRingGeo, localRingMat);
+  localRadarRing.rotation.x = -Math.PI / 2;
+  cosmicGroup.add(localRadarRing);
+
+  // 7. 주요 거대구조 3D 라벨 스프라이트들
+  const labelSprites: THREE.Sprite[] = [];
+  for (const m of majorNodes) {
+    const sp = makeCosmicBillboardSprite(m.name, m.sub, m.color, m.isMajor ? 85 : 65, m.isMajor ? 21 : 16);
+    sp.position.set(m.pos[0], m.pos[1] + 35, m.pos[2]);
+    cosmicGroup.add(sp);
+    labelSprites.push(sp);
+  }
+
+  // 지평선 라벨
+  const horizonSprite = makeCosmicBillboardSprite('🌐 관측 가능한 우주 지평선', '지름 약 930억 광년 / 2조 개 은하', '#38bdf8', 120, 30);
+  horizonSprite.position.set(0, 1100, -2100);
+  cosmicGroup.add(horizonSprite);
+  labelSprites.push(horizonSprite);
+
+  scene.add(cosmicGroup);
+
+  return {
+    cosmicGroup,
+    cmbSphere,
+    localRadarRing,
+    labelSprites,
+  };
+}
+
 export function createGalaxyScene(
   container: HTMLElement,
   initialScenario: GalaxyScenarioType = 'local_group',
@@ -177,18 +453,21 @@ export function createGalaxyScene(
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#03030d');
-  scene.fog = new THREE.FogExp2(0x03030d, 0.0005);
+  scene.fog = new THREE.FogExp2(0x03030d, 0.00015);
 
-  const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 5000);
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 12000);
   camera.position.set(0, 220, 360);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
   controls.minDistance = 8;
-  controls.maxDistance = 2200;
+  controls.maxDistance = 7500;
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+
+  // 관측 가능한 전체 우주 & 거대 우주망 (Cosmic Web) 비주얼
+  const cosmicWeb = buildCosmicWebVisuals(scene);
 
   // 1. 심우주 배경 별무리
   const bgStarGeo = new THREE.BufferGeometry();
@@ -481,6 +760,7 @@ export function createGalaxyScene(
   let activeView: GalaxyCameraView = 'overview';
   let showGas = true;
   let showTrails = true;
+  let showCosmicWeb = true;
   const clock = new THREE.Clock();
   let rafId = 0;
 
@@ -492,6 +772,19 @@ export function createGalaxyScene(
 
     stepGalaxySystem(simState, dt);
     onStateUpdate?.(simState);
+
+    // 전체 우주 거대구조 (Cosmic Web & CMB) 비주얼 갱신
+    cosmicWeb.cosmicGroup.visible = showCosmicWeb;
+    if (showCosmicWeb) {
+      cosmicWeb.cmbSphere.rotation.y += 0.0001;
+      cosmicWeb.localRadarRing.scale.setScalar(1.0 + Math.sin(clock.getElapsedTime() * 3.0) * 0.16);
+
+      const camDist = camera.position.length();
+      const labelAlpha = THREE.MathUtils.clamp((camDist - 350) / 450, 0.05, 1);
+      for (const sp of cosmicWeb.labelSprites) {
+        (sp.material as THREE.SpriteMaterial).opacity = labelAlpha;
+      }
+    }
 
     // 태양계 위치 및 펄싱 링 갱신
     solarGroup.position.set(...simState.solarSystemPos);
@@ -575,6 +868,10 @@ export function createGalaxyScene(
     // 카메라 타깃 스무딩
     const cores = simState.cores;
     switch (activeView) {
+      case 'universe': {
+        targetLerp.set(0, 0, 0);
+        break;
+      }
       case 'overview': {
         targetLerp.set(cores.length > 2 ? 60 : 0, 0, 0);
         break;
@@ -656,7 +953,10 @@ export function createGalaxyScene(
     },
     setViewMode(mode) {
       activeView = mode;
-      if (mode === 'overview') {
+      if (mode === 'universe') {
+        camera.position.set(0, 1600, 2900);
+        showCosmicWeb = true;
+      } else if (mode === 'overview') {
         camera.position.set(60, 220, 360);
       } else if (mode === 'solarsystem') {
         const p = simState.solarSystemPos;
@@ -684,6 +984,9 @@ export function createGalaxyScene(
     },
     setShowTrails(show) {
       showTrails = show;
+    },
+    setShowCosmicWeb(show) {
+      showCosmicWeb = show;
     },
     setGalaxyDistance(kpc) {
       if (simState.cores.length >= 2) {
