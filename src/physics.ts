@@ -36,6 +36,18 @@ export interface CollisionEvent {
 export const SUN_MASS = 1.98847e30;
 export const G = 2.9591220828559e-4 / SUN_MASS;
 
+let gravityMultiplier = 1.0;
+export function setGravityMultiplier(m: number): void {
+  gravityMultiplier = Math.max(0.1, m);
+}
+export function getGravityMultiplier(): number {
+  return gravityMultiplier;
+}
+
+export function calculateCircularSpeed(centralMass: number, distanceAU: number): number {
+  return Math.sqrt((G * gravityMultiplier * centralMass) / Math.max(1e-4, distanceAU));
+}
+
 // AU/day -> km/s
 export const AU_PER_DAY_TO_KM_S = 1.495978707e8 / 86400;
 
@@ -95,8 +107,9 @@ function computeAccelerations(bodies: Body[]): { acc: Float64Array; tmin: number
       const r = Math.sqrt(r2);
       const invR3 = 1 / (r2 * r);
 
-      let fa = G * b.mass * invR3;
-      let fb = G * a.mass * invR3;
+      const effectiveG = G * gravityMultiplier;
+      let fa = effectiveG * b.mass * invR3;
+      let fb = effectiveG * a.mass * invR3;
 
       // 블랙홀 시공간 왜곡
       if (isBhA && !isBhB) {

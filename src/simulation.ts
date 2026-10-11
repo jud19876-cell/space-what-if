@@ -1,9 +1,35 @@
 // 시뮬레이션 상태 + Simulation Command.
 // UI 버튼과 (앞으로의) AI 는 모두 executeCommand() 를 통해서만 상태를 바꾼다.
-import { G, dist2, stepBodies, SUN_MASS, length, type Body, type Vec3, type AbsorptionEvent, type CollisionEvent } from './physics.ts';
+import { G, dist2, stepBodies, SUN_MASS, length, setGravityMultiplier, calculateCircularSpeed, type Body, type Vec3, type AbsorptionEvent, type CollisionEvent } from './physics.ts';
 import { createSolarSystem, EARTH_MASS, BODY_INFO, type BodyId } from './solarSystem.ts';
 
 export type Speed = number; // 1 ~ 100x 자유 조절 가능
+
+export interface StackableConditions {
+  mass2x: boolean;
+  velocity2x: boolean;
+  gravity2x: boolean;
+  sun10x: boolean;
+  earthStop: boolean;
+  sunGone: boolean;
+  sunBlackHole: boolean;
+  monsterBlackHole: boolean;
+  moonToJupiter: boolean;
+}
+
+export function createDefaultConditions(): StackableConditions {
+  return {
+    mass2x: false,
+    velocity2x: false,
+    gravity2x: false,
+    sun10x: false,
+    earthStop: false,
+    sunGone: false,
+    sunBlackHole: false,
+    monsterBlackHole: false,
+    moonToJupiter: false,
+  };
+}
 
 export type SimCommand =
   | { action: 'remove_body'; target: string }
@@ -21,7 +47,13 @@ export type SimCommand =
   | { action: 'reset' }
   | { action: 'pause' }
   | { action: 'resume' }
-  | { action: 'set_speed'; speed: number };
+  | { action: 'set_speed'; speed: number }
+  | { action: 'change_visual_radius'; target: string; multiplier: number }
+  | { action: 'change_orbit_distance'; target: string; deltaAU?: number; distanceAU?: number; circularizeSpeed?: boolean }
+  | { action: 'offset_position'; target: string; delta: Vec3 }
+  | { action: 'set_speed_magnitude'; target: string; speedAuDay: number }
+  | { action: 'spawn_custom_planet'; name: string; typeId: string; distanceAU: number; visualRadius: number; massMultiplier: number; hasRings?: boolean }
+  | { action: 'toggle_condition'; condition: keyof StackableConditions; enable: boolean };
 
 export interface SwallowedRecord {
   id: string;
@@ -38,13 +70,14 @@ export interface SimState {
   speed: Speed;
   swallowedList: SwallowedRecord[];
   collisions: CollisionEvent[];
+  conditions?: StackableConditions;
 }
 
 /** 1x 에서 화면 1초 = 시뮬레이션 5일 (지구 1년 ≈ 73초) */
 export const DAYS_PER_SECOND = 5;
 
 export function createInitialState(): SimState {
-  return { bodies: createSolarSystem(), time: 0, paused: false, speed: 10, swallowedList: [], collisions: [] };
+  return { bodies: createSolarSystem(), time: 0, paused: false, speed: 10, swallowedList: [], collisions: [], conditions: createDefaultConditions() };
 }
 
 /** 화면 시간 realSeconds 만큼 시뮬레이션을 진행한다. */
@@ -114,6 +147,8 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       state.time = 0;
       state.swallowedList = [];
       state.collisions = [];
+      state.conditions = createDefaultConditions();
+      setGravityMultiplier(1.0);
       return true;
     case 'pause':
       state.paused = true;
@@ -347,6 +382,144 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       }
       return false;
     }
+
+    case 'spawn_custom_planet': {
+      const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const id = `custom_${cmd.typeId}_${uid}`;
+      const mass = EARTH_MASS * cmd.massMultiplier;
+      const angle = Math.random() * Math.PI * 2;
+      const r = Math.max(0.3, cmd.distanceAU);
+      const pos: Vec3 = [Math.cos(angle) * r, Math.sin(angle) * r, 0];
+      const sun = findBody(state, 'sun');
+      const mSun = sun ? sun.mass : SUN_MASS;
+      const vCirc = calculateCircularSpeed(mSun, r);
+      const vel: Vec3 = [-Math.sin(angle) * vCirc, Math.cos(angle) * vCirc, 0];
+      const physicalRadius = Math.round(6371 * Math.sqrt(cmd.massMultiplier));
+
+      state.bodies.push({
+        id,
+        name: cmd.name,
+        mass,
+        position: pos,
+        velocity: vel,
+        physicalRadius,
+        visualRadius: cmd.visualRadius,
+      });
+      return true;
+    }
+
+    case 'toggle_condition': {
+      if (!state.conditions) state.conditions = createDefaultConditions();
+      const cond = cmd.condition;
+      const enable = cmd.enable;
+      if (state.conditions[cond] === enable) return true;
+      state.conditions[cond] = enable;
+
+      switch (cond) {
+        case 'mass2x': {
+          const factor = enable ? 2.0 : 0.5;
+          for (const b of state.bodies) {
+            if (b.id !== 'sun' && !b.id.includes('black_hole')) {
+              b.mass *= factor;
+            }
+          }
+          break;
+        }
+        case 'velocity2x': {
+          const factor = enable ? 2.0 : 0.5;
+          for (const b of state.bodies) {
+            if (b.id !== 'sun' && !b.id.includes('black_hole')) {
+              b.velocity[0] *= factor;
+              b.velocity[1] *= factor;
+              b.velocity[2] *= factor;
+            }
+          }
+          break;
+        }
+        case 'gravity2x': {
+          setGravityMultiplier(enable ? 2.0 : 1.0);
+          break;
+        }
+        case 'sun10x': {
+          const sun = findBody(state, 'sun');
+          if (sun) {
+            sun.mass = enable ? SUN_MASS * 10.0 : SUN_MASS;
+          }
+          break;
+        }
+        case 'earthStop': {
+          const earth = findBody(state, 'earth');
+          if (earth) {
+            if (enable) {
+              earth.velocity = [0, 0, 0];
+            } else {
+              const r = length(earth.position);
+              const v = calculateCircularSpeed(SUN_MASS, r);
+              const angle = Math.atan2(earth.position[1], earth.position[0]);
+              earth.velocity = [-Math.sin(angle) * v, Math.cos(angle) * v, 0];
+            }
+          }
+          break;
+        }
+        case 'sunGone': {
+          const sun = findBody(state, 'sun');
+          if (enable) {
+            if (sun) {
+              sun.mass = 0;
+            }
+          } else {
+            if (sun) {
+              sun.mass = state.conditions.sun10x ? SUN_MASS * 10 : SUN_MASS;
+            } else {
+              state.bodies.unshift({
+                id: 'sun',
+                name: '태양',
+                mass: state.conditions.sun10x ? SUN_MASS * 10 : SUN_MASS,
+                position: [0, 0, 0],
+                velocity: [0, 0, 0],
+                physicalRadius: 696340,
+                visualRadius: 1.8,
+              });
+            }
+          }
+          break;
+        }
+        case 'sunBlackHole': {
+          if (enable) {
+            executeCommand(state, { action: 'spawn_black_hole', variant: 'sun_replace' });
+          } else {
+            state.bodies = state.bodies.filter((b) => b.id !== 'black_hole');
+            if (!findBody(state, 'sun')) {
+              state.bodies.unshift({
+                id: 'sun',
+                name: '태양',
+                mass: SUN_MASS,
+                position: [0, 0, 0],
+                velocity: [0, 0, 0],
+                physicalRadius: 696340,
+                visualRadius: 1.8,
+              });
+            }
+          }
+          break;
+        }
+        case 'monsterBlackHole': {
+          if (enable) {
+            executeCommand(state, { action: 'spawn_black_hole', variant: 'giant' });
+          } else {
+            state.bodies = state.bodies.filter((b) => b.id !== 'giant_black_hole');
+          }
+          break;
+        }
+        case 'moonToJupiter': {
+          if (enable) {
+            executeCommand(state, { action: 'move_body', target: 'moon', near: 'jupiter' });
+          }
+          break;
+        }
+      }
+      return true;
+    }
   }
 
   const body = findBody(state, cmd.target);
@@ -375,6 +548,49 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       const before: Vec3 = [...body.velocity];
       for (let k = 0; k < 3; k++) body.velocity[k] = rv[k] + (before[k] - rv[k]) * cmd.multiplier;
       for (const s of sats) for (let k = 0; k < 3; k++) s.velocity[k] += body.velocity[k] - before[k];
+      return true;
+    }
+
+    case 'change_visual_radius': {
+      body.visualRadius = Math.max(0.15, Math.min(6.0, body.visualRadius * cmd.multiplier));
+      return true;
+    }
+
+    case 'change_orbit_distance': {
+      const currentR = Math.hypot(body.position[0], body.position[1]);
+      if (currentR < 1e-4) return false;
+      const newR = cmd.distanceAU !== undefined ? cmd.distanceAU : Math.max(0.1, currentR + (cmd.deltaAU ?? 0));
+      const angle = Math.atan2(body.position[1], body.position[0]);
+      body.position[0] = Math.cos(angle) * newR;
+      body.position[1] = Math.sin(angle) * newR;
+      if (cmd.circularizeSpeed) {
+        const sun = findBody(state, 'sun');
+        const m = sun ? sun.mass : SUN_MASS;
+        const v = calculateCircularSpeed(m, newR);
+        body.velocity[0] = -Math.sin(angle) * v;
+        body.velocity[1] = Math.cos(angle) * v;
+        body.velocity[2] = 0;
+      }
+      return true;
+    }
+
+    case 'offset_position': {
+      body.position[0] += cmd.delta[0];
+      body.position[1] += cmd.delta[1];
+      body.position[2] += cmd.delta[2];
+      return true;
+    }
+
+    case 'set_speed_magnitude': {
+      const curSpeed = Math.hypot(body.velocity[0], body.velocity[1], body.velocity[2]);
+      if (curSpeed < 1e-8) {
+        body.velocity[1] = cmd.speedAuDay;
+        return true;
+      }
+      const ratio = cmd.speedAuDay / curSpeed;
+      body.velocity[0] *= ratio;
+      body.velocity[1] *= ratio;
+      body.velocity[2] *= ratio;
       return true;
     }
 

@@ -5,6 +5,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { AU_PER_DAY_TO_KM_S, G, length, SUN_MASS, type Body, type Vec3, type AbsorptionEvent, type CollisionEvent } from './physics.ts';
 import { advance, findHost, type SimState } from './simulation.ts';
 import { BODY_INFO, ORBIT_RADII, type BodyId } from './solarSystem.ts';
+import { createPlanetTexture, createNormalMap, createRingTexture } from './planetTextures.ts';
 
 // ---------- 화면 거리 스케일 ----------
 // 실제 거리(0.39 ~ 30 AU)를 그대로 쓰면 안쪽 행성이 안 보이므로 제곱근으로 압축한다.
@@ -51,6 +52,8 @@ interface Visual {
   vis: THREE.Vector3;
   accretionDisk?: THREE.Mesh;
   lensingRing?: THREE.Mesh;
+  sunTexture?: THREE.CanvasTexture;
+  orbitLine?: THREE.LineLoop;
 }
 
 export interface AimInfo {
@@ -64,6 +67,8 @@ export interface SpaceScene {
   setSelected(id: string | null): void;
   setCannonMode(active: boolean, massType?: 'normal' | 'giant'): void;
   setAimingAsteroid(id: string | null): void;
+  focusBody(id: string | null): void;
+  resetCamera(): void;
   dispose(): void;
 }
 
@@ -260,21 +265,44 @@ export function createSpaceScene(
       group.add(sphere);
       group.add(makeAsteroidFlameGlow(isGiant));
     } else {
-      const mat =
-        id === 'sun'
-          ? new THREE.MeshBasicMaterial({ color: '#ffd75e' })
-          : new THREE.MeshStandardMaterial({ color: '#ffffff', map: makeTexture(id, info.color), roughness: 0.85 });
+      const isSun = id === 'sun';
+      let mat: THREE.Material;
+      let sunTex: THREE.CanvasTexture | undefined;
+
+      if (isSun) {
+        sunTex = createPlanetTexture('sun');
+        mat = new THREE.MeshBasicMaterial({ map: sunTex });
+      } else {
+        const diffTex = createPlanetTexture(id);
+        const normTex = createNormalMap(diffTex, 2.4);
+        mat = new THREE.MeshStandardMaterial({
+          map: diffTex,
+          normalMap: normTex,
+          normalScale: new THREE.Vector2(1.25, 1.25),
+          roughness: id === 'earth' ? 0.35 : 0.78,
+          metalness: id === 'earth' ? 0.15 : 0.05,
+        });
+      }
+
       sphere = new THREE.Mesh(sphereGeo, mat);
       group.add(sphere);
 
-      if (id === 'sun') group.add(makeGlow());
+      if (isSun) {
+        group.add(makeSunCoronaShells());
+      }
+
+      // 대기권 산란 림 글로우 효과 (Atmospheric Rim Glow)
+      if (id === 'earth') group.add(makeAtmosphereGlow(0x4da6ff, 1.04));
+      if (id === 'venus') group.add(makeAtmosphereGlow(0xffcc66, 1.035));
+      if (id === 'neptune') group.add(makeAtmosphereGlow(0x3388ff, 1.035));
+      if (id === 'uranus') group.add(makeAtmosphereGlow(0x5ce6ff, 1.035));
+      if (id === 'jupiter') group.add(makeAtmosphereGlow(0xffddaa, 1.025));
+
+      // 고리 시스템 (토성 및 천왕성 정밀 절차적 링)
       if (id === 'saturn') {
-        const ring = new THREE.Mesh(
-          new THREE.RingGeometry(1.4, 2.3, 64),
-          new THREE.MeshBasicMaterial({ color: '#e9d7a8', side: THREE.DoubleSide, transparent: true, opacity: 0.65 }),
-        );
-        ring.rotation.x = -Math.PI / 2 + 0.45;
-        sphere.add(ring);
+        group.add(makeProceduralRing('saturn', 1.35, 2.45, 0.45));
+      } else if (id === 'uranus') {
+        group.add(makeProceduralRing('uranus', 1.25, 1.85, 1.7));
       }
     }
 
@@ -302,6 +330,23 @@ export function createSpaceScene(
     );
     trail.frustumCulled = false;
 
+    // 네온 궤도선 (Neon Orbit Path Line)
+    let orbitLine: THREE.LineLoop | undefined;
+    if (id !== 'sun' && !isBlackHole && !isAsteroid) {
+      const orbitPts: THREE.Vector3[] = [];
+      for (let i = 0; i <= 64; i++) {
+        orbitPts.push(new THREE.Vector3());
+      }
+      const orbitGeo = new THREE.BufferGeometry().setFromPoints(orbitPts);
+      const orbitMat = new THREE.LineBasicMaterial({
+        color: new THREE.Color(info.color).getHex(),
+        transparent: true,
+        opacity: id === 'moon' ? 0.25 : 0.42,
+      });
+      orbitLine = new THREE.LineLoop(orbitGeo, orbitMat);
+      scene.add(orbitLine);
+    }
+
     scene.add(group, trail);
     const vis: Visual = {
       group,
@@ -313,6 +358,8 @@ export function createSpaceScene(
       vis: new THREE.Vector3(),
       accretionDisk,
       lensingRing,
+      sunTexture: id === 'sun' ? (sphere.material as THREE.MeshBasicMaterial).map as THREE.CanvasTexture : undefined,
+      orbitLine,
     };
     visuals.set(b.id, vis);
     return vis;
@@ -323,14 +370,23 @@ export function createSpaceScene(
     createVisualForBody(b);
   }
 
-  // 선택 표시 링
+  // 선택 표시 네온 링 (Selected Body Neon Indicator Ring)
   const selRing = new THREE.Mesh(
-    new THREE.RingGeometry(1.35, 1.55, 64),
-    new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.9, side: THREE.DoubleSide }),
+    new THREE.RingGeometry(1.25, 1.45, 64),
+    new THREE.MeshBasicMaterial({
+      color: 0x00f5ff,
+      transparent: true,
+      opacity: 0.9,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
   );
+  selRing.rotation.x = -Math.PI / 2;
   selRing.visible = false;
   scene.add(selRing);
   let selectedId: string | null = null;
+  let focusedBodyId: string | null = null;
 
   // ---------- 충격파 & 폭발 파편 & 카메라 진동 시스템 ----------
   const shockwaves: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; time: number; maxTime: number; scaleMult: number }[] = [];
@@ -586,6 +642,26 @@ export function createSpaceScene(
         v.lensingRing.scale.setScalar(b.visualRadius);
       }
 
+      if (v.sunTexture) {
+        v.sunTexture.offset.x += 0.0008;
+      }
+
+      // 동적 네온 궤도선 갱신 (Dynamic Neon Orbit Path Loop)
+      if (v.orbitLine) {
+        const isMoon = b.id === 'moon';
+        const center = isMoon ? (visuals.get('earth')?.vis ?? new THREE.Vector3()) : new THREE.Vector3(0, 0, 0);
+        const r = isMoon ? 1.8 : Math.hypot(v.vis.x - center.x, v.vis.z - center.z);
+        const posArr = v.orbitLine.geometry.attributes.position.array as Float32Array;
+        for (let i = 0; i <= 64; i++) {
+          const th = (i / 64) * Math.PI * 2;
+          posArr[i * 3] = center.x + Math.cos(th) * r;
+          posArr[i * 3 + 1] = center.y;
+          posArr[i * 3 + 2] = center.z + Math.sin(th) * r;
+        }
+        v.orbitLine.geometry.attributes.position.needsUpdate = true;
+        v.orbitLine.visible = v.group.visible;
+      }
+
       pushTrail(v, b.id === 'moon' ? 0.04 : 0.12);
     }
     const sun = bodies.find((b) => b.id === 'sun');
@@ -655,17 +731,22 @@ export function createSpaceScene(
       camera.position.z += (Math.random() - 0.5) * s;
     }
 
-    // 선택한 천체를 카메라가 부드럽게 따라간다
-    const sel = selectedId ? state.bodies.find((b) => b.id === selectedId) : undefined;
-    const goal = sel ? visuals.get(sel.id)!.vis : tmp.set(0, 0, 0);
+    // 선택 또는 포커스된 천체를 카메라가 부드럽게 추적
+    const targetId = focusedBodyId ?? selectedId;
+    const sel = targetId ? state.bodies.find((b) => b.id === targetId) : undefined;
+    const goal = sel && visuals.has(sel.id) ? visuals.get(sel.id)!.vis : tmp.set(0, 0, 0);
     prevTarget.copy(controls.target);
     controls.target.lerp(goal, 0.08);
     camera.position.add(prevTarget.sub(controls.target).negate());
-    selRing.visible = !!sel;
-    if (sel) {
-      selRing.position.copy(visuals.get(sel.id)!.vis);
-      selRing.scale.setScalar(Math.max(sel.visualRadius, 0.4));
+
+    // 타깃 선택 네온 링 애니메이션
+    const activeSel = selectedId ? state.bodies.find((b) => b.id === selectedId) : undefined;
+    selRing.visible = !!activeSel && visuals.has(activeSel.id);
+    if (activeSel && selRing.visible) {
+      selRing.position.copy(visuals.get(activeSel.id)!.vis);
+      selRing.scale.setScalar(Math.max(activeSel.visualRadius * 1.5, 0.6));
       selRing.quaternion.copy(camera.quaternion);
+      selRing.rotation.z += 0.04;
     }
 
     controls.update();
@@ -948,6 +1029,17 @@ export function createSpaceScene(
         targetRing.visible = false;
       }
     },
+    focusBody(id) {
+      focusedBodyId = id;
+      if (id && visuals.has(id)) {
+        controls.target.copy(visuals.get(id)!.vis);
+      }
+    },
+    resetCamera() {
+      focusedBodyId = null;
+      controls.target.set(0, 0, 0);
+      camera.position.set(0, 48, 62);
+    },
     dispose() {
       cancelAnimationFrame(raf);
       ro.disconnect();
@@ -964,23 +1056,93 @@ export function createSpaceScene(
 
 // ---------- 꾸미기 (텍스처, 별, 태양 빛, 블랙홀 강착원반, 소행성) ----------
 
+function makeProceduralRing(planetId: string, innerR: number, outerR: number, tilt: number): THREE.Mesh {
+  const geo = new THREE.RingGeometry(innerR, outerR, 128);
+  const ringTex = createRingTexture(planetId);
+  const mat = new THREE.MeshBasicMaterial({
+    map: ringTex,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.88,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2 + tilt;
+  return mesh;
+}
+
+function makeAtmosphereGlow(colorHex: number, scaleMultiplier = 1.035): THREE.Mesh {
+  const geo = new THREE.SphereGeometry(1, 32, 24);
+  const mat = new THREE.MeshBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.35,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.scale.setScalar(scaleMultiplier);
+  return mesh;
+}
+
+function makeSunCoronaShells(): THREE.Group {
+  const group = new THREE.Group();
+  const geo1 = new THREE.SphereGeometry(1, 32, 24);
+  const mat1 = new THREE.MeshBasicMaterial({
+    color: 0xffaa22,
+    transparent: true,
+    opacity: 0.42,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+    depthWrite: false,
+  });
+  const shell1 = new THREE.Mesh(geo1, mat1);
+  shell1.scale.setScalar(1.12);
+  group.add(shell1);
+
+  const geo2 = new THREE.SphereGeometry(1, 32, 24);
+  const mat2 = new THREE.MeshBasicMaterial({
+    color: 0xff3300,
+    transparent: true,
+    opacity: 0.22,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+    depthWrite: false,
+  });
+  const shell2 = new THREE.Mesh(geo2, mat2);
+  shell2.scale.setScalar(1.32);
+  group.add(shell2);
+
+  group.add(makeGlow());
+  return group;
+}
+
 function makeStars(): THREE.Points {
-  const n = 3000;
+  const n = 3500;
   const pos = new Float32Array(n * 3);
   const col = new Float32Array(n * 3);
+  const colorPalette = [
+    new THREE.Color(0x9db4ff),
+    new THREE.Color(0xf8f9ff),
+    new THREE.Color(0xfff4e8),
+    new THREE.Color(0xffdd6f),
+    new THREE.Color(0xffaa44),
+    new THREE.Color(0xff6060),
+  ];
   for (let i = 0; i < n; i++) {
     const u = Math.random() * 2 - 1;
     const t = Math.random() * Math.PI * 2;
-    const r = 700 + Math.random() * 300;
+    const r = 650 + Math.random() * 450;
     const s = Math.sqrt(1 - u * u);
     pos.set([r * s * Math.cos(t), r * u, r * s * Math.sin(t)], i * 3);
-    const c = new THREE.Color().setHSL(0.55 + Math.random() * 0.15, 0.5, 0.7 + Math.random() * 0.3);
+    const c = colorPalette[Math.floor(Math.random() * colorPalette.length)];
     col.set([c.r, c.g, c.b], i * 3);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  return new THREE.Points(geo, new THREE.PointsMaterial({ size: 1.8, sizeAttenuation: false, vertexColors: true }));
+  return new THREE.Points(geo, new THREE.PointsMaterial({ size: 2.2, sizeAttenuation: false, vertexColors: true }));
 }
 
 function makeGlow(): THREE.Sprite {

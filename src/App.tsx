@@ -2,10 +2,24 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import BlackHoleSpaghettiSim from './BlackHoleSpaghettiSim.tsx';
 import ConstellationSim from './ConstellationSim.tsx';
 import { AU_PER_DAY_TO_KM_S, length, type Vec3 } from './physics.ts';
+import { PlanetInspector } from './PlanetInspector.tsx';
 import { createSpaceScene, type AimInfo, type SpaceScene } from './scene.ts';
 import { SCENARIOS, type Scenario, type ScenarioCategory } from './scenarios.ts';
-import { createInitialState, executeCommand, findBody, type SimCommand, type SimState } from './simulation.ts';
+import { createInitialState, executeCommand, findBody, type SimCommand, type SimState, type StackableConditions } from './simulation.ts';
 import { BODY_INFO, EARTH_MASS, type BodyId } from './solarSystem.ts';
+import { SpawnPlanetModal } from './SpawnPlanetModal.tsx';
+
+const STACKABLE_CONDITIONS: { key: keyof StackableConditions; label: string; emoji: string; desc: string }[] = [
+  { key: 'mass2x', label: '질량 2배', emoji: '⚖️', desc: '모든 행성의 질량이 2배가 됩니다' },
+  { key: 'velocity2x', label: '공전속도 2배', emoji: '🚀', desc: '행성들이 탈출 속도에 도달하여 흩어집니다' },
+  { key: 'gravity2x', label: '중력 2배', emoji: '🧲', desc: '우주 만유인력 상수(G)가 2배로 증가하여 궤도가 수축합니다' },
+  { key: 'sun10x', label: '태양 10배', emoji: '☀️', desc: '태양이 10배 거대해져 강한 중력으로 행성을 끌어당깁니다' },
+  { key: 'earthStop', label: '지구 정지', emoji: '🛑', desc: '지구의 공전 속도가 0이 되어 태양으로 수직 추락합니다' },
+  { key: 'sunGone', label: '태양 소멸', emoji: '💨', desc: '태양이 사라져 행성들이 관성으로 직선 비행합니다' },
+  { key: 'sunBlackHole', label: '태양 블랙홀', emoji: '🕳️', desc: '태양이 동급 질량의 블랙홀로 변합니다' },
+  { key: 'monsterBlackHole', label: '괴물 블랙홀', emoji: '👾', desc: '30배 질량의 거대 블랙홀이 중심에 자리잡습니다' },
+  { key: 'moonToJupiter', label: '달 목성 이동', emoji: '🌙', desc: '달이 목성 궤도로 이동합니다' },
+];
 
 export default function App() {
   const stateRef = useRef<SimState>(createInitialState());
@@ -19,6 +33,7 @@ export default function App() {
   const [cannonMode, setCannonMode] = useState(false);
   const [cannonMassType, setCannonMassType] = useState<'normal' | 'giant'>('normal');
   const [aimInfo, setAimInfo] = useState<AimInfo | null>(null);
+  const [spawnModalOpen, setSpawnModalOpen] = useState(false);
   const [, setTick] = useState(0);
 
   /** 모든 상태 변경은 여기서 Simulation Command 로만 한다. */
@@ -31,6 +46,19 @@ export default function App() {
     setSelected((id) => (id && findBody(s, id) ? id : null));
     setTick((t) => t + 1);
   }, []);
+
+  const handleToggleCondition = useCallback((condKey: keyof StackableConditions) => {
+    const currentVal = !!stateRef.current.conditions?.[condKey];
+    const nextVal = !currentVal;
+    runCommands([{ action: 'toggle_condition', condition: condKey, enable: nextVal }]);
+    const item = STACKABLE_CONDITIONS.find((c) => c.key === condKey);
+    setToast({
+      key: Date.now(),
+      emoji: item?.emoji ?? '🎛️',
+      text: `[${item?.label ?? condKey}] ${nextVal ? '조건 활성화 (ON)!' : '조건 해제 (OFF)'}`,
+      type: 'normal',
+    });
+  }, [runCommands]);
 
   const handleLaunchAsteroid = useCallback((pos: Vec3, vel: Vec3, massType: 'normal' | 'giant') => {
     runCommands([
@@ -296,6 +324,16 @@ export default function App() {
           </button>
 
           <button
+            id="btn-spawn-planet-modal"
+            className="btn spawn-planet-nav-btn"
+            onClick={() => setSpawnModalOpen(true)}
+            title="새로운 커스텀 행성을 태양계 궤도에 직접 배치하기"
+          >
+            <span>🪐➕</span>
+            <span className="btn-text">새 행성 배치</span>
+          </button>
+
+          <button
             id="btn-pause"
             className={`btn round ${state.paused ? 'play' : ''}`}
             onClick={() => runCommands([{ action: state.paused ? 'resume' : 'pause' }])}
@@ -401,7 +439,19 @@ export default function App() {
         </div>
       )}
 
-      {selected && !isAsteroidSelected && <InfoCard state={state} id={selected} onClose={() => setSelected(null)} />}
+      {selected && !isAsteroidSelected && (
+        <PlanetInspector
+          state={state}
+          bodyId={selected}
+          onClose={() => {
+            setSelected(null);
+            sceneRef.current?.setSelected(null);
+          }}
+          onRunCommands={runCommands}
+          onFocusBody={(id) => sceneRef.current?.focusBody(id)}
+          onResetCamera={() => sceneRef.current?.resetCamera()}
+        />
+      )}
 
       {!hinted && !selected && !cannonMode && <div className="hint">👆 소행성을 누르고 화면을 클릭하면 그 방향으로 날아가 부딪쳐요!</div>}
 
@@ -413,6 +463,45 @@ export default function App() {
       )}
 
       <footer className="experiments">
+        {/* 다중 조건 동시 시뮬레이션 토글 바 */}
+        <div className="stackable-conditions-bar">
+          <div className="conditions-header">
+            <div className="conditions-title-group">
+              <span className="conditions-icon">🎛️</span>
+              <strong className="conditions-title-text">다중 조건 동시 시뮬레이션</strong>
+              <span className="conditions-subtitle">(여러 조건을 동시에 켜고 끌 수 있습니다)</span>
+            </div>
+            {state.conditions && Object.values(state.conditions).filter(Boolean).length > 0 && (
+              <button
+                className="conditions-reset-btn"
+                onClick={() => runCommands([{ action: 'reset' }])}
+                title="모든 중첩 조건을 해제하고 기본 태양계로 복원"
+              >
+                🔄 기본 태양계 복원 ({Object.values(state.conditions).filter(Boolean).length}개 활성)
+              </button>
+            )}
+          </div>
+          <div className="conditions-chips-row">
+            {STACKABLE_CONDITIONS.map((cond) => {
+              const active = !!state.conditions?.[cond.key];
+              return (
+                <button
+                  key={cond.key}
+                  className={`condition-chip ${active ? 'active' : ''}`}
+                  onClick={() => handleToggleCondition(cond.key)}
+                  title={cond.desc}
+                >
+                  <span className="condition-chip-emoji">{cond.emoji}</span>
+                  <span className="condition-chip-label">{cond.label}</span>
+                  <span className={`condition-chip-indicator ${active ? 'on' : ''}`}>
+                    {active ? 'ON' : 'OFF'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="experiments-top">
           <span className="experiments-label">만약에…?</span>
           <div className="category-tabs" role="tablist" aria-label="실험 종류 선택">
@@ -463,6 +552,20 @@ export default function App() {
           ))}
         </div>
       </footer>
+
+      <SpawnPlanetModal
+        isOpen={spawnModalOpen}
+        onClose={() => setSpawnModalOpen(false)}
+        onRunCommands={runCommands}
+        onSpawnSuccess={(planetName) => {
+          setToast({
+            key: Date.now(),
+            emoji: '🪐✨',
+            text: `신규 천체 [${planetName}]이(가) 안정적인 원궤도에 성공적으로 배치되었습니다!`,
+            type: 'normal',
+          });
+        }}
+      />
 
       {/* 우주비행사 블랙홀 낙하 & 스파게티화 전용 시뮬레이션 모드 */}
       {simMode === 'spaghetti' && (
