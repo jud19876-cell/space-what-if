@@ -41,6 +41,8 @@ export default function App() {
   const [spawnModalOpen, setSpawnModalOpen] = useState(false);
   const [placementConfig, setPlacementConfig] = useState<PlacementConfig | null>(null);
   const [placementHover, setPlacementHover] = useState<PlacementInfo | null>(null);
+  const [dockOpen, setDockOpen] = useState(false);
+  const [dockTab, setDockTab] = useState<'extremes' | 'scenarios'>('scenarios');
   const [, setTick] = useState(0);
 
   /** 모든 상태 변경은 여기서 Simulation Command 로만 한다. */
@@ -358,6 +360,13 @@ export default function App() {
   const selectedBody = selected ? findBody(state, selected) : null;
   const isAsteroidSelected = !!(selected && (selected.includes('asteroid') || selected.includes('fragment')));
 
+  const activeAnomalyCount = Object.entries(state.conditions || {}).filter(([k, v]) => typeof v === 'boolean' && v).length;
+  const isSlidersModified =
+    (state.conditions?.gravityMultiplier ?? 1.0) !== 1.0 ||
+    (state.conditions?.sunMassMultiplier ?? 1.0) !== 1.0 ||
+    (state.conditions?.orbitSpeedMultiplier ?? 1.0) !== 1.0;
+  const hasPhysicsModifications = isSlidersModified || activeAnomalyCount > 0;
+
   return (
     <div className="app">
       <div className="space" ref={containerRef} />
@@ -375,8 +384,8 @@ export default function App() {
         <div className="speed-controller-panel" onWheel={handleSpeedWheel} title="마우스 휠 스크롤로 배속을 10~100x까지 조절할 수 있습니다">
           <div className="speed-info">
             <span className="speed-icon">{state.speed >= 80 ? '🚀' : state.speed >= 40 ? '🏎️' : state.speed >= 10 ? '🐇' : '🐢'}</span>
-            <span className="speed-badge">{state.speed}x 배속</span>
-            <span className="speed-scroll-hint">🖱️ 휠 스크롤 조절 (10~100)</span>
+            <span className="speed-badge">{state.speed}x</span>
+            <span className="speed-scroll-hint">휠 조절</span>
           </div>
           <input
             id="speed-range"
@@ -402,87 +411,104 @@ export default function App() {
           </div>
         </div>
 
-        <div className="controls">
-          <button
-            id="btn-constellation-sim"
-            className="btn constellation-nav-btn"
-            onClick={() => setSimMode('constellation')}
-            title="3D 입체 별자리 탐험 (평면 vs 실제 3D 거리 비교)"
-          >
-            <span>✨🦂</span>
-            <span className="btn-text">3D 별자리 탐험</span>
-          </button>
+        <div className="controls-scroll-wrapper">
+          <div className="controls">
+            {/* 시뮬레이션 모드 전환 그룹 */}
+            <div className="control-group mode-group">
+              <button
+                id="btn-galaxy-sim"
+                className="btn galaxy-nav-btn"
+                onClick={() => {
+                  setGalaxyScenario('local_group');
+                  setSimMode('galaxy');
+                }}
+                title="광활한 심우주 스케일에서 성운 가스 구름과 두 은하의 상호작용 및 대충돌 관찰"
+              >
+                <span>🌌</span>
+                <span className="btn-text">은하 대충돌</span>
+              </button>
 
-          <button
-            id="btn-galaxy-sim"
-            className="btn galaxy-nav-btn"
-            onClick={() => {
-              setGalaxyScenario('local_group');
-              setSimMode('galaxy');
-            }}
-            title="광활한 심우주 스케일에서 성운 가스 구름과 두 은하의 상호작용 및 대충돌 관찰"
-          >
-            <span>🌌🌀</span>
-            <span className="btn-text">은하 대충돌 심우주</span>
-          </button>
+              <button
+                id="btn-constellation-sim"
+                className="btn constellation-nav-btn"
+                onClick={() => setSimMode('constellation')}
+                title="3D 입체 별자리 탐험 (평면 vs 실제 3D 거리 비교)"
+              >
+                <span>✨</span>
+                <span className="btn-text">3D 별자리</span>
+              </button>
 
-          <button
-            id="btn-astronaut-spaghetti"
-            className="btn astronaut-spaghetti-btn"
-            onClick={() => setSimMode('spaghetti')}
-            title="우주비행사가 블랙홀에 빠질 때 일어나는 스파게티 현상 관찰하기"
-          >
-            <span>🧑‍🚀🍝</span>
-            <span className="btn-text">우주인 스파게티 실험</span>
-          </button>
+              <button
+                id="btn-astronaut-spaghetti"
+                className="btn astronaut-spaghetti-btn"
+                onClick={() => setSimMode('spaghetti')}
+                title="우주비행사가 블랙홀에 빠질 때 일어나는 스파게티 현상 관찰하기"
+              >
+                <span>🧑‍🚀</span>
+                <span className="btn-text">스파게티</span>
+              </button>
+            </div>
 
-          <button
-            id="btn-spawn-ready"
-            className="btn spawn-asteroid-btn"
-            onClick={() => handleSpawnReadyAsteroid('normal')}
-            title="소행성을 클릭하고 화면을 클릭해 원하는 방향으로 날려보내기"
-          >
-            <span>☄️</span>
-            <span className="btn-text">소행성 클릭 발사</span>
-          </button>
+            <div className="control-divider" />
 
-          <button
-            id="btn-cannon"
-            className={`btn cannon-toggle-btn ${cannonMode ? 'cannon-on' : ''}`}
-            onClick={() => setCannonMode((prev) => !prev)}
-            title="소행성 대포 모드 (드래그 궤적 조준 발사)"
-          >
-            <span className="cannon-btn-icon">🎯</span>
-            <span className="cannon-btn-label">{cannonMode ? '대포 모드 끄기' : '대포 조준 모드'}</span>
-          </button>
+            {/* 천체 생성 & 상호작용 도구 그룹 */}
+            <div className="control-group tool-group">
+              <button
+                id="btn-spawn-planet-modal"
+                className="btn spawn-planet-nav-btn"
+                onClick={() => setSpawnModalOpen(true)}
+                title="새로운 커스텀 행성을 태양계 궤도에 직접 배치하기"
+              >
+                <span>🪐➕</span>
+                <span className="btn-text">새 행성 배치</span>
+              </button>
 
-          <button
-            id="btn-spawn-planet-modal"
-            className="btn spawn-planet-nav-btn"
-            onClick={() => setSpawnModalOpen(true)}
-            title="새로운 커스텀 행성을 태양계 궤도에 직접 배치하기"
-          >
-            <span>🪐➕</span>
-            <span className="btn-text">새 행성 배치</span>
-          </button>
+              <button
+                id="btn-cannon"
+                className={`btn cannon-toggle-btn ${cannonMode ? 'cannon-on' : ''}`}
+                onClick={() => setCannonMode((prev) => !prev)}
+                title="소행성 대포 모드 (드래그 궤적 조준 발사)"
+              >
+                <span className="cannon-btn-icon">🎯</span>
+                <span className="cannon-btn-label">{cannonMode ? '대포 끄기' : '소행성 대포'}</span>
+              </button>
 
-          <button
-            id="btn-pause"
-            className={`btn round ${state.paused ? 'play' : ''}`}
-            onClick={() => runCommands([{ action: state.paused ? 'resume' : 'pause' }])}
-            aria-label={state.paused ? '다시 움직이기' : '멈추기'}
-          >
-            {state.paused ? '▶️' : '⏸️'}
-          </button>
+              <button
+                id="btn-spawn-ready"
+                className="btn spawn-asteroid-btn"
+                onClick={() => handleSpawnReadyAsteroid('normal')}
+                title="소행성을 클릭하고 화면을 클릭해 원하는 방향으로 날려보내기"
+              >
+                <span>☄️</span>
+                <span className="btn-text">소행성 클릭</span>
+              </button>
+            </div>
 
-          <button
-            id="btn-reset"
-            className="btn round"
-            onClick={() => runScenario(SCENARIOS.find((s) => s.id === 'reset')!)}
-            aria-label="처음으로"
-          >
-            🔄
-          </button>
+            <div className="control-divider" />
+
+            {/* 시뮬레이션 제어 (일시정지 / 리셋) 그룹 */}
+            <div className="control-group play-group">
+              <button
+                id="btn-pause"
+                className={`btn round ${state.paused ? 'play' : ''}`}
+                onClick={() => runCommands([{ action: state.paused ? 'resume' : 'pause' }])}
+                aria-label={state.paused ? '다시 움직이기' : '멈추기'}
+                title={state.paused ? '시뮬레이션 재생' : '시뮬레이션 일시정지'}
+              >
+                {state.paused ? '▶️' : '⏸️'}
+              </button>
+
+              <button
+                id="btn-reset"
+                className="btn round"
+                onClick={() => runScenario(SCENARIOS.find((s) => s.id === 'reset')!)}
+                aria-label="처음으로"
+                title="태양계 초기 상태로 리셋"
+              >
+                🔄
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -629,190 +655,312 @@ export default function App() {
         </div>
       )}
 
-      <footer className="experiments">
-        {/* 극한 우주 물리 실험실 (연속 슬라이더 & 6대 우주 변칙 현상) */}
-        <div className="cosmic-extremes-lab">
-          <div className="extremes-header">
-            <div className="extremes-title-group">
-              <span className="extremes-icon">🌌</span>
-              <strong className="extremes-title-text">극한 우주 물리 실험실</strong>
-              <span className="extremes-subtitle">우주의 물리 법칙을 실시간으로 비틀고 상상을 초월하는 천문 현상을 가동합니다</span>
-            </div>
-            {((state.conditions?.gravityMultiplier ?? 1.0) !== 1.0 ||
-              (state.conditions?.sunMassMultiplier ?? 1.0) !== 1.0 ||
-              (state.conditions?.orbitSpeedMultiplier ?? 1.0) !== 1.0 ||
-              Object.entries(state.conditions || {}).some(([k, v]) => typeof v === 'boolean' && v)) && (
+      {/* 하단 스마트 접이식 실험실 독 (Smart Collapsible Cosmic Dock & Lab) */}
+      <footer className={`experiments-dock ${dockOpen ? 'expanded' : 'collapsed'}`}>
+        {!dockOpen ? (
+          /* 접힘 상태: 46px 초슬림 플로팅 글래스 바 - 시뮬레이션 화면 95% 이상 완벽 확보 */
+          <div className="dock-collapsed-bar">
+            <div className="dock-quick-tabs">
               <button
-                className="extremes-reset-btn"
-                onClick={() => runCommands([{ action: 'reset' }])}
-                title="모든 극한 물리 변수를 표준 태양계 상태로 초기화"
+                className={`dock-quick-btn ${dockTab === 'extremes' ? 'active' : ''} ${hasPhysicsModifications ? 'has-active' : ''}`}
+                onClick={() => {
+                  setDockTab('extremes');
+                  setDockOpen(true);
+                }}
+                title="중력 상수, 태양 질량, 공전 속도 및 6대 우주 변칙 현상 제어"
               >
-                🔄 표준 물리 복원
-              </button>
-            )}
-          </div>
-
-          <div className="extremes-body-grid">
-            {/* 3대 핵심 연속 물리 슬라이더 */}
-            <div className="extremes-sliders-rack">
-              {/* 중력 상수 G 슬라이더 */}
-              <div className="extreme-slider-card">
-                <div className="slider-card-top">
-                  <span className="slider-card-title">🧲 만유인력 상수 (G)</span>
-                  <span className={`slider-card-badge ${(state.conditions?.gravityMultiplier ?? 1.0) < 0 ? 'badge-anti' : ''}`}>
-                    {(state.conditions?.gravityMultiplier ?? 1.0) < 0
-                      ? `반중력 (${(state.conditions?.gravityMultiplier ?? 1.0).toFixed(1)}x)`
-                      : `${(state.conditions?.gravityMultiplier ?? 1.0).toFixed(1)}x`}
+                <span className="dock-btn-icon">🌌</span>
+                <span className="dock-btn-label">극한 물리 실험실</span>
+                {hasPhysicsModifications && (
+                  <span className="dock-active-badge">
+                    ⚡ {activeAnomalyCount + (isSlidersModified ? 1 : 0)}개 가동
                   </span>
-                </div>
-                <input
-                  type="range"
-                  min="-1.0"
-                  max="5.0"
-                  step="0.1"
-                  value={state.conditions?.gravityMultiplier ?? 1.0}
-                  onChange={(e) => handleConditionSlider('gravity', Number(e.target.value))}
-                  className="extreme-slider"
-                  aria-label="만유인력 상수 G 배율"
-                />
-                <div className="slider-card-labels">
-                  <span onClick={() => handleConditionSlider('gravity', -1.0)} className="preset-label">척력(-1x)</span>
-                  <span onClick={() => handleConditionSlider('gravity', 0.0)} className="preset-label">무중력(0x)</span>
-                  <span onClick={() => handleConditionSlider('gravity', 1.0)} className="preset-label reset-mark">표준(1x)</span>
-                  <span onClick={() => handleConditionSlider('gravity', 5.0)} className="preset-label">초중력(5x)</span>
-                </div>
-              </div>
+                )}
+                <span className="dock-btn-arrow">▲</span>
+              </button>
 
-              {/* 태양 질량 M 슬라이더 */}
-              <div className="extreme-slider-card">
-                <div className="slider-card-top">
-                  <span className="slider-card-title">☀️ 태양 질량 (M⊙)</span>
-                  <span className="slider-card-badge">{(state.conditions?.sunMassMultiplier ?? 1.0).toFixed(1)}x</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.0"
-                  max="15.0"
-                  step="0.5"
-                  value={state.conditions?.sunMassMultiplier ?? 1.0}
-                  onChange={(e) => handleConditionSlider('sunMass', Number(e.target.value))}
-                  className="extreme-slider"
-                  aria-label="태양 질량 배율"
-                />
-                <div className="slider-card-labels">
-                  <span onClick={() => handleConditionSlider('sunMass', 0.0)} className="preset-label">소멸(0x)</span>
-                  <span onClick={() => handleConditionSlider('sunMass', 1.0)} className="preset-label reset-mark">표준(1x)</span>
-                  <span onClick={() => handleConditionSlider('sunMass', 5.0)} className="preset-label">거대(5x)</span>
-                  <span onClick={() => handleConditionSlider('sunMass', 15.0)} className="preset-label">극대(15x)</span>
-                </div>
-              </div>
+              <button
+                className={`dock-quick-btn ${dockTab === 'scenarios' ? 'active' : ''}`}
+                onClick={() => {
+                  setDockTab('scenarios');
+                  setDockOpen(true);
+                }}
+                title="24종 만약에? 천문학 시나리오 탐색 및 가동"
+              >
+                <span className="dock-btn-icon">🧪</span>
+                <span className="dock-btn-label">만약에? 시나리오 ({visibleScenarios.length}종)</span>
+                <span className="dock-btn-arrow">▲</span>
+              </button>
 
-              {/* 공전 속도 v 슬라이더 */}
-              <div className="extreme-slider-card">
-                <div className="slider-card-top">
-                  <span className="slider-card-title">🚀 공전 속도 (v)</span>
-                  <span className="slider-card-badge">{(state.conditions?.orbitSpeedMultiplier ?? 1.0).toFixed(2)}x</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.0"
-                  max="2.5"
-                  step="0.05"
-                  value={state.conditions?.orbitSpeedMultiplier ?? 1.0}
-                  onChange={(e) => handleConditionSlider('orbitSpeed', Number(e.target.value))}
-                  className="extreme-slider"
-                  aria-label="공전 속도 배율"
-                />
-                <div className="slider-card-labels">
-                  <span onClick={() => handleConditionSlider('orbitSpeed', 0.0)} className="preset-label">정지(0x)</span>
-                  <span onClick={() => handleConditionSlider('orbitSpeed', 1.0)} className="preset-label reset-mark">표준(1x)</span>
-                  <span onClick={() => handleConditionSlider('orbitSpeed', 1.41)} className="preset-label">탈출(√2x)</span>
-                  <span onClick={() => handleConditionSlider('orbitSpeed', 2.5)} className="preset-label">초광속(2.5x)</span>
-                </div>
-              </div>
+              {hasPhysicsModifications && (
+                <button
+                  className="dock-quick-btn dock-reset-btn"
+                  onClick={() => runCommands([{ action: 'reset' }])}
+                  title="모든 물리 법칙을 기본 태양계 표준 상태로 복원"
+                >
+                  <span>🔄</span>
+                  <span>표준 물리 복원</span>
+                </button>
+              )}
             </div>
 
-            {/* 6대 우주 극한 변칙 토글 버튼 */}
-            <div className="anomalies-rack">
-              {EXTREME_ANOMALIES.map((anom) => {
-                const active = !!state.conditions?.[anom.key];
-                return (
-                  <button
-                    key={anom.key}
-                    className={`anomaly-btn ${active ? 'active' : ''}`}
-                    onClick={() => handleToggleAnomaly(anom.key)}
-                    title={anom.desc}
-                  >
-                    <span className="anomaly-emoji">{anom.emoji}</span>
-                    <div className="anomaly-text-group">
-                      <span className="anomaly-label">{anom.label}</span>
-                      <span className="anomaly-subdesc">{anom.desc}</span>
-                    </div>
-                    <span className={`anomaly-indicator ${active ? 'on' : ''}`}>
-                      {active ? 'ON' : 'OFF'}
+            <div className="dock-category-pills" role="tablist" aria-label="빠른 카테고리 필터">
+              {(
+                [
+                  { id: 'all', label: '✨ 전체' },
+                  { id: 'solar', label: '🪐 태양계' },
+                  { id: 'blackhole', label: '🕳️ 블랙홀' },
+                  { id: 'galaxy', label: '🌌 은하' },
+                  { id: 'asteroid', label: '☄️ 소행성' },
+                  { id: 'constellation', label: '✨ 별자리' },
+                ] as const
+              ).map((cat) => (
+                <button
+                  key={cat.id}
+                  className={`dock-cat-pill ${category === cat.id ? 'active' : ''}`}
+                  onClick={() => {
+                    setCategory(cat.id as ScenarioCategory);
+                    setDockTab('scenarios');
+                    setDockOpen(true);
+                  }}
+                  title={`${cat.label} 시나리오 보기`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            <button
+              className="dock-expand-toggle-btn"
+              onClick={() => setDockOpen(true)}
+              title="실험실 전체 패널 열기"
+            >
+              <span>실험실 열기</span>
+              <span className="toggle-arrow">▲</span>
+            </button>
+          </div>
+        ) : (
+          /* 펼침 상태: 슬라이드 업 글래스 드로어 (우주 화면을 방해하지 않는 최대 높이 46vh) */
+          <div className="dock-drawer">
+            <div className="drawer-header">
+              <div className="drawer-tabs">
+                <button
+                  className={`drawer-tab-btn ${dockTab === 'extremes' ? 'active' : ''} ${hasPhysicsModifications ? 'has-active' : ''}`}
+                  onClick={() => setDockTab('extremes')}
+                >
+                  <span>🌌</span>
+                  <strong>극한 우주 물리 실험실</strong>
+                  {hasPhysicsModifications && (
+                    <span className="drawer-tab-badge">
+                      ⚡ {activeAnomalyCount + (isSlidersModified ? 1 : 0)}개 가동 중
                     </span>
+                  )}
+                </button>
+                <button
+                  className={`drawer-tab-btn ${dockTab === 'scenarios' ? 'active' : ''}`}
+                  onClick={() => setDockTab('scenarios')}
+                >
+                  <span>🧪</span>
+                  <strong>만약에? 시나리오 ({visibleScenarios.length}종)</strong>
+                </button>
+              </div>
+
+              <div className="drawer-header-actions">
+                {hasPhysicsModifications && (
+                  <button
+                    className="drawer-reset-btn"
+                    onClick={() => runCommands([{ action: 'reset' }])}
+                    title="모든 극한 물리 변수를 표준 태양계 상태로 초기화"
+                  >
+                    🔄 표준 물리 복원
                   </button>
-                );
-              })}
+                )}
+                <button
+                  className="drawer-close-btn"
+                  onClick={() => setDockOpen(false)}
+                  title="시뮬레이션 화면 전체보기 (패널 접기)"
+                >
+                  <span>▼ 시뮬레이션 전체보기 (접기)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 드로어 컨텐츠 본문 */}
+            <div className="drawer-body">
+              {dockTab === 'extremes' ? (
+                <div className="cosmic-extremes-lab">
+                  <div className="extremes-subtitle-bar">
+                    <span className="extremes-icon">🌌</span>
+                    <span>우주의 만유인력, 태양 질량, 공전 속도를 실시간으로 비틀고 상상을 초월하는 천문 현상을 가동합니다.</span>
+                  </div>
+
+                  <div className="extremes-body-grid">
+                    {/* 3대 핵심 연속 물리 슬라이더 */}
+                    <div className="extremes-sliders-rack">
+                      {/* 중력 상수 G 슬라이더 */}
+                      <div className="extreme-slider-card">
+                        <div className="slider-card-top">
+                          <span className="slider-card-title">🧲 만유인력 상수 (G)</span>
+                          <span className={`slider-card-badge ${(state.conditions?.gravityMultiplier ?? 1.0) < 0 ? 'badge-anti' : ''}`}>
+                            {(state.conditions?.gravityMultiplier ?? 1.0) < 0
+                              ? `반중력 (${(state.conditions?.gravityMultiplier ?? 1.0).toFixed(1)}x)`
+                              : `${(state.conditions?.gravityMultiplier ?? 1.0).toFixed(1)}x`}
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="-1.0"
+                          max="5.0"
+                          step="0.1"
+                          value={state.conditions?.gravityMultiplier ?? 1.0}
+                          onChange={(e) => handleConditionSlider('gravity', Number(e.target.value))}
+                          className="extreme-slider"
+                          aria-label="만유인력 상수 G 배율"
+                        />
+                        <div className="slider-card-labels">
+                          <span onClick={() => handleConditionSlider('gravity', -1.0)} className="preset-label">척력(-1x)</span>
+                          <span onClick={() => handleConditionSlider('gravity', 0.0)} className="preset-label">무중력(0x)</span>
+                          <span onClick={() => handleConditionSlider('gravity', 1.0)} className="preset-label reset-mark">표준(1x)</span>
+                          <span onClick={() => handleConditionSlider('gravity', 5.0)} className="preset-label">초중력(5x)</span>
+                        </div>
+                      </div>
+
+                      {/* 태양 질량 M 슬라이더 */}
+                      <div className="extreme-slider-card">
+                        <div className="slider-card-top">
+                          <span className="slider-card-title">☀️ 태양 질량 (M⊙)</span>
+                          <span className="slider-card-badge">{(state.conditions?.sunMassMultiplier ?? 1.0).toFixed(1)}x</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.0"
+                          max="15.0"
+                          step="0.5"
+                          value={state.conditions?.sunMassMultiplier ?? 1.0}
+                          onChange={(e) => handleConditionSlider('sunMass', Number(e.target.value))}
+                          className="extreme-slider"
+                          aria-label="태양 질량 배율"
+                        />
+                        <div className="slider-card-labels">
+                          <span onClick={() => handleConditionSlider('sunMass', 0.0)} className="preset-label">소멸(0x)</span>
+                          <span onClick={() => handleConditionSlider('sunMass', 1.0)} className="preset-label reset-mark">표준(1x)</span>
+                          <span onClick={() => handleConditionSlider('sunMass', 5.0)} className="preset-label">거대(5x)</span>
+                          <span onClick={() => handleConditionSlider('sunMass', 15.0)} className="preset-label">극대(15x)</span>
+                        </div>
+                      </div>
+
+                      {/* 공전 속도 v 슬라이더 */}
+                      <div className="extreme-slider-card">
+                        <div className="slider-card-top">
+                          <span className="slider-card-title">🚀 공전 속도 (v)</span>
+                          <span className="slider-card-badge">{(state.conditions?.orbitSpeedMultiplier ?? 1.0).toFixed(2)}x</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.0"
+                          max="2.5"
+                          step="0.05"
+                          value={state.conditions?.orbitSpeedMultiplier ?? 1.0}
+                          onChange={(e) => handleConditionSlider('orbitSpeed', Number(e.target.value))}
+                          className="extreme-slider"
+                          aria-label="공전 속도 배율"
+                        />
+                        <div className="slider-card-labels">
+                          <span onClick={() => handleConditionSlider('orbitSpeed', 0.0)} className="preset-label">정지(0x)</span>
+                          <span onClick={() => handleConditionSlider('orbitSpeed', 1.0)} className="preset-label reset-mark">표준(1x)</span>
+                          <span onClick={() => handleConditionSlider('orbitSpeed', 1.41)} className="preset-label">탈출(√2x)</span>
+                          <span onClick={() => handleConditionSlider('orbitSpeed', 2.5)} className="preset-label">초광속(2.5x)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 6대 우주 극한 변칙 토글 버튼 */}
+                    <div className="anomalies-rack">
+                      {EXTREME_ANOMALIES.map((anom) => {
+                        const active = !!state.conditions?.[anom.key];
+                        return (
+                          <button
+                            key={anom.key}
+                            className={`anomaly-btn ${active ? 'active' : ''}`}
+                            onClick={() => handleToggleAnomaly(anom.key)}
+                            title={anom.desc}
+                          >
+                            <span className="anomaly-emoji">{anom.emoji}</span>
+                            <div className="anomaly-text-group">
+                              <span className="anomaly-label">{anom.label}</span>
+                              <span className="anomaly-subdesc">{anom.desc}</span>
+                            </div>
+                            <span className={`anomaly-indicator ${active ? 'on' : ''}`}>
+                              {active ? 'ON' : 'OFF'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="dock-scenarios-panel">
+                  <div className="experiments-top">
+                    <span className="experiments-label">만약에…?</span>
+                    <div className="category-tabs" role="tablist" aria-label="실험 종류 선택">
+                      <button
+                        className={`category-tab ${category === 'all' ? 'on' : ''}`}
+                        onClick={() => setCategory('all')}
+                      >
+                        ✨ 전체
+                      </button>
+                      <button
+                        className={`category-tab ${category === 'solar' ? 'on' : ''}`}
+                        onClick={() => setCategory('solar')}
+                      >
+                        🪐 태양계 실험
+                      </button>
+                      <button
+                        className={`category-tab category-tab-bh ${category === 'blackhole' ? 'on' : ''}`}
+                        onClick={() => setCategory('blackhole')}
+                      >
+                        🕳️ 블랙홀 실험
+                      </button>
+                      <button
+                        className={`category-tab category-tab-galaxy ${category === 'galaxy' ? 'on' : ''}`}
+                        onClick={() => setCategory('galaxy')}
+                      >
+                        🌌 은하·천계 충돌
+                      </button>
+                      <button
+                        className={`category-tab category-tab-asteroid ${category === 'asteroid' ? 'on' : ''}`}
+                        onClick={() => setCategory('asteroid')}
+                      >
+                        ☄️ 소행성 충돌 실험
+                      </button>
+                      <button
+                        className={`category-tab category-tab-constellation ${category === 'constellation' ? 'on' : ''}`}
+                        onClick={() => setCategory('constellation')}
+                      >
+                        ✨ 3D 별자리
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="experiments-row">
+                    {visibleScenarios.map((sc) => (
+                      <button
+                        key={sc.id}
+                        id={`exp-${sc.id}`}
+                        className={`btn exp ${sc.id === 'reset' ? 'exp-reset' : ''} ${sc.category === 'blackhole' ? 'exp-blackhole' : ''} ${sc.category === 'galaxy' ? 'exp-galaxy' : ''} ${sc.category === 'asteroid' ? 'exp-asteroid' : ''} ${sc.category === 'constellation' ? 'exp-constellation' : ''}`}
+                        onClick={() => runScenario(sc)}
+                      >
+                        <span className="exp-emoji">{sc.emoji}</span>
+                        <span className="exp-label">{sc.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-
-        <div className="experiments-top">
-          <span className="experiments-label">만약에…?</span>
-          <div className="category-tabs" role="tablist" aria-label="실험 종류 선택">
-            <button
-              className={`category-tab ${category === 'all' ? 'on' : ''}`}
-              onClick={() => setCategory('all')}
-            >
-              ✨ 전체
-            </button>
-            <button
-              className={`category-tab ${category === 'solar' ? 'on' : ''}`}
-              onClick={() => setCategory('solar')}
-            >
-              🪐 태양계 실험
-            </button>
-            <button
-              className={`category-tab category-tab-bh ${category === 'blackhole' ? 'on' : ''}`}
-              onClick={() => setCategory('blackhole')}
-            >
-              🕳️ 블랙홀 실험
-            </button>
-            <button
-              className={`category-tab category-tab-galaxy ${category === 'galaxy' ? 'on' : ''}`}
-              onClick={() => setCategory('galaxy')}
-            >
-              🌌 은하·천계 충돌
-            </button>
-            <button
-              className={`category-tab category-tab-asteroid ${category === 'asteroid' ? 'on' : ''}`}
-              onClick={() => setCategory('asteroid')}
-            >
-              ☄️ 소행성 충돌 실험
-            </button>
-            <button
-              className={`category-tab category-tab-constellation ${category === 'constellation' ? 'on' : ''}`}
-              onClick={() => setCategory('constellation')}
-            >
-              ✨ 3D 별자리
-            </button>
-          </div>
-        </div>
-
-        <div className="experiments-row">
-          {visibleScenarios.map((sc) => (
-            <button
-              key={sc.id}
-              id={`exp-${sc.id}`}
-              className={`btn exp ${sc.id === 'reset' ? 'exp-reset' : ''} ${sc.category === 'blackhole' ? 'exp-blackhole' : ''} ${sc.category === 'galaxy' ? 'exp-galaxy' : ''} ${sc.category === 'asteroid' ? 'exp-asteroid' : ''} ${sc.category === 'constellation' ? 'exp-constellation' : ''}`}
-              onClick={() => runScenario(sc)}
-            >
-              <span className="exp-emoji">{sc.emoji}</span>
-              <span className="exp-label">{sc.label}</span>
-            </button>
-          ))}
-        </div>
+        )}
       </footer>
 
       <SpawnPlanetModal

@@ -554,6 +554,7 @@ export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleView
   const [targetBIndex, setTargetBIndex] = useState<number>(13); // 기본 B: 목성 (Jupiter)
   const [selectedCategory, setSelectedCategory] = useState<CosmicCategory>('all');
   const [isAutoTouring, setIsAutoTouring] = useState<boolean>(false);
+  const [isInfoOpen, setIsInfoOpen] = useState<boolean>(true);
   const [tourIndex, setTourIndex] = useState<number>(9);
 
   // Three.js refs
@@ -1238,107 +1239,130 @@ export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleView
         <button className={`cat-btn ${selectedCategory === 'galaxies_universe' ? 'active' : ''}`} onClick={() => setSelectedCategory('galaxies_universe')}>🌌 은하 & 전 우주</button>
       </div>
 
-      {/* 좌측 상세 인포그래픽 비교 카드 */}
-      <div className="scale-info-card">
-        {viewMode === 'arena' && (
-          <>
-            <div className="arena-compare-header">
-              <div className="object-tag tag-a" style={{ borderLeftColor: targetA.color }}>
-                <span className="tag-label">기준 천체 [A]</span>
-                <span className="tag-name">{targetA.emoji} {targetA.name}</span>
-                <span className="tag-size">{targetA.diameterDisplay}</span>
-              </div>
-              <div className="compare-vs">VS</div>
-              <div className="object-tag tag-b" style={{ borderLeftColor: targetB.color }}>
-                <span className="tag-label">비교 천체 [B]</span>
-                <span className="tag-name">{targetB.emoji} {targetB.name}</span>
-                <span className="tag-size">{targetB.diameterDisplay}</span>
-              </div>
-            </div>
-
-            {/* 핵심 비교 수치 박스 */}
-            <div className="ratio-highlight-card">
-              <div className="ratio-title">⚡ 직경 및 부피 비교 배율</div>
-              <div className="ratio-stat">
-                [{targetB.name}]은(는) [{targetA.name}]의{' '}
-                <strong className="text-highlight">
-                  {ratioBoverA >= 1
-                    ? `${ratioBoverA.toLocaleString(undefined, { maximumFractionDigits: 1 })}배`
-                    : `1 / ${(1 / ratioBoverA).toLocaleString(undefined, { maximumFractionDigits: 1 })}배`}
-                </strong>{' '}
-                크기입니다!
-              </div>
-              <div className="ratio-sub">
-                구체 부피 기준: 약{' '}
-                <strong>
-                  {volumeRatio >= 1
-                    ? `${volumeRatio.toExponential(2)}배 (${volumeRatio >= 1e6 ? `${(volumeRatio / 1e6).toFixed(1)}백만` : volumeRatio.toFixed(0)}배)`
-                    : `1 / ${(1 / volumeRatio).toExponential(2)}`}
-                </strong>{' '}
-                더 거대합니다.
-              </div>
-            </div>
-
-            {/* 퀵 내비게이션 컨트롤 */}
-            <div className="step-nav-row">
-              <button className="btn-step-nav" onClick={handlePrevStep} title="이전 단계 천체 조합으로 이동">
-                ⬅️ 이전 천체 비교
-              </button>
-              <button className="btn-step-nav highlight" onClick={handleNextStep} title="다음 거대 천체로 순차 확장">
-                다음 천체로 크기 확장 ➡️
-              </button>
-            </div>
-          </>
-        )}
-
-        {viewMode === 'marble' && (
-          <div className="marble-mode-card">
-            <div className="marble-header">
-              <span className="marble-icon">🔮</span>
-              <div>
-                <h3 className="marble-title">만약 지구가 1.2cm 구슬이라면?</h3>
-                <span className="marble-sub">MetaBallStudios 우주 크기 체감 컨셉</span>
-              </div>
-            </div>
-            <div className="marble-comparison-box">
-              <div className="marble-target-name">{targetB.emoji} {targetB.name}</div>
-              <div className="marble-result">
-                구슬 스케일 체감 크기:<br />
-                <strong className="text-highlight-gold">{targetB.marbleEquivalent}</strong>
-              </div>
-            </div>
-            <p className="marble-trivia">{targetB.trivia}</p>
+      {/* 좌측 상세 인포그래픽 비교 카드 (접기/펼치기 가능) */}
+      {isInfoOpen ? (
+        <div className="scale-info-card">
+          <div className="info-card-top-bar">
+            <span className="info-card-badge">📊 천체 상세 스펙</span>
+            <button
+              className="btn-info-close"
+              onClick={() => setIsInfoOpen(false)}
+              title="정보 카드 접기 (3D 무대 전체 보기)"
+              aria-label="정보 카드 접기"
+            >
+              ✕ 접기
+            </button>
           </div>
-        )}
 
-        {viewMode === 'tour' && (
-          <div className="tour-mode-card">
-            <div className="tour-header">
-              <span className="tour-badge">현재 천체 ({tourIndex + 1} / {COSMIC_CATALOG.length})</span>
-              <button className="btn-tour-toggle" onClick={() => setIsAutoTouring(!isAutoTouring)}>
-                {isAutoTouring ? '⏸️ 일시정지' : '▶️ 투어 재생'}
-              </button>
+          {viewMode === 'arena' && (
+            <>
+              <div className="arena-compare-header">
+                <div className="object-tag tag-a" style={{ borderLeftColor: targetA.color }}>
+                  <span className="tag-label">기준 천체 [A]</span>
+                  <span className="tag-name">{targetA.emoji} {targetA.name}</span>
+                  <span className="tag-size">{targetA.diameterDisplay}</span>
+                </div>
+                <div className="compare-vs">VS</div>
+                <div className="object-tag tag-b" style={{ borderLeftColor: targetB.color }}>
+                  <span className="tag-label">비교 천체 [B]</span>
+                  <span className="tag-name">{targetB.emoji} {targetB.name}</span>
+                  <span className="tag-size">{targetB.diameterDisplay}</span>
+                </div>
+              </div>
+
+              {/* 핵심 비교 수치 박스 */}
+              <div className="ratio-highlight-card">
+                <div className="ratio-title">⚡ 직경 및 부피 비교 배율</div>
+                <div className="ratio-stat">
+                  [{targetB.name}]은(는) [{targetA.name}]의{' '}
+                  <strong className="text-highlight">
+                    {ratioBoverA >= 1
+                      ? `${ratioBoverA.toLocaleString(undefined, { maximumFractionDigits: 1 })}배`
+                      : `1 / ${(1 / ratioBoverA).toLocaleString(undefined, { maximumFractionDigits: 1 })}배`}
+                  </strong>{' '}
+                  크기입니다!
+                </div>
+                <div className="ratio-sub">
+                  구체 부피 기준: 약{' '}
+                  <strong>
+                    {volumeRatio >= 1
+                      ? `${volumeRatio.toExponential(2)}배 (${volumeRatio >= 1e6 ? `${(volumeRatio / 1e6).toFixed(1)}백만` : volumeRatio.toFixed(0)}배)`
+                      : `1 / ${(1 / volumeRatio).toExponential(2)}`}
+                  </strong>{' '}
+                  더 거대합니다.
+                </div>
+              </div>
+
+              {/* 퀵 내비게이션 컨트롤 */}
+              <div className="step-nav-row">
+                <button className="btn-step-nav" onClick={handlePrevStep} title="이전 단계 천체 조합으로 이동">
+                  ⬅️ 이전 천체 비교
+                </button>
+                <button className="btn-step-nav highlight" onClick={handleNextStep} title="다음 거대 천체로 순차 확장">
+                  다음 천체로 크기 확장 ➡️
+                </button>
+              </div>
+            </>
+          )}
+
+          {viewMode === 'marble' && (
+            <div className="marble-mode-card">
+              <div className="marble-header">
+                <span className="marble-icon">🔮</span>
+                <div>
+                  <h3 className="marble-title">만약 지구가 1.2cm 구슬이라면?</h3>
+                  <span className="marble-sub">MetaBallStudios 우주 크기 체감 컨셉</span>
+                </div>
+              </div>
+              <div className="marble-comparison-box">
+                <div className="marble-target-name">{targetB.emoji} {targetB.name}</div>
+                <div className="marble-result">
+                  구슬 스케일 체감 크기:<br />
+                  <strong className="text-highlight-gold">{targetB.marbleEquivalent}</strong>
+                </div>
+              </div>
+              <p className="marble-trivia">{targetB.trivia}</p>
             </div>
-            <h2 className="tour-obj-title">{COSMIC_CATALOG[tourIndex].emoji} {COSMIC_CATALOG[tourIndex].name}</h2>
-            <div className="tour-size-badge">{COSMIC_CATALOG[tourIndex].diameterDisplay}</div>
-            <p className="tour-desc">{COSMIC_CATALOG[tourIndex].description}</p>
-            <div className="tour-trivia-box">💡 {COSMIC_CATALOG[tourIndex].trivia}</div>
-          </div>
-        )}
+          )}
 
-        {/* 선택된 대상 B의 상세 정보 */}
-        <div className="info-detail-box">
-          <div className="detail-row">
-            <span>빛의 속도 횡단 시간:</span>
-            <strong>{targetB.lightCrossTime}</strong>
+          {viewMode === 'tour' && (
+            <div className="tour-mode-card">
+              <div className="tour-header">
+                <span className="tour-badge">현재 천체 ({tourIndex + 1} / {COSMIC_CATALOG.length})</span>
+                <button className="btn-tour-toggle" onClick={() => setIsAutoTouring(!isAutoTouring)}>
+                  {isAutoTouring ? '⏸️ 일시정지' : '▶️ 투어 재생'}
+                </button>
+              </div>
+              <h2 className="tour-obj-title">{COSMIC_CATALOG[tourIndex].emoji} {COSMIC_CATALOG[tourIndex].name}</h2>
+              <div className="tour-size-badge">{COSMIC_CATALOG[tourIndex].diameterDisplay}</div>
+              <p className="tour-desc">{COSMIC_CATALOG[tourIndex].description}</p>
+              <div className="tour-trivia-box">💡 {COSMIC_CATALOG[tourIndex].trivia}</div>
+            </div>
+          )}
+
+          {/* 선택된 대상 B의 상세 정보 */}
+          <div className="info-detail-box">
+            <div className="detail-row">
+              <span>빛의 속도 횡단 시간:</span>
+              <strong>{targetB.lightCrossTime}</strong>
+            </div>
+            <div className="detail-row">
+              <span>지구(12,742km) 대비 배율:</span>
+              <strong>{targetB.ratioFromEarth >= 1 ? `${targetB.ratioFromEarth.toLocaleString(undefined, { maximumFractionDigits: 1 })}배` : `1/${(1 / targetB.ratioFromEarth).toFixed(1)}`}</strong>
+            </div>
+            <p className="detail-desc">{targetB.description}</p>
           </div>
-          <div className="detail-row">
-            <span>지구(12,742km) 대비 배율:</span>
-            <strong>{targetB.ratioFromEarth >= 1 ? `${targetB.ratioFromEarth.toLocaleString(undefined, { maximumFractionDigits: 1 })}배` : `1/${(1 / targetB.ratioFromEarth).toFixed(1)}`}</strong>
-          </div>
-          <p className="detail-desc">{targetB.description}</p>
         </div>
-      </div>
+      ) : (
+        <button
+          className="btn-info-min-pill"
+          onClick={() => setIsInfoOpen(true)}
+          title="천체 상세 정보 카드 펼치기"
+        >
+          <span>ℹ️</span>
+          <span>[{targetB.name}] 상세 스펙 보기</span>
+        </button>
+      )}
 
       {/* 하단 인터랙티브 천체 선택 슬라이더 덱 */}
       <div className="scale-catalog-deck">

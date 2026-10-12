@@ -75,6 +75,7 @@ export default function GalaxyCollisionSim({
   const [showTrails, setShowTrails] = useState(true);
   const [customDistance, setCustomDistance] = useState(240);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isHudOpen, setIsHudOpen] = useState(true);
   const [subMode, setSubMode] = useState<'galaxy' | 'cosmic_scale'>('galaxy');
 
   const [metrics, setMetrics] = useState({
@@ -324,107 +325,126 @@ export default function GalaxyCollisionSim({
         </div>
       </div>
 
-      {/* 좌측 상단: 실시간 천체물리 모니터링 HUD */}
-      <aside className="galaxy-hud-panel">
-        <div className="hud-header">
-          <span className="hud-icon">{cameraView === 'universe' ? '🌐' : '📊'}</span>
-          <span className="hud-title">
-            {cameraView === 'universe' ? '관측 가능한 우주 & 거대 우주망' : '국부은하군 천체물리 지표'}
-          </span>
-        </div>
-
-        <div className="hud-metrics-list">
-          {cameraView === 'universe' ? (
-            <>
-              <div className="hud-metric-row">
-                <span className="metric-label">🌐 우주 공간 규모</span>
-                <strong className="metric-val highlight-universe">관측 가능한 우주 (Observable Universe)</strong>
-                <small className="metric-sub">지름 약 930억 광년 (28.5 Gpc) 거대 시공간</small>
-              </div>
-              <div className="hud-metric-row">
-                <span className="metric-label">✨ 추정 은하 수</span>
-                <strong className="metric-val highlight-cyan">약 2조 개 (2,000,000,000,000)</strong>
-                <small className="metric-sub">우주 거대 필라멘트 및 초은하단에 밀집 분포</small>
-              </div>
-              <div className="hud-metric-row">
-                <span className="metric-label">📍 우리들의 우주 주소</span>
-                <strong className="metric-val highlight-gold">라니아케아 초은하단 외곽</strong>
-                <small className="metric-sub">처녀자리 은하단 &gt; 국부은하군 &gt; 우리은하 &gt; 태양계</small>
-              </div>
-              <div className="hud-metric-row">
-                <span className="metric-label">🕸️ 우주 거대구조 (Cosmic Web)</span>
-                <strong className="metric-val highlight-magenta">필라멘트 &amp; 거대 보이드(공동)</strong>
-                <small className="metric-sub">슬론 장성, 목동자리 보이드, 샤플리 초은하단</small>
-              </div>
-              <div className="hud-metric-row">
-                <span className="metric-label">📡 우주 배경 복사 (CMB)</span>
-                <strong className="metric-val">빅뱅 후 38만 년 (2.725 K)</strong>
-                <small className="metric-sub">우주 지평선 외곽 구체에 형성된 태초의 빛</small>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="hud-metric-row">
-                <span className="metric-label">☀️ 우리 태양계 위치</span>
-                <strong className="metric-val highlight-gold">우리은하 오리온 팔 (Orion Arm)</strong>
-                <small className="metric-sub">은하 중심(궁수자리 A*)에서 약 26,000 광년 (8.2 kpc)</small>
-              </div>
-              <div className="hud-metric-row">
-                <span className="metric-label">⏳ 경과 시간</span>
-                <strong className="metric-val">{metrics.timeMyr.toFixed(1)} 백만 년 (Myr)</strong>
-              </div>
-              <div className="hud-metric-row">
-                <span className="metric-label">📏 안드로메다 은하 거리</span>
-                <strong className="metric-val highlight-cyan">{Math.round(metrics.distanceKpc)} kpc</strong>
-                <small className="metric-sub">약 {Math.round(metrics.distanceKpc * 3260).toLocaleString()} 광년</small>
-              </div>
-              <div className="hud-metric-row">
-                <span className="metric-label">🌊 은하 조석 섭동 변형률</span>
-                <strong className="metric-val highlight-magenta">{(metrics.tidalDistortion * 100).toFixed(1)}%</strong>
-                <div className="distortion-bar-bg">
-                  <div
-                    className="distortion-bar-fill"
-                    style={{ width: `${Math.min(100, metrics.tidalDistortion * 100)}%` }}
-                  />
-                </div>
-              </div>
-              {activeScenario === 'supermassive' && (
-                <div className="hud-metric-row">
-                  <span className="metric-label">🍽️ 블랙홀 삼킨 별</span>
-                  <strong className="metric-val highlight-red">{metrics.swallowedCount}개</strong>
-                </div>
-              )}
-              <div className="hud-metric-row">
-                <span className="metric-label">✨ 관측 중인 은하 군집</span>
-                <strong className="metric-val">5대 은하 (4,450개 천체)</strong>
-                <small className="metric-sub">우리은하, 안드로메다, 삼각형자리, 대/소 마젤란</small>
-              </div>
-              <div className="hud-metric-row">
-                <span className="metric-label">⚛️ 은하 간 상호 중력</span>
-                {activeScenario === 'local_group' ? (
-                  <>
-                    <strong className="metric-val highlight-cyan">OFF (기본 뷰 모드)</strong>
-                    <small className="metric-sub">모든 은하가 원형 유지 / 조건 버튼 클릭 시 상호 중력 개시</small>
-                  </>
-                ) : (
-                  <>
-                    <strong className="metric-val highlight-magenta">ON (시뮬레이션 발동)</strong>
-                    <small className="metric-sub">은하 간 N-Body 상호 인력 및 조석 섭동 활성화</small>
-                  </>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* 시나리오 설명 */}
-        {currentScInfo && (
-          <div className="hud-scenario-desc">
-            <strong>{currentScInfo.emoji} {currentScInfo.name}</strong>
-            <p>{currentScInfo.desc}</p>
+      {/* 좌측 상단: 실시간 천체물리 모니터링 HUD (접기/펼치기 가능) */}
+      {isHudOpen ? (
+        <aside className="galaxy-hud-panel">
+          <div className="hud-header">
+            <span className="hud-icon">{cameraView === 'universe' ? '🌐' : '📊'}</span>
+            <span className="hud-title">
+              {cameraView === 'universe' ? '관측 가능한 우주 & 거대 우주망' : '국부은하군 천체물리 지표'}
+            </span>
+            <button
+              className="btn-hud-close"
+              onClick={() => setIsHudOpen(false)}
+              title="지표 패널 접기 (은하 화면 넓게 보기)"
+              aria-label="지표 패널 접기"
+            >
+              ✕
+            </button>
           </div>
-        )}
-      </aside>
+
+          <div className="hud-metrics-list">
+            {cameraView === 'universe' ? (
+              <>
+                <div className="hud-metric-row">
+                  <span className="metric-label">🌐 우주 공간 규모</span>
+                  <strong className="metric-val highlight-universe">관측 가능한 우주 (Observable Universe)</strong>
+                  <small className="metric-sub">지름 약 930억 광년 (28.5 Gpc) 거대 시공간</small>
+                </div>
+                <div className="hud-metric-row">
+                  <span className="metric-label">✨ 추정 은하 수</span>
+                  <strong className="metric-val highlight-cyan">약 2조 개 (2,000,000,000,000)</strong>
+                  <small className="metric-sub">우주 거대 필라멘트 및 초은하단에 밀집 분포</small>
+                </div>
+                <div className="hud-metric-row">
+                  <span className="metric-label">📍 우리들의 우주 주소</span>
+                  <strong className="metric-val highlight-gold">라니아케아 초은하단 외곽</strong>
+                  <small className="metric-sub">처녀자리 은하단 &gt; 국부은하군 &gt; 우리은하 &gt; 태양계</small>
+                </div>
+                <div className="hud-metric-row">
+                  <span className="metric-label">🕸️ 우주 거대구조 (Cosmic Web)</span>
+                  <strong className="metric-val highlight-magenta">필라멘트 &amp; 거대 보이드(공동)</strong>
+                  <small className="metric-sub">슬론 장성, 목동자리 보이드, 샤플리 초은하단</small>
+                </div>
+                <div className="hud-metric-row">
+                  <span className="metric-label">📡 우주 배경 복사 (CMB)</span>
+                  <strong className="metric-val">빅뱅 후 38만 년 (2.725 K)</strong>
+                  <small className="metric-sub">우주 지평선 외곽 구체에 형성된 태초의 빛</small>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="hud-metric-row">
+                  <span className="metric-label">☀️ 우리 태양계 위치</span>
+                  <strong className="metric-val highlight-gold">우리은하 오리온 팔 (Orion Arm)</strong>
+                  <small className="metric-sub">은하 중심(궁수자리 A*)에서 약 26,000 광년 (8.2 kpc)</small>
+                </div>
+                <div className="hud-metric-row">
+                  <span className="metric-label">⏳ 경과 시간</span>
+                  <strong className="metric-val">{metrics.timeMyr.toFixed(1)} 백만 년 (Myr)</strong>
+                </div>
+                <div className="hud-metric-row">
+                  <span className="metric-label">📏 안드로메다 은하 거리</span>
+                  <strong className="metric-val highlight-cyan">{Math.round(metrics.distanceKpc)} kpc</strong>
+                  <small className="metric-sub">약 {Math.round(metrics.distanceKpc * 3260).toLocaleString()} 광년</small>
+                </div>
+                <div className="hud-metric-row">
+                  <span className="metric-label">🌊 은하 조석 섭동 변형률</span>
+                  <strong className="metric-val highlight-magenta">{(metrics.tidalDistortion * 100).toFixed(1)}%</strong>
+                  <div className="distortion-bar-bg">
+                    <div
+                      className="distortion-bar-fill"
+                      style={{ width: `${Math.min(100, metrics.tidalDistortion * 100)}%` }}
+                    />
+                  </div>
+                </div>
+                {activeScenario === 'supermassive' && (
+                  <div className="hud-metric-row">
+                    <span className="metric-label">🍽️ 블랙홀 삼킨 별</span>
+                    <strong className="metric-val highlight-red">{metrics.swallowedCount}개</strong>
+                  </div>
+                )}
+                <div className="hud-metric-row">
+                  <span className="metric-label">✨ 관측 중인 은하 군집</span>
+                  <strong className="metric-val">5대 은하 (4,450개 천체)</strong>
+                  <small className="metric-sub">우리은하, 안드로메다, 삼각형자리, 대/소 마젤란</small>
+                </div>
+                <div className="hud-metric-row">
+                  <span className="metric-label">⚛️ 은하 간 상호 중력</span>
+                  {activeScenario === 'local_group' ? (
+                    <>
+                      <strong className="metric-val highlight-cyan">OFF (기본 뷰 모드)</strong>
+                      <small className="metric-sub">모든 은하가 원형 유지 / 조건 버튼 클릭 시 상호 중력 개시</small>
+                    </>
+                  ) : (
+                    <>
+                      <strong className="metric-val highlight-magenta">ON (시뮬레이션 발동)</strong>
+                      <small className="metric-sub">은하 간 N-Body 상호 인력 및 조석 섭동 활성화</small>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* 시나리오 설명 */}
+          {currentScInfo && (
+            <div className="hud-scenario-desc">
+              <strong>{currentScInfo.emoji} {currentScInfo.name}</strong>
+              <p>{currentScInfo.desc}</p>
+            </div>
+          )}
+        </aside>
+      ) : (
+        <button
+          className="btn-hud-open-pill"
+          onClick={() => setIsHudOpen(true)}
+          title="천체물리 실시간 지표 패널 펼치기"
+        >
+          <span>📊</span>
+          <span>지표 보기</span>
+        </button>
+      )}
 
       {/* 우측 상단: 천문학 가이드 토글 패널 */}
       <div className="galaxy-guide-box">
