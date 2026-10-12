@@ -38,6 +38,16 @@ export function generateGhostCanvas(constellationId: string): HTMLCanvasElement 
     drawSwanGhost(ctx);
   } else if (constellationId === 'leo') {
     drawLionGhost(ctx);
+  } else if (constellationId === 'canis_major') {
+    drawDogGhost(ctx);
+  } else if (constellationId === 'gemini') {
+    drawTwinsGhost(ctx);
+  } else if (constellationId === 'taurus') {
+    drawBullGhost(ctx);
+  } else if (constellationId === 'pegasus') {
+    drawPegasusGhost(ctx);
+  } else if (constellationId === 'sagittarius') {
+    drawArcherGhost(ctx);
   }
 
   // 주변에 반짝이는 마법 우주 가루 파티클 추가
@@ -463,6 +473,295 @@ function drawLionGhost(ctx: CanvasRenderingContext2D) {
   ctx.fillStyle = 'rgba(245, 158, 11, 0.18)';
   ctx.fill();
   ctx.strokeStyle = '#fcd34d';
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** 7. 큰개자리 신비로운 고스트 실루엣 일러스트 */
+function drawDogGhost(ctx: CanvasRenderingContext2D) {
+  const [siriusX, siriusY] = toCanvas(0.0, 1.8);
+  const [murzX, murzY] = toCanvas(-1.8, 2.2);
+  const [muliX, muliY] = toCanvas(0.8, 3.2);
+  const [wezX, wezY] = toCanvas(0.6, -1.8);
+  const [adhaX, adhaY] = toCanvas(-1.0, -2.8);
+  const [furX, furY] = toCanvas(-2.0, -3.8);
+  const [aludX, aludY] = toCanvas(1.8, -3.0);
+
+  ctx.save();
+  ctx.shadowColor = '#38bdf8';
+  ctx.shadowBlur = 18;
+
+  // 강아지 머리 & 귀
+  ctx.beginPath();
+  ctx.moveTo(siriusX, siriusY);
+  ctx.quadraticCurveTo(muliX + 25, muliY + 15, muliX, muliY); // 쫑긋 귀
+  ctx.quadraticCurveTo(siriusX + 35, siriusY + 20, siriusX + 15, siriusY);
+  ctx.quadraticCurveTo(murzX + 20, murzY + 10, murzX, murzY); // 주둥이 코
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.22)';
+  ctx.fill();
+  ctx.strokeStyle = '#7dd3fc';
+  ctx.lineWidth = 3.5;
+  ctx.stroke();
+
+  // 강아지 목걸이 & 빛나는 시리우스 펜던트 링
+  ctx.beginPath();
+  ctx.arc(siriusX, siriusY, 26, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(251, 191, 36, 0.9)';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // 강아지 몸통과 등줄기
+  ctx.beginPath();
+  ctx.moveTo(siriusX, siriusY);
+  ctx.quadraticCurveTo((siriusX + wezX) / 2 + 35, (siriusY + wezY) / 2, wezX, wezY); // 등
+  ctx.quadraticCurveTo((wezX + aludX) / 2, (wezY + aludY) / 2, aludX, aludY); // 꼬리 시작
+  ctx.lineTo(aludX + 25, aludY - 35); // 살랑살랑 꼬리 끝
+  ctx.quadraticCurveTo(aludX + 5, aludY - 15, wezX, wezY);
+  ctx.lineTo(adhaX, adhaY); // 허벅지
+  ctx.lineTo(furX, furY); // 뒷발
+  ctx.quadraticCurveTo((furX + murzX) / 2 - 20, (furY + murzY) / 2, murzX, murzY); // 배 & 앞발
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.16)';
+  ctx.fill();
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** 8. 쌍둥이자리 신비로운 고스트 실루엣 일러스트 */
+function drawTwinsGhost(ctx: CanvasRenderingContext2D) {
+  const [polX, polY] = toCanvas(1.6, 3.6);
+  const [casX, casY] = toCanvas(-0.6, 4.0);
+  const [wasX, wasY] = toCanvas(1.4, 0.4);
+  const [mebX, mebY] = toCanvas(-1.2, 0.8);
+  const [alhX, alhY] = toCanvas(2.8, -3.2);
+  const [propX, propY] = toCanvas(-2.6, -2.4);
+
+  ctx.save();
+  ctx.shadowColor = '#f472b6';
+  ctx.shadowBlur = 18;
+
+  // 카스토르 (형) 실루엣
+  ctx.beginPath();
+  ctx.arc(casX, casY, 28, 0, Math.PI * 2); // 머리
+  ctx.fillStyle = 'rgba(244, 114, 182, 0.28)';
+  ctx.fill();
+  ctx.strokeStyle = '#f472b6';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(casX - 20, casY + 25);
+  ctx.lineTo(mebX - 25, mebY);
+  ctx.lineTo(propX, propY);
+  ctx.lineTo(mebX, mebY);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(244, 114, 182, 0.16)';
+  ctx.fill();
+  ctx.strokeStyle = '#f472b6';
+  ctx.stroke();
+
+  // 폴룩스 (동생) 실루엣
+  ctx.beginPath();
+  ctx.arc(polX, polY, 28, 0, Math.PI * 2); // 머리
+  ctx.fillStyle = 'rgba(192, 132, 252, 0.28)';
+  ctx.fill();
+  ctx.strokeStyle = '#c084fc';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(polX + 20, polY + 25);
+  ctx.lineTo(wasX + 25, wasY);
+  ctx.lineTo(alhX, alhY);
+  ctx.lineTo(wasX, wasY);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(192, 132, 252, 0.16)';
+  ctx.fill();
+  ctx.strokeStyle = '#c084fc';
+  ctx.stroke();
+
+  // 형제가 마주잡은 두 손 & 하트 연결선
+  ctx.beginPath();
+  ctx.moveTo(mebX, mebY);
+  ctx.quadraticCurveTo((mebX + wasX) / 2, (mebY + wasY) / 2 - 25, wasX, wasY);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = 'rgba(251, 191, 36, 0.85)';
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** 9. 황소자리 신비로운 고스트 실루엣 일러스트 */
+function drawBullGhost(ctx: CanvasRenderingContext2D) {
+  const [aldX, aldY] = toCanvas(-0.4, 0.2);
+  const [ainX, ainY] = toCanvas(-0.6, 1.4);
+  const [elnX, elnY] = toCanvas(2.2, 4.2);
+  const [tianX, tianY] = toCanvas(3.4, 1.8);
+  const [alcyX, alcyY] = toCanvas(-4.2, 2.8);
+  const [lamX, lamY] = toCanvas(-1.4, -2.4);
+
+  ctx.save();
+  ctx.shadowColor = '#f97316';
+  ctx.shadowBlur = 20;
+
+  // 웅장하고 날카로운 두 뿔
+  ctx.beginPath();
+  // 북쪽 뿔 (Elnath)
+  ctx.moveTo(ainX, ainY);
+  ctx.quadraticCurveTo((ainX + elnX) / 2 - 20, (ainY + elnY) / 2 + 20, elnX, elnY);
+  ctx.quadraticCurveTo((ainX + elnX) / 2 + 10, (ainY + elnY) / 2, ainX + 15, ainY);
+  // 남쪽 뿔 (Tianguan)
+  ctx.moveTo(aldX, aldY);
+  ctx.quadraticCurveTo((aldX + tianX) / 2, (aldY + tianY) / 2 - 25, tianX, tianY);
+  ctx.quadraticCurveTo((aldX + tianX) / 2 + 15, (aldY + tianY) / 2, aldX + 15, aldY);
+  ctx.fillStyle = 'rgba(249, 115, 22, 0.28)';
+  ctx.fill();
+  ctx.strokeStyle = '#fdba74';
+  ctx.lineWidth = 3.5;
+  ctx.stroke();
+
+  // 황소의 V자 머리 & 어깨
+  ctx.beginPath();
+  ctx.moveTo(ainX, ainY);
+  ctx.lineTo(aldX, aldY);
+  ctx.lineTo(lamX, lamY); // 앞가슴
+  ctx.quadraticCurveTo((lamX + alcyX) / 2, (lamY + alcyY) / 2, alcyX, alcyY); // 등 어깨
+  ctx.lineTo(ainX, ainY);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(249, 115, 22, 0.18)';
+  ctx.fill();
+  ctx.strokeStyle = '#f97316';
+  ctx.stroke();
+
+  // 붉게 타오르는 알데바란 눈빛 링
+  ctx.beginPath();
+  ctx.arc(aldX, aldY, 18, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(239, 68, 68, 0.55)';
+  ctx.fill();
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** 10. 페가수스자리 신비로운 고스트 실루엣 일러스트 */
+function drawPegasusGhost(ctx: CanvasRenderingContext2D) {
+  const [marX, marY] = toCanvas(-1.8, -1.2);
+  const [schX, schY] = toCanvas(-1.6, 2.2);
+  const [algX, algY] = toCanvas(2.2, -1.8);
+  const [alpX, alpY] = toCanvas(2.4, 2.4);
+  const [enifX, enifY] = toCanvas(-5.2, -0.6);
+  const [homX, homY] = toCanvas(-3.2, -1.0);
+  const [matX, matY] = toCanvas(-1.2, 4.4);
+
+  ctx.save();
+  ctx.shadowColor = '#a78bfa';
+  ctx.shadowBlur = 20;
+
+  // 가을철 대사각형 (페가수스 몸통)
+  ctx.beginPath();
+  ctx.moveTo(schX, schY);
+  ctx.lineTo(alpX, alpY);
+  ctx.lineTo(algX, algY);
+  ctx.lineTo(marX, marY);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(167, 139, 250, 0.16)';
+  ctx.fill();
+  ctx.strokeStyle = '#c4b5fd';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // 하늘로 솟아오르는 은빛 날개 깃털
+  ctx.beginPath();
+  ctx.moveTo(schX, schY);
+  ctx.quadraticCurveTo((schX + alpX) / 2 + 60, (schY + alpY) / 2 + 120, alpX + 80, alpY + 90);
+  ctx.quadraticCurveTo(alpX + 30, alpY + 50, alpX, alpY);
+  ctx.fillStyle = 'rgba(167, 139, 250, 0.28)';
+  ctx.fill();
+  ctx.strokeStyle = '#a78bfa';
+  ctx.lineWidth = 3.5;
+  ctx.stroke();
+
+  // 목과 주둥이 (에니프 코끝)
+  ctx.beginPath();
+  ctx.moveTo(marX, marY);
+  ctx.lineTo(homX, homY);
+  ctx.lineTo(enifX, enifY);
+  ctx.quadraticCurveTo(homX, homY + 30, schX, schY);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(167, 139, 250, 0.2)';
+  ctx.fill();
+  ctx.strokeStyle = '#c4b5fd';
+  ctx.stroke();
+
+  // 도약하는 앞다리 (Matar)
+  ctx.beginPath();
+  ctx.moveTo(schX, schY);
+  ctx.lineTo(matX, matY);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#a78bfa';
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** 11. 궁수자리 신비로운 고스트 실루엣 일러스트 */
+function drawArcherGhost(ctx: CanvasRenderingContext2D) {
+  const [kausAusX, kausAusY] = toCanvas(-0.4, -2.6);
+  const [nunX, nunY] = toCanvas(2.2, 0.4);
+  const [ascX, ascY] = toCanvas(1.8, -1.8);
+  const [kausMedX, kausMedY] = toCanvas(-1.2, -0.8);
+  const [kausBorX, kausBorY] = toCanvas(0.2, 1.2);
+  const [alnaslX, alnaslY] = toCanvas(-3.2, -1.4);
+
+  ctx.save();
+  ctx.shadowColor = '#34d399';
+  ctx.shadowBlur = 18;
+
+  // 우주 찻주전자 (The Teapot) 몸통 & 뚜껑
+  ctx.beginPath();
+  ctx.moveTo(kausMedX, kausMedY);
+  ctx.lineTo(kausBorX, kausBorY); // 뚜껑 꼭지
+  ctx.lineTo(nunX - 25, nunY);
+  ctx.lineTo(ascX, ascY);
+  ctx.lineTo(kausAusX, kausAusY);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(52, 211, 153, 0.22)';
+  ctx.fill();
+  ctx.strokeStyle = '#6ee7b7';
+  ctx.lineWidth = 3.5;
+  ctx.stroke();
+
+  // 찻주전자 손잡이
+  ctx.beginPath();
+  ctx.moveTo(nunX - 25, nunY);
+  ctx.quadraticCurveTo(nunX + 35, (nunY + ascX) / 2, ascX, ascY);
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = '#34d399';
+  ctx.stroke();
+
+  // 찻주전자 주둥이
+  ctx.beginPath();
+  ctx.moveTo(kausMedX, kausMedY);
+  ctx.lineTo(alnaslX, alnaslY);
+  ctx.lineTo(kausAusX, kausAusY);
+  ctx.fillStyle = 'rgba(52, 211, 153, 0.28)';
+  ctx.fill();
+  ctx.strokeStyle = '#6ee7b7';
+  ctx.stroke();
+
+  // 주둥이에서 피어오르는 은하수 증기 구름 & 황금 활시위
+  ctx.beginPath();
+  ctx.moveTo(alnaslX, alnaslY);
+  ctx.bezierCurveTo(alnaslX - 60, alnaslY + 50, alnaslX - 30, alnaslY + 110, alnaslX - 80, alnaslY + 160);
+  ctx.strokeStyle = 'rgba(251, 191, 36, 0.85)';
+  ctx.lineWidth = 3.5;
   ctx.stroke();
 
   ctx.restore();

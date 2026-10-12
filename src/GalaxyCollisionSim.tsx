@@ -28,6 +28,30 @@ const SCENARIOS: {
     desc: '기본 뷰 모드로 은하 간 상호 중력이 작용하지 않아 태양계와 주변 은하들의 온전한 모습을 평화롭게 관찰합니다. (하단 조건을 누르면 상호 중력 및 충돌 시뮬레이션 개시)',
   },
   {
+    id: 'sombrero',
+    emoji: '🎩',
+    name: '솜브레로 은하 (M104 먼지원반)',
+    desc: '거대한 구형 팽대부와 은하 원반 전체를 둘러싼 짙은 암흑 성간 먼지 고리(Dark Dust Lane) 및 수천 개 구상성단 모델',
+  },
+  {
+    id: 'whirlpool',
+    emoji: '🌀',
+    name: '소용돌이 은하 (Whirlpool M51 & NGC 5195)',
+    desc: '우아한 대칭 나선팔 끝이 동반은하 NGC 5195와 아름다운 조석 별빛 다리(Tidal Stellar Bridge)로 연결된 명품 은하 모델',
+  },
+  {
+    id: 'quasar',
+    emoji: '⚡',
+    name: '초거대 퀘이사 [3C 273 제트 광선]',
+    desc: '활동은하핵 중심 초대질량 블랙홀에서 빛의 99% 속도로 분출되는 3D 상대론적 플라즈마 제트 빔 광선 모델',
+  },
+  {
+    id: 'cartwheel',
+    emoji: '🎡',
+    name: '수레바퀴 고리 은하 (Cartwheel)',
+    desc: '소은하가 중심을 수직 관통하여 초속 200km로 팽창 중인 거대한 푸른 별 폭발 고리와 8개의 방사형 스포크 바큇살 모델',
+  },
+  {
     id: 'head_on',
     emoji: '💥',
     name: '두 은하 정면 대충돌',
@@ -276,7 +300,47 @@ export default function GalaxyCollisionSim({
           >
             <span>🪐 마젤란 위성은하</span>
           </button>
-          {activeScenario !== 'local_group' && (
+          {activeScenario === 'sombrero' && (
+            <button
+              className={`btn-view-toggle highlight-gold ${cameraView === 'sombrero' ? 'active' : ''}`}
+              onClick={() => handleViewChange('sombrero')}
+              title="솜브레로 은하(M104) 거대 팽대부와 암흑 먼지원반 클로즈업"
+            >
+              <span>🎩 솜브레로 먼지원반</span>
+            </button>
+          )}
+          {activeScenario === 'whirlpool' && (
+            <button
+              className={`btn-view-toggle highlight ${cameraView === 'whirlpool' ? 'active' : ''}`}
+              onClick={() => handleViewChange('whirlpool')}
+              title="소용돌이 은하 M51과 동반은하 NGC 5195 조석 다리 락온"
+            >
+              <span>🌀 M51 조석 다리</span>
+            </button>
+          )}
+          {activeScenario === 'quasar' && (
+            <button
+              className={`btn-view-toggle highlight-purple ${cameraView === 'quasar' ? 'active' : ''}`}
+              onClick={() => handleViewChange('quasar')}
+              title="초거대 퀘이사 3C 273 양극 상대론적 플라즈마 제트 광선 락온"
+            >
+              <span>⚡ 상대론적 제트 광선</span>
+            </button>
+          )}
+          {activeScenario === 'cartwheel' && (
+            <button
+              className={`btn-view-toggle highlight ${cameraView === 'cartwheel' ? 'active' : ''}`}
+              onClick={() => handleViewChange('cartwheel')}
+              title="수레바퀴 고리 은하(Cartwheel) 충격파 팽창 링 클로즈업"
+            >
+              <span>🎡 수레바퀴 팽창 링</span>
+            </button>
+          )}
+          {activeScenario !== 'local_group' &&
+            activeScenario !== 'sombrero' &&
+            activeScenario !== 'whirlpool' &&
+            activeScenario !== 'quasar' &&
+            activeScenario !== 'cartwheel' && (
             <button
               className={`btn-view-toggle highlight ${cameraView === 'collision' ? 'active' : ''}`}
               onClick={() => handleViewChange('collision')}
@@ -404,10 +468,71 @@ export default function GalaxyCollisionSim({
                     <strong className="metric-val highlight-red">{metrics.swallowedCount}개</strong>
                   </div>
                 )}
+                {activeScenario === 'sombrero' && (
+                  <>
+                    <div className="hud-metric-row">
+                      <span className="metric-label">🎩 솜브레로 은하 지름</span>
+                      <strong className="metric-val highlight-gold">약 50,000 광년 (15 kpc)</strong>
+                      <small className="metric-sub">처녀자리 은하단 남쪽 렌즈형/나선 은하 모델</small>
+                    </div>
+                    <div className="hud-metric-row">
+                      <span className="metric-label">🌑 암흑 성간 먼지 고리 (Dust Lane)</span>
+                      <strong className="metric-val highlight-magenta">두께 3,000 광년 고밀도 흡수대</strong>
+                      <small className="metric-sub">수소 분자 가스와 차가운 우주 먼지가 둘러싼 링</small>
+                    </div>
+                    <div className="hud-metric-row">
+                      <span className="metric-label">✨ 구상성단 보유량</span>
+                      <strong className="metric-val highlight-cyan">약 2,000개 (우리은하의 10배 이상)</strong>
+                      <small className="metric-sub">은하 헤일로 전역에 구상성단이 빽빽하게 공전</small>
+                    </div>
+                  </>
+                )}
+                {activeScenario === 'whirlpool' && (
+                  <>
+                    <div className="hud-metric-row">
+                      <span className="metric-label">🌀 주 은하 M51a (소용돌이)</span>
+                      <strong className="metric-val highlight-cyan">직경 약 76,000 광년 (SA 나선은하)</strong>
+                      <small className="metric-sub">선명하고 웅장한 2대 나선팔과 핑크색 H II 성운</small>
+                    </div>
+                    <div className="hud-metric-row">
+                      <span className="metric-label">🌉 조석 별빛 다리 (Tidal Bridge)</span>
+                      <strong className="metric-val highlight-gold">NGC 5195와 연결된 성간 통로</strong>
+                      <small className="metric-sub">동반은하를 휘감으며 별과 가스가 빨려 들어가는 장관</small>
+                    </div>
+                  </>
+                )}
+                {activeScenario === 'quasar' && (
+                  <>
+                    <div className="hud-metric-row">
+                      <span className="metric-label">⚡ 퀘이사 3C 273 광도</span>
+                      <strong className="metric-val highlight-red">태양의 4조 배 (우리은하 100배)</strong>
+                      <small className="metric-sub">지구에서 24억 광년 떨어진 인류 최초 발견 퀘이사</small>
+                    </div>
+                    <div className="hud-metric-row">
+                      <span className="metric-label">🚀 양극 상대론적 제트 (Jets)</span>
+                      <strong className="metric-val highlight-cyan">광속의 99.8% 초고속 분출</strong>
+                      <small className="metric-sub">수십만 광년 길이로 뿜어져 나가는 플라즈마 빔</small>
+                    </div>
+                  </>
+                )}
+                {activeScenario === 'cartwheel' && (
+                  <>
+                    <div className="hud-metric-row">
+                      <span className="metric-label">🎡 수레바퀴 고리 직경</span>
+                      <strong className="metric-val highlight-cyan">약 150,000 광년 (우리은하 1.5배)</strong>
+                      <small className="metric-sub">소은하의 수직 관통 충돌 후 1억 년 뒤 형성된 고리</small>
+                    </div>
+                    <div className="hud-metric-row">
+                      <span className="metric-label">💥 충격파 팽창 속도</span>
+                      <strong className="metric-val highlight-magenta">초속 217 km/s (고속 팽창 스타버스트)</strong>
+                      <small className="metric-sub">거대한 충격파가 O-B형 푸른 별 폭발을 촉발</small>
+                    </div>
+                  </>
+                )}
                 <div className="hud-metric-row">
-                  <span className="metric-label">✨ 관측 중인 은하 군집</span>
-                  <strong className="metric-val">5대 은하 (4,450개 천체)</strong>
-                  <small className="metric-sub">우리은하, 안드로메다, 삼각형자리, 대/소 마젤란</small>
+                  <span className="metric-label">✨ 관측 중인 은하 모델</span>
+                  <strong className="metric-val">{currentScInfo?.name ?? '은하 모델'}</strong>
+                  <small className="metric-sub">{currentScInfo?.desc}</small>
                 </div>
                 <div className="hud-metric-row">
                   <span className="metric-label">⚛️ 은하 간 상호 중력</span>

@@ -115,7 +115,7 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
           <strong>태양계 우주로 돌아가기</strong>
         </button>
 
-        {/* 6대 별자리 선택 탭 바 */}
+        {/* 11대 대표 별자리 선택 탭 바 */}
         <div className="constellation-tabs-bar">
           {CONSTELLATIONS.map((c) => (
             <button

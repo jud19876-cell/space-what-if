@@ -78,9 +78,9 @@ const CAM_EARTH_DIST = 42; // 지구 카메라 거리
 
 /** 실제 광년 거리를 3D 깊이 Z 좌표로 매핑 */
 function calculateTrue3DPos(star: StarData): THREE.Vector3 {
-  // 거리 스케일 (30 광년 ~ 2600 광년)
+  // 거리 스케일 (8.6 광년[시리우스] ~ 2600 광년[데네브/알루드라])
   // 제곱근 스케일링으로 깊이감을 또렷하게 분별 가능하도록 변환
-  const minLy = 30;
+  const minLy = 8.0;
   const maxLy = 2600;
   const norm = Math.max(0, Math.min(1, (Math.sqrt(star.distanceLy) - Math.sqrt(minLy)) / (Math.sqrt(maxLy) - Math.sqrt(minLy))));
   

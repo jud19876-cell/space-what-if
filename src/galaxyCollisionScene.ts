@@ -16,6 +16,10 @@ import {
 export type GalaxyCameraView =
   | 'overview'      // 국부은하군 전체 조망
   | 'universe'      // 🌐 관측 가능한 전체 우주 & 거대 우주망 (Cosmic Web)
+  | 'sombrero'      // 🎩 솜브레로 은하 (M104 암흑 먼지원반)
+  | 'whirlpool'     // 🌀 소용돌이 은하 (M51 조석 다리)
+  | 'quasar'        // ⚡ 초거대 퀘이사 (3C 273 상대론적 제트)
+  | 'cartwheel'     // 🎡 수레바퀴 고리 은하 (Cartwheel 충격파 링)
   | 'solarsystem'   // ☀️ 우리들의 태양계 (오리온 팔)
   | 'milkyway'      // 🌌 우리은하 중심핵 (궁수자리 A*)
   | 'andromeda'     // 💜 안드로메다 은하 (M31)
@@ -552,6 +556,10 @@ export function createGalaxyScene(
     coreId: string;
     disk?: THREE.Mesh;
     ring?: THREE.Mesh;
+    jetUp?: THREE.Mesh;
+    jetDown?: THREE.Mesh;
+    dustRing?: THREE.Mesh;
+    cartwheelRing?: THREE.Mesh;
   }[] = [];
 
   const TRAIL_LEN = 120;
@@ -579,6 +587,10 @@ export function createGalaxyScene(
       let lightIntensity = 3.5;
       let disk: THREE.Mesh | undefined;
       let ring: THREE.Mesh | undefined;
+      let jetUp: THREE.Mesh | undefined;
+      let jetDown: THREE.Mesh | undefined;
+      let dustRing: THREE.Mesh | undefined;
+      let cartwheelRing: THREE.Mesh | undefined;
 
       if (c.isBlackHole) {
         const bhSphere = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: 0x010103 }));
@@ -613,6 +625,49 @@ export function createGalaxyScene(
 
         lightColor = '#c084fc';
         lightIntensity = 5.5;
+
+        // 🚀 퀘이사 양극 상대론적 제트 광선 모델 (Relativistic Jets)
+        if (c.hasRelativisticJet) {
+          const jetGeo = new THREE.CylinderGeometry(0.8, 5.8, 68, 32, 1, true);
+          const jetMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.65,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          jetUp = new THREE.Mesh(jetGeo, jetMat);
+          jetUp.position.y = 35;
+          group.add(jetUp);
+
+          jetDown = new THREE.Mesh(jetGeo, jetMat);
+          jetDown.position.y = -35;
+          jetDown.rotation.z = Math.PI;
+          group.add(jetDown);
+
+          // 제트 충격파 펄싱 링
+          for (let k = 1; k <= 3; k++) {
+            const pulseRingGeo = new THREE.RingGeometry(k * 1.8, k * 1.8 + 0.8, 32);
+            const pulseRingMat = new THREE.MeshBasicMaterial({
+              color: 0x67e8f9,
+              side: THREE.DoubleSide,
+              transparent: true,
+              opacity: 0.8,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+            });
+            const rUp = new THREE.Mesh(pulseRingGeo, pulseRingMat);
+            rUp.position.y = k * 14;
+            rUp.rotation.x = Math.PI / 2;
+            group.add(rUp);
+
+            const rDown = new THREE.Mesh(pulseRingGeo, pulseRingMat);
+            rDown.position.y = -k * 14;
+            rDown.rotation.x = Math.PI / 2;
+            group.add(rDown);
+          }
+        }
       } else {
         const coreSphere = new THREE.Mesh(
           sphereGeo,
@@ -648,6 +703,51 @@ export function createGalaxyScene(
         );
         shell2.scale.setScalar(c.radius * 3.2);
         group.add(shell2);
+
+        // 🎩 솜브레로 은하 거대 암흑 먼지 고리 3D 모델 (Dark Dust Lane)
+        if (c.hasDarkDustRing) {
+          const dustGeo = new THREE.RingGeometry(c.radius * 3.5, c.radius * 7.2, 96);
+          const dustMat = new THREE.MeshBasicMaterial({
+            color: 0x1c0f08,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.94,
+            depthWrite: true,
+          });
+          dustRing = new THREE.Mesh(dustGeo, dustMat);
+          dustRing.rotation.x = -Math.PI / 2 + 0.22;
+          group.add(dustRing);
+
+          // 내부 황금빛 팽대부 글로우 링
+          const innerGlowGeo = new THREE.RingGeometry(c.radius * 1.4, c.radius * 6.5, 96);
+          const innerGlowMat = new THREE.MeshBasicMaterial({
+            color: 0xfde68a,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.35,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          const innerGlow = new THREE.Mesh(innerGlowGeo, innerGlowMat);
+          innerGlow.rotation.x = -Math.PI / 2 + 0.22;
+          group.add(innerGlow);
+        }
+
+        // 🎡 수레바퀴 고리 은하 충격파 팽창 링 3D 모델 (Cartwheel Shock Ring)
+        if (c.hasCartwheelRing) {
+          const cwRingGeo = new THREE.RingGeometry(c.radius * 5.8, c.radius * 8.6, 64);
+          const cwRingMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.65,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          cartwheelRing = new THREE.Mesh(cwRingGeo, cwRingMat);
+          cartwheelRing.rotation.x = -Math.PI / 2 + 0.3;
+          group.add(cartwheelRing);
+        }
       }
 
       const light = new THREE.PointLight(lightColor, lightIntensity, 450, 1.2);
@@ -661,7 +761,7 @@ export function createGalaxyScene(
 
       scene.add(group);
 
-      coreMeshes.push({ group, light, coreId: c.id, disk, ring });
+      coreMeshes.push({ group, light, coreId: c.id, disk, ring, jetUp, jetDown, dustRing, cartwheelRing });
 
       const posArr = new Float32Array(TRAIL_LEN * 3);
       const trailGeo = new THREE.BufferGeometry();
@@ -805,6 +905,13 @@ export function createGalaxyScene(
 
       if (cm.disk) cm.disk.rotation.z += 0.035;
       if (cm.ring) cm.ring.rotation.z -= 0.02;
+      if (cm.dustRing) cm.dustRing.rotation.z += 0.003;
+      if (cm.cartwheelRing) cm.cartwheelRing.rotation.z += 0.004;
+      if (cm.jetUp && cm.jetDown) {
+        const pulse = 1.0 + Math.sin(clock.getElapsedTime() * 8.0) * 0.12;
+        cm.jetUp.scale.set(pulse, 1, pulse);
+        cm.jetDown.scale.set(pulse, 1, pulse);
+      }
 
       if (showTrails) {
         const ct = coreTrails[i];
@@ -874,6 +981,26 @@ export function createGalaxyScene(
       }
       case 'overview': {
         targetLerp.set(cores.length > 2 ? 60 : 0, 0, 0);
+        break;
+      }
+      case 'sombrero': {
+        const c = cores.find((x) => x.id.includes('sombrero')) ?? cores[0];
+        targetLerp.set(...c.pos);
+        break;
+      }
+      case 'whirlpool': {
+        const c = cores.find((x) => x.id.includes('m51a')) ?? cores[0];
+        targetLerp.set(c.pos[0] + 10, c.pos[1] + 12, c.pos[2]);
+        break;
+      }
+      case 'quasar': {
+        const c = cores.find((x) => x.id.includes('quasar') || x.isBlackHole) ?? cores[0];
+        targetLerp.set(...c.pos);
+        break;
+      }
+      case 'cartwheel': {
+        const c = cores.find((x) => x.id.includes('cartwheel')) ?? cores[0];
+        targetLerp.set(...c.pos);
         break;
       }
       case 'solarsystem': {
@@ -958,6 +1085,18 @@ export function createGalaxyScene(
         showCosmicWeb = true;
       } else if (mode === 'overview') {
         camera.position.set(60, 220, 360);
+      } else if (mode === 'sombrero') {
+        const c = simState.cores.find((x) => x.id.includes('sombrero')) ?? simState.cores[0];
+        camera.position.set(c.pos[0], c.pos[1] + 18, c.pos[2] + 62);
+      } else if (mode === 'whirlpool') {
+        const c = simState.cores.find((x) => x.id.includes('m51a')) ?? simState.cores[0];
+        camera.position.set(c.pos[0] + 10, c.pos[1] + 48, c.pos[2] + 55);
+      } else if (mode === 'quasar') {
+        const c = simState.cores.find((x) => x.id.includes('quasar') || x.isBlackHole) ?? simState.cores[0];
+        camera.position.set(c.pos[0] + 35, c.pos[1] + 25, c.pos[2] + 45);
+      } else if (mode === 'cartwheel') {
+        const c = simState.cores.find((x) => x.id.includes('cartwheel')) ?? simState.cores[0];
+        camera.position.set(c.pos[0], c.pos[1] + 38, c.pos[2] + 70);
       } else if (mode === 'solarsystem') {
         const p = simState.solarSystemPos;
         camera.position.set(p[0] + 4, p[1] + 12, p[2] + 18);

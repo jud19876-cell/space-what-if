@@ -12,6 +12,11 @@ export interface GalacticCore {
   radius: number;
   color: string;
   isBlackHole?: boolean;
+  hasRelativisticJet?: boolean;  // 🚀 퀘이사 양극 제트 광선
+  hasDarkDustRing?: boolean;     // 🎩 솜브레로 거대 암흑 먼지원반
+  hasCartwheelRing?: boolean;    // 🎡 수레바퀴 팽창 링 & 방사형 스포크
+  hasTidalBridge?: boolean;      // 🌀 소용돌이 조석 별빛 다리
+  type?: 'spiral' | 'elliptical' | 'sombrero' | 'cartwheel' | 'quasar' | 'whirlpool';
 }
 
 export interface GalaxyParticles {
@@ -19,8 +24,8 @@ export interface GalaxyParticles {
   vel: Float32Array;      // [vx, vy, vz] * count
   color: Float32Array;    // [r, g, b] * count
   size: Float32Array;     // [size] * count
-  galaxyId: Uint8Array;   // 0: 우리은하, 1: 안드로메다, 2: 삼각형자리, 3: 대마젤란, 4: 소마젤란, 5: 블랙홀
-  isGas: Uint8Array;      // 0: 별(Star), 1: 성운 가스 구름(Nebula Gas Cloud)
+  galaxyId: Uint8Array;   // 0: 우리은하, 1: 안드로메다, 2: 삼각형자리, 3: 대마젤란, 4: 소마젤란, 5: 블랙홀 등
+  isGas: Uint8Array;      // 0: 별(Star), 1: 성운 가스 구름(Nebula Gas Cloud), 2: 암흑 먼지(Dust), 3: 제트 빔(Jet)
   alive: Uint8Array;      // 1: 생존, 0: 블랙홀 흡수
   orbitR?: Float32Array;
   orbitTheta?: Float32Array;
@@ -31,6 +36,10 @@ export interface GalaxyParticles {
 
 export type GalaxyScenarioType =
   | 'local_group'   // 🌌 [기본] 우리은하 & 국부은하군 (태양계 위치 표기 + 인근 은하 군집 평형)
+  | 'sombrero'      // 🎩 솜브레로 은하 (M104) - 거대 구형 팽대부 & 암흑 먼지원반
+  | 'whirlpool'     // 🌀 소용돌이 은하 (Whirlpool M51 & NGC 5195) - 조석 브릿지
+  | 'quasar'        // ⚡ 초거대 퀘이사 (Quasar 3C 273) - 초대질량 블랙홀 양극 상대론적 제트
+  | 'cartwheel'     // 🎡 수레바퀴 고리 은하 (Cartwheel Galaxy) - 충돌 충격파 팽창 링
   | 'head_on'       // 💥 정면 관통 대충돌 (고리 은하 형성)
   | 'grazing'       // 🌀 조석 꼬리 스침 충돌 (더듬이/생쥐 은하)
   | 'supermassive'  // 🕳️ 초대질량 괴물 블랙홀 [가르간튀아]의 은하 쌍포식
@@ -191,6 +200,351 @@ export function createSpiralGalaxyParticles(
   return { pos, vel, col, sz, gid, isGas, orbitR, orbitTheta, orbitZ, omega };
 }
 
+/** 솜브레로 은하 (M104) 전용 파티클 생성기: 거대 구형 팽대부 + 외곽 암흑 먼지원반 */
+export function createSombreroGalaxyParticles(
+  coreMass: number,
+  centerPos: [number, number, number],
+  centerVel: [number, number, number],
+  galaxyIndex: number,
+  tiltX = 78, // 측면 경사각 (거의 옆모습)
+  tiltY = 12,
+  tiltZ = 0,
+) {
+  const rotMat = makeRotationMatrix(tiltX, tiltY, tiltZ);
+  const pos: number[] = [];
+  const vel: number[] = [];
+  const col: number[] = [];
+  const sz: number[] = [];
+  const gid: number[] = [];
+  const isGas: number[] = [];
+  const orbitR: number[] = [];
+  const orbitTheta: number[] = [];
+  const orbitZ: number[] = [];
+  const omega: number[] = [];
+
+  // 1. 거대한 구형 팽대부 (Super-massive Bulge)
+  const bulgeCount = 950;
+  for (let i = 0; i < bulgeCount; i++) {
+    const r = Math.pow(Math.random(), 0.5) * 16.0 + 0.5;
+    const theta = Math.random() * Math.PI * 2;
+    const z = (Math.random() - 0.5) * (14.0 * (1 - r / 18.0) + 1.5);
+
+    const vCirc = Math.sqrt((G_GALACTIC * coreMass * r * r) / Math.pow(r * r + 25.0, 1.5));
+    const localP: [number, number, number] = [Math.cos(theta) * r, Math.sin(theta) * r, z];
+    const localV: [number, number, number] = [-Math.sin(theta) * vCirc, Math.cos(theta) * vCirc, (Math.random() - 0.5) * 0.2];
+
+    const wp = applyRotation(rotMat, localP);
+    const wv = applyRotation(rotMat, localV);
+
+    pos.push(centerPos[0] + wp[0], centerPos[1] + wp[1], centerPos[2] + wp[2]);
+    vel.push(centerVel[0] + wv[0], centerVel[1] + wv[1], centerVel[2] + wv[2]);
+    gid.push(galaxyIndex);
+    isGas.push(0);
+    orbitR.push(r);
+    orbitTheta.push(theta);
+    orbitZ.push(z);
+    omega.push(vCirc / Math.max(r, 0.5));
+    sz.push(0.8 + Math.random() * 1.8);
+    // 황금빛 팽대부 색상
+    col.push(1.0, 0.94 - (r / 20) * 0.1, 0.78 - (r / 20) * 0.2);
+  }
+
+  // 2. 얇은 주 원반 (Main Thin Disk)
+  const diskCount = 1050;
+  for (let i = 0; i < diskCount; i++) {
+    const u = Math.random();
+    const r = 10.0 + u * 26.0;
+    const theta = Math.random() * Math.PI * 2;
+    const z = (Math.random() - 0.5) * 0.8;
+
+    const vCirc = Math.sqrt((G_GALACTIC * coreMass * 1.1 * r * r) / Math.pow(r * r + 45.0, 1.5));
+    const localP: [number, number, number] = [Math.cos(theta) * r, Math.sin(theta) * r, z];
+    const localV: [number, number, number] = [-Math.sin(theta) * vCirc, Math.cos(theta) * vCirc, (Math.random() - 0.5) * 0.1];
+
+    const wp = applyRotation(rotMat, localP);
+    const wv = applyRotation(rotMat, localV);
+
+    pos.push(centerPos[0] + wp[0], centerPos[1] + wp[1], centerPos[2] + wp[2]);
+    vel.push(centerVel[0] + wv[0], centerVel[1] + wv[1], centerVel[2] + wv[2]);
+    gid.push(galaxyIndex);
+    isGas.push(0);
+    orbitR.push(r);
+    orbitTheta.push(theta);
+    orbitZ.push(z);
+    omega.push(vCirc / Math.max(r, 0.5));
+    sz.push(0.9 + Math.random() * 1.4);
+    col.push(0.9, 0.92, 1.0); // 백색 원반별
+  }
+
+  // 3. 짙은 암흑 성간 먼지 원반 (Dark Dust Ring/Lane)
+  const dustCount = 450;
+  for (let i = 0; i < dustCount; i++) {
+    const r = 23.0 + Math.random() * 11.0;
+    const theta = Math.random() * Math.PI * 2;
+    const z = (Math.random() - 0.5) * 0.5;
+
+    const vCirc = Math.sqrt((G_GALACTIC * coreMass * 1.1 * r * r) / Math.pow(r * r + 45.0, 1.5));
+    const localP: [number, number, number] = [Math.cos(theta) * r, Math.sin(theta) * r, z];
+    const localV: [number, number, number] = [-Math.sin(theta) * vCirc, Math.cos(theta) * vCirc, 0];
+
+    const wp = applyRotation(rotMat, localP);
+    const wv = applyRotation(rotMat, localV);
+
+    pos.push(centerPos[0] + wp[0], centerPos[1] + wp[1], centerPos[2] + wp[2]);
+    vel.push(centerVel[0] + wv[0], centerVel[1] + wv[1], centerVel[2] + wv[2]);
+    gid.push(galaxyIndex);
+    isGas.push(1); // 먼지 가스 구름
+    orbitR.push(r);
+    orbitTheta.push(theta);
+    orbitZ.push(z);
+    omega.push(vCirc / Math.max(r, 0.5));
+    sz.push(3.8 + Math.random() * 3.5);
+    // 짙은 성간 암흑 먼지 (적갈색 실루엣)
+    col.push(0.38, 0.16, 0.08);
+  }
+
+  // 4. 수천 개 구상성단 무리 (Globular Clusters)
+  for (let i = 0; i < 70; i++) {
+    const r = 16.0 + Math.random() * 26.0;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = (Math.random() - 0.5) * Math.PI * 0.7;
+    const z = Math.sin(phi) * r;
+    const rXY = Math.cos(phi) * r;
+
+    const vCirc = Math.sqrt((G_GALACTIC * coreMass * r * r) / Math.pow(r * r + 30.0, 1.5));
+    const localP: [number, number, number] = [Math.cos(theta) * rXY, Math.sin(theta) * rXY, z];
+    const localV: [number, number, number] = [-Math.sin(theta) * vCirc * 0.9, Math.cos(theta) * vCirc * 0.9, (Math.random() - 0.5) * 0.3];
+
+    const wp = applyRotation(rotMat, localP);
+    const wv = applyRotation(rotMat, localV);
+
+    pos.push(centerPos[0] + wp[0], centerPos[1] + wp[1], centerPos[2] + wp[2]);
+    vel.push(centerVel[0] + wv[0], centerVel[1] + wv[1], centerVel[2] + wv[2]);
+    gid.push(galaxyIndex);
+    isGas.push(0);
+    orbitR.push(rXY);
+    orbitTheta.push(theta);
+    orbitZ.push(z);
+    omega.push(vCirc / Math.max(rXY, 0.5));
+    sz.push(3.2 + Math.random() * 2.0);
+    col.push(1.0, 0.98, 0.88); // 눈부신 구상성단
+  }
+
+  return { pos, vel, col, sz, gid, isGas, orbitR, orbitTheta, orbitZ, omega };
+}
+
+/** 소용돌이 은하 (Whirlpool M51 & NGC 5195) 전용 시스템: M51a 나선팔 조석 다리 */
+export function createWhirlpoolGalaxySystem(
+  coreMassM51: number,
+  coreMassNGC: number,
+  posM51: [number, number, number],
+  posNGC: [number, number, number],
+  velM51: [number, number, number],
+  velNGC: [number, number, number],
+) {
+  const gM51 = createSpiralGalaxyParticles(
+    coreMassM51, posM51, velM51, 0, 1600, 320, 34,
+    -15, 20, 0, [0.3, 0.8, 1.0], [1.0, 0.45, 0.75]
+  );
+  const gNGC = createSpiralGalaxyParticles(
+    coreMassNGC, posNGC, velNGC, 1, 500, 70, 15,
+    35, -25, 10, [1.0, 0.75, 0.3], [1.0, 0.9, 0.5]
+  );
+
+  // M51a의 오른쪽 나선팔 끝과 NGC 5195를 잇는 조석 별빛 다리 (Tidal Bridge)
+  const bridgeCount = 320;
+  for (let i = 0; i < bridgeCount; i++) {
+    const t = i / bridgeCount;
+    // 곡선 보간 + 중력 조석 팽창
+    const arcX = posM51[0] * (1 - t) + posNGC[0] * t + Math.sin(t * Math.PI) * 12.0;
+    const arcY = posM51[1] * (1 - t) + posNGC[1] * t - Math.sin(t * Math.PI) * 8.0;
+    const arcZ = posM51[2] * (1 - t) + posNGC[2] * t + (Math.random() - 0.5) * 1.5;
+
+    gM51.pos.push(arcX, arcY, arcZ);
+    gM51.vel.push(velM51[0] * (1 - t) + velNGC[0] * t, velM51[1] * (1 - t) + velNGC[1] * t, 0);
+    gM51.gid.push(0);
+    gM51.isGas.push(i % 3 === 0 ? 1 : 0);
+    gM51.sz.push(i % 3 === 0 ? 3.5 : 1.5);
+    gM51.col.push(0.7 + t * 0.3, 0.8 - t * 0.1, 1.0 - t * 0.6); // M51 청색에서 NGC 황색으로 전환
+    gM51.orbitR.push(Math.hypot(arcX - posM51[0], arcY - posM51[1]));
+    gM51.orbitTheta.push(Math.atan2(arcY - posM51[1], arcX - posM51[0]));
+    gM51.orbitZ.push(arcZ - posM51[2]);
+    gM51.omega.push(0.12 * (1 - t * 0.4));
+  }
+
+  return {
+    pos: [...gM51.pos, ...gNGC.pos],
+    vel: [...gM51.vel, ...gNGC.vel],
+    col: [...gM51.col, ...gNGC.col],
+    sz: [...gM51.sz, ...gNGC.sz],
+    gid: [...gM51.gid, ...gNGC.gid],
+    isGas: [...gM51.isGas, ...gNGC.isGas],
+    orbitR: [...gM51.orbitR, ...gNGC.orbitR],
+    orbitTheta: [...gM51.orbitTheta, ...gNGC.orbitTheta],
+    orbitZ: [...gM51.orbitZ, ...gNGC.orbitZ],
+    omega: [...gM51.omega, ...gNGC.omega],
+  };
+}
+
+/** 퀘이사 은하 (Quasar 3C 273) 전용: 초고온 강착원반 & 양극 상대론적 제트 */
+export function createQuasarParticles(
+  coreMass: number,
+  centerPos: [number, number, number],
+  centerVel: [number, number, number],
+  galaxyIndex: number,
+) {
+  const pos: number[] = [];
+  const vel: number[] = [];
+  const col: number[] = [];
+  const sz: number[] = [];
+  const gid: number[] = [];
+  const isGas: number[] = [];
+  const orbitR: number[] = [];
+  const orbitTheta: number[] = [];
+  const orbitZ: number[] = [];
+  const omega: number[] = [];
+
+  // 1. 초고온 강착원반 (Super-hot Accretion Disk)
+  const diskCount = 1600;
+  for (let i = 0; i < diskCount; i++) {
+    const u = Math.random();
+    const r = 2.0 + Math.pow(u, 0.7) * 32.0;
+    const theta = Math.random() * Math.PI * 2;
+    const z = (Math.random() - 0.5) * (0.4 + r * 0.03);
+
+    // 상대론적 초고속 궤도
+    const vCirc = Math.sqrt((G_GALACTIC * coreMass * r * r) / Math.pow(r * r + 12.0, 1.5)) * 1.25;
+    pos.push(centerPos[0] + Math.cos(theta) * r, centerPos[1] + Math.sin(theta) * r, centerPos[2] + z);
+    vel.push(centerVel[0] - Math.sin(theta) * vCirc, centerVel[1] + Math.cos(theta) * vCirc, centerVel[2]);
+    gid.push(galaxyIndex);
+    isGas.push(i % 2 === 0 ? 1 : 0);
+    orbitR.push(r);
+    orbitTheta.push(theta);
+    orbitZ.push(z);
+    omega.push(vCirc / Math.max(r, 0.5));
+
+    if (r < 8.0) {
+      sz.push(3.5 + Math.random() * 3.0);
+      col.push(1.0, 0.95, 1.0); // 초고온 백색 강착원반 내측
+    } else if (r < 18.0) {
+      sz.push(2.5 + Math.random() * 2.0);
+      col.push(0.3, 0.9, 1.0); // 강렬한 시안 플라즈마
+    } else {
+      sz.push(1.5 + Math.random() * 1.5);
+      col.push(0.9, 0.3, 0.85); // 네온 마젠타 외곽
+    }
+  }
+
+  // 2. 양극 상대론적 플라즈마 제트 빔 (Relativistic Jets)
+  const jetCount = 500;
+  for (let i = 0; i < jetCount; i++) {
+    const isUp = i % 2 === 0;
+    const zDist = (isUp ? 1 : -1) * (4.0 + Math.random() * 46.0);
+    const spread = (Math.abs(zDist) / 46.0) * 3.5;
+    const jx = (Math.random() - 0.5) * spread;
+    const jy = (Math.random() - 0.5) * spread;
+
+    pos.push(centerPos[0] + jx, centerPos[1] + jy, centerPos[2] + zDist);
+    vel.push(centerVel[0], centerVel[1], centerVel[2] + (isUp ? 22.0 : -22.0));
+    gid.push(galaxyIndex);
+    isGas.push(1);
+    orbitR.push(Math.hypot(jx, jy));
+    orbitTheta.push(Math.atan2(jy, jx));
+    orbitZ.push(zDist);
+    omega.push(0.05);
+    sz.push(4.5 + Math.random() * 4.0);
+    // 형광빛 네온 블루 & 화이트 제트
+    col.push(0.4 + Math.random() * 0.4, 0.85 + Math.random() * 0.15, 1.0);
+  }
+
+  return { pos, vel, col, sz, gid, isGas, orbitR, orbitTheta, orbitZ, omega };
+}
+
+/** 수레바퀴 고리 은하 (Cartwheel Galaxy) 전용: 충격파 팽창 고리 & 방사형 스포크 */
+export function createCartwheelParticles(
+  coreMass: number,
+  centerPos: [number, number, number],
+  centerVel: [number, number, number],
+  galaxyIndex: number,
+) {
+  const pos: number[] = [];
+  const vel: number[] = [];
+  const col: number[] = [];
+  const sz: number[] = [];
+  const gid: number[] = [];
+  const isGas: number[] = [];
+  const orbitR: number[] = [];
+  const orbitTheta: number[] = [];
+  const orbitZ: number[] = [];
+  const omega: number[] = [];
+
+  // 1. 중심 팽대부 (Inner Core)
+  const innerCount = 500;
+  for (let i = 0; i < innerCount; i++) {
+    const r = Math.pow(Math.random(), 0.6) * 8.0;
+    const theta = Math.random() * Math.PI * 2;
+    const z = (Math.random() - 0.5) * 1.5;
+    const vCirc = Math.sqrt((G_GALACTIC * coreMass * r * r) / Math.pow(r * r + 15.0, 1.5));
+
+    pos.push(centerPos[0] + Math.cos(theta) * r, centerPos[1] + Math.sin(theta) * r, centerPos[2] + z);
+    vel.push(centerVel[0] - Math.sin(theta) * vCirc, centerVel[1] + Math.cos(theta) * vCirc, centerVel[2]);
+    gid.push(galaxyIndex);
+    isGas.push(0);
+    orbitR.push(r);
+    orbitTheta.push(theta);
+    orbitZ.push(z);
+    omega.push(vCirc / Math.max(r, 0.5));
+    sz.push(1.2 + Math.random() * 1.5);
+    col.push(1.0, 0.88, 0.55); // 중심 황색핵
+  }
+
+  // 2. 외곽 초거대 충격파 팽창 링 (Outer Expanding Starburst Ring)
+  const ringCount = 1350;
+  for (let i = 0; i < ringCount; i++) {
+    const r = 27.0 + Math.random() * 8.5;
+    const theta = Math.random() * Math.PI * 2;
+    const z = (Math.random() - 0.5) * 1.2;
+    const vCirc = Math.sqrt((G_GALACTIC * coreMass * 1.2 * r * r) / Math.pow(r * r + 50.0, 1.5));
+
+    pos.push(centerPos[0] + Math.cos(theta) * r, centerPos[1] + Math.sin(theta) * r, centerPos[2] + z);
+    vel.push(centerVel[0] - Math.sin(theta) * vCirc, centerVel[1] + Math.cos(theta) * vCirc, centerVel[2]);
+    gid.push(galaxyIndex);
+    isGas.push(i % 3 === 0 ? 1 : 0);
+    orbitR.push(r);
+    orbitTheta.push(theta);
+    orbitZ.push(z);
+    omega.push(vCirc / Math.max(r, 0.5));
+    sz.push(2.5 + Math.random() * 2.5);
+    // 눈부신 푸른 초신성 및 O-B형 별 폭발
+    col.push(0.3, 0.75 + Math.random() * 0.2, 1.0);
+  }
+
+  // 3. 방사형 바큇살 (Spokes)
+  const spokeArms = 8;
+  const spokeCount = 450;
+  for (let i = 0; i < spokeCount; i++) {
+    const spokeIdx = i % spokeArms;
+    const baseTheta = (spokeIdx * 2 * Math.PI) / spokeArms;
+    const r = 8.0 + Math.random() * 20.0;
+    const theta = baseTheta + (Math.random() - 0.5) * 0.22;
+    const z = (Math.random() - 0.5) * 1.0;
+    const vCirc = Math.sqrt((G_GALACTIC * coreMass * r * r) / Math.pow(r * r + 25.0, 1.5));
+
+    pos.push(centerPos[0] + Math.cos(theta) * r, centerPos[1] + Math.sin(theta) * r, centerPos[2] + z);
+    vel.push(centerVel[0] - Math.sin(theta) * vCirc, centerVel[1] + Math.cos(theta) * vCirc, centerVel[2]);
+    gid.push(galaxyIndex);
+    isGas.push(0);
+    orbitR.push(r);
+    orbitTheta.push(theta);
+    orbitZ.push(z);
+    omega.push(vCirc / Math.max(r, 0.5));
+    sz.push(1.0 + Math.random() * 1.2);
+    col.push(0.65, 0.85, 1.0);
+  }
+
+  return { pos, vel, col, sz, gid, isGas, orbitR, orbitTheta, orbitZ, omega };
+}
+
 /** 시나리오별 초기 물리 상태 생성 (기본: 국부은하군 평형 모드) */
 export function createGalaxyScenario(scenario: GalaxyScenarioType): GalaxySimState {
   const cores: GalacticCore[] = [];
@@ -303,6 +657,120 @@ export function createGalaxyScenario(scenario: GalaxyScenarioType): GalaxySimSta
       allOrbitTheta = [...gMilkyWay.orbitTheta, ...gAndromeda.orbitTheta, ...gTriangulum.orbitTheta, ...gLMC.orbitTheta, ...gSMC.orbitTheta];
       allOrbitZ = [...gMilkyWay.orbitZ, ...gAndromeda.orbitZ, ...gTriangulum.orbitZ, ...gLMC.orbitZ, ...gSMC.orbitZ];
       allOmega = [...gMilkyWay.omega, ...gAndromeda.omega, ...gTriangulum.omega, ...gLMC.omega, ...gSMC.omega];
+      break;
+    }
+
+    case 'sombrero': {
+      // 🎩 [신규 은하 모델] 솜브레로 은하 (M104) - 거대 팽대부 & 암흑 먼지 고리
+      cores.push({
+        id: 'core_sombrero',
+        name: '솜브레로 은하 (M104)',
+        mass: 4200,
+        pos: [0, 0, 0],
+        vel: [0, 0, 0],
+        radius: 4.8,
+        color: '#f59e0b',
+        hasDarkDustRing: true,
+        type: 'sombrero',
+      });
+      galaxyMatrices = [makeRotationMatrix(78, 12, 0)];
+      const gSombrero = createSombreroGalaxyParticles(4200, [0, 0, 0], [0, 0, 0], 0, 78, 12, 0);
+      allPos = gSombrero.pos; allVel = gSombrero.vel; allCol = gSombrero.col; allSz = gSombrero.sz; allGid = gSombrero.gid; allIsGas = gSombrero.isGas;
+      allOrbitR = gSombrero.orbitR; allOrbitTheta = gSombrero.orbitTheta; allOrbitZ = gSombrero.orbitZ; allOmega = gSombrero.omega;
+      break;
+    }
+
+    case 'whirlpool': {
+      // 🌀 [신규 은하 모델] 소용돌이 은하 (Whirlpool M51 & NGC 5195) - 조석 별빛 다리
+      cores.push(
+        {
+          id: 'core_m51a',
+          name: '소용돌이 은하 (M51a)',
+          mass: 3500,
+          pos: [-22, -12, 0],
+          vel: [0, 0, 0],
+          radius: 4.2,
+          color: '#38bdf8',
+          hasTidalBridge: true,
+          type: 'whirlpool',
+        },
+        {
+          id: 'core_ngc5195',
+          name: '동반은하 (NGC 5195)',
+          mass: 1400,
+          pos: [42, 36, 8],
+          vel: [0, 0, 0],
+          radius: 2.6,
+          color: '#fbbf24',
+          type: 'elliptical',
+        },
+      );
+      galaxyMatrices = [makeRotationMatrix(-15, 20, 0), makeRotationMatrix(35, -25, 10)];
+      const gWhirlpool = createWhirlpoolGalaxySystem(3500, 1400, [-22, -12, 0], [42, 36, 8], [0, 0, 0], [0, 0, 0]);
+      allPos = gWhirlpool.pos; allVel = gWhirlpool.vel; allCol = gWhirlpool.col; allSz = gWhirlpool.sz; allGid = gWhirlpool.gid; allIsGas = gWhirlpool.isGas;
+      allOrbitR = gWhirlpool.orbitR; allOrbitTheta = gWhirlpool.orbitTheta; allOrbitZ = gWhirlpool.orbitZ; allOmega = gWhirlpool.omega;
+      break;
+    }
+
+    case 'quasar': {
+      // ⚡ [신규 은하 모델] 초거대 퀘이사 [3C 273] - 초대질량 블랙홀 양극 상대론적 제트
+      cores.push({
+        id: 'core_quasar',
+        name: '초거대 퀘이사 [3C 273]',
+        mass: 16000,
+        pos: [0, 0, 0],
+        vel: [0, 0, 0],
+        radius: 6.5,
+        color: '#f43f5e',
+        isBlackHole: true,
+        hasRelativisticJet: true,
+        type: 'quasar',
+      });
+      galaxyMatrices = [makeRotationMatrix(20, 0, 0)];
+      const gQuasar = createQuasarParticles(16000, [0, 0, 0], [0, 0, 0], 0);
+      allPos = gQuasar.pos; allVel = gQuasar.vel; allCol = gQuasar.col; allSz = gQuasar.sz; allGid = gQuasar.gid; allIsGas = gQuasar.isGas;
+      allOrbitR = gQuasar.orbitR; allOrbitTheta = gQuasar.orbitTheta; allOrbitZ = gQuasar.orbitZ; allOmega = gQuasar.omega;
+      break;
+    }
+
+    case 'cartwheel': {
+      // 🎡 [신규 은하 모델] 수레바퀴 고리 은하 (Cartwheel) - 충돌 충격파 팽창 링
+      cores.push(
+        {
+          id: 'core_cartwheel',
+          name: '수레바퀴 고리 은하',
+          mass: 3400,
+          pos: [0, 0, 0],
+          vel: [0, 0, 0],
+          radius: 4.0,
+          color: '#38bdf8',
+          hasCartwheelRing: true,
+          type: 'cartwheel',
+        },
+        {
+          id: 'core_penetrator',
+          name: '관통 은하 (Penetrator)',
+          mass: 1000,
+          pos: [55, -25, 65],
+          vel: [0, 0, 0],
+          radius: 2.2,
+          color: '#c084fc',
+          type: 'elliptical',
+        },
+      );
+      galaxyMatrices = [makeRotationMatrix(35, 15, 0), makeRotationMatrix(0, 0, 0)];
+      const gCartwheel = createCartwheelParticles(3400, [0, 0, 0], [0, 0, 0], 0);
+      const gPenetrator = createSpiralGalaxyParticles(1000, [55, -25, 65], [0, 0, 0], 1, 450, 60, 14, 0, 0, 0, [0.8, 0.4, 1.0], [0.5, 0.2, 0.9]);
+      allPos = [...gCartwheel.pos, ...gPenetrator.pos];
+      allVel = [...gCartwheel.vel, ...gPenetrator.vel];
+      allCol = [...gCartwheel.col, ...gPenetrator.col];
+      allSz = [...gCartwheel.sz, ...gPenetrator.sz];
+      allGid = [...gCartwheel.gid, ...gPenetrator.gid];
+      allIsGas = [...gCartwheel.isGas, ...gPenetrator.isGas];
+      allOrbitR = [...gCartwheel.orbitR, ...gPenetrator.orbitR];
+      allOrbitTheta = [...gCartwheel.orbitTheta, ...gPenetrator.orbitTheta];
+      allOrbitZ = [...gCartwheel.orbitZ, ...gPenetrator.orbitZ];
+      allOmega = [...gCartwheel.omega, ...gPenetrator.omega];
       break;
     }
 
@@ -529,7 +997,12 @@ export function stepGalaxySystem(state: GalaxySimState, dtSec: number): void {
 
   const cores = state.cores;
   const nCores = cores.length;
-  const isViewModeOnly = state.scenario === 'local_group';
+  const isViewModeOnly =
+    state.scenario === 'local_group' ||
+    state.scenario === 'sombrero' ||
+    state.scenario === 'whirlpool' ||
+    state.scenario === 'quasar' ||
+    state.scenario === 'cartwheel';
 
   if (isViewModeOnly) {
     // 🌌 [기본 뷰 모드]: 은하 간 상호 중력 0. 각 은하는 자기 위치에 완전히 고정되고 자체 자전만 수행
