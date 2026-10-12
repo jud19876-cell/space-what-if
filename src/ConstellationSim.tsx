@@ -31,6 +31,28 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
   const [activeSeason, setActiveSeason] = useState<SeasonKey>('summer');
   const [seasonAutoPlay, setSeasonAutoPlay] = useState(false);
 
+  // 카테고리 필터: 'all' (전체 18개) | 'zodiac' (탄생월 12궁 1~12월 순서)
+  const [filterMode, setFilterMode] = useState<'all' | 'zodiac'>('all');
+
+  const ZODIAC_ORDER = [
+    'capricorn',   // 1월 (12.22 ~ 1.19)
+    'aquarius',    // 2월 (1.20 ~ 2.18)
+    'pisces',      // 3월 (2.19 ~ 3.20)
+    'aries',       // 4월 (3.21 ~ 4.19)
+    'taurus',      // 5월 (4.20 ~ 5.20)
+    'gemini',      // 6월 (5.21 ~ 6.21)
+    'cancer',      // 7월 (6.22 ~ 7.22)
+    'leo',         // 8월 (7.23 ~ 8.22)
+    'virgo',       // 9월 (8.23 ~ 9.22)
+    'libra',       // 10월 (9.23 ~ 10.23)
+    'scorpius',    // 11월 (10.24 ~ 11.22)
+    'sagittarius', // 12월 (11.23 ~ 12.21)
+  ];
+
+  const displayedConstellations = filterMode === 'zodiac'
+    ? ZODIAC_ORDER.map((id) => CONSTELLATIONS.find((c) => c.id === id)!).filter(Boolean)
+    : CONSTELLATIONS;
+
   useEffect(() => {
     if (!containerRef.current) return;
     const sc = createConstellation3DScene(
@@ -115,18 +137,46 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
           <strong>태양계 우주로 돌아가기</strong>
         </button>
 
-        {/* 11대 대표 별자리 선택 탭 바 */}
+        {/* 별자리 필터 스위치: 전체 18종 ↔ 탄생월 12궁 */}
+        <div className="constellation-filter-switch">
+          <button
+            className={`btn-filter-pill ${filterMode === 'all' ? 'active' : ''}`}
+            onClick={() => setFilterMode('all')}
+            title="밤하늘 전체 18대 대표 별자리 탐험하기"
+          >
+            <span>✨ 전체 ({CONSTELLATIONS.length})</span>
+          </button>
+          <button
+            className={`btn-filter-pill highlight-zodiac ${filterMode === 'zodiac' ? 'active' : ''}`}
+            onClick={() => setFilterMode('zodiac')}
+            title="1월부터 12월까지 내 생일 탄생월 별자리 (황도 12궁) 모아보기"
+          >
+            <span>🎂 탄생월 12궁 (생일별)</span>
+          </button>
+        </div>
+
+        {/* 별자리 선택 탭 바 */}
         <div className="constellation-tabs-bar">
-          {CONSTELLATIONS.map((c) => (
-            <button
-              key={c.id}
-              className={`constellation-tab-btn ${activeConstellation.id === c.id ? 'active' : ''}`}
-              onClick={() => handleSelectConstellation(c)}
-            >
-              <span className="c-tab-emoji">{c.emoji}</span>
-              <span className="c-tab-name">{c.name}</span>
-            </button>
-          ))}
+          {displayedConstellations.map((c) => {
+            const monthMatch = c.birthMonth?.match(/(\d+)월/);
+            const monthLabel = monthMatch ? `${monthMatch[1]}월` : null;
+
+            return (
+              <button
+                key={c.id}
+                className={`constellation-tab-btn ${activeConstellation.id === c.id ? 'active' : ''} ${c.birthMonth ? 'is-zodiac' : ''}`}
+                onClick={() => handleSelectConstellation(c)}
+              >
+                <span className="c-tab-emoji">{c.emoji}</span>
+                <span className="c-tab-name">{c.name}</span>
+                {monthLabel && (
+                  <span className="c-tab-month-tag" title={c.birthMonth}>
+                    {monthLabel}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </header>
 
@@ -211,6 +261,11 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
           >
             <span className="pill-emoji">{activeConstellation.emoji}</span>
             <span className="pill-text">{activeConstellation.name} 이야기</span>
+            {activeConstellation.birthMonth && (
+              <span className="pill-birth-tag" title={activeConstellation.birthMonth}>
+                🎂 {activeConstellation.birthMonth.split(' ')[2]?.replace(/[()]/g, '') || '생일별'}
+              </span>
+            )}
             <span className="pill-arrow">📖 보기 ▼</span>
           </button>
         ) : (
@@ -218,7 +273,14 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
             <div className="story-header" onClick={() => setIsStoryExpanded(false)}>
               <span className="story-emoji">{activeConstellation.emoji}</span>
               <div className="story-title-group">
-                <h3>{activeConstellation.story.title}</h3>
+                <div className="story-title-badge-row">
+                  <h3>{activeConstellation.story.title}</h3>
+                  {activeConstellation.birthMonth && (
+                    <span className="story-birth-badge">
+                      🎂 {activeConstellation.birthMonth} {activeConstellation.zodiacSign ? `· ${activeConstellation.zodiacSign}` : ''}
+                    </span>
+                  )}
+                </div>
                 <span className="story-tagline">{activeConstellation.story.tagline}</span>
               </div>
               <button

@@ -24,6 +24,8 @@ export interface ConstellationData {
   englishName: string;
   emoji: string;
   season: string; // 계절 (여름, 겨울, 봄 등)
+  birthMonth?: string; // 탄생월/생일 (예: "3.21 ~ 4.19 (4월 생일)")
+  zodiacSign?: string; // 황도 12궁 기호 (예: "♈ 백양궁")
   overview: string;
   story: ConstellationStory;
   stars: StarData[];
@@ -39,7 +41,14 @@ export interface ConstellationData {
     | 'twins'
     | 'bull'
     | 'pegasus'
-    | 'archer';
+    | 'archer'
+    | 'ram'
+    | 'crab'
+    | 'maiden'
+    | 'scales'
+    | 'sea_goat'
+    | 'water_bearer'
+    | 'fishes';
 }
 
 export const CONSTELLATIONS: ConstellationData[] = [
@@ -50,6 +59,8 @@ export const CONSTELLATIONS: ConstellationData[] = [
     englishName: 'Scorpius',
     emoji: '🦂',
     season: '여름철 남쪽 밤하늘',
+    birthMonth: '10.24 ~ 11.22 (11월 탄생별)',
+    zodiacSign: '♏ 천갈궁',
     overview: '붉게 뛰는 심장 안타레스와 날카로운 독침 꼬리를 가진 용감한 우주 전갈자리',
     story: {
       title: '오리온을 깜짝 놀라게 한 우주 슈퍼 전갈 이야기',
@@ -621,6 +632,8 @@ export const CONSTELLATIONS: ConstellationData[] = [
     englishName: 'Leo',
     emoji: '🦁',
     season: '봄철 남쪽 밤하늘',
+    birthMonth: '7.23 ~ 8.22 (8월 탄생별)',
+    zodiacSign: '♌ 사자궁',
     overview: '물음표를 뒤집은 듯한 낫 모양 머리와 황금 갈기를 휘날리는 우주의 숲속 왕 사자',
     story: {
       title: '용감한 황금 갈기 아기 사자 레굴루스 이야기',
@@ -842,6 +855,8 @@ export const CONSTELLATIONS: ConstellationData[] = [
     englishName: 'Gemini',
     emoji: '♊',
     season: '겨울철~초봄 밤하늘',
+    birthMonth: '5.21 ~ 6.21 (6월 탄생별)',
+    zodiacSign: '♊ 쌍자궁',
     overview: '다정하게 손을 꼭 잡고 밤하늘을 밝히는 우애 깊은 쌍둥이 형제 카스토르와 폴룩스',
     story: {
       title: '영원히 손을 놓지 않는 우주 쌍둥이 형제의 따뜻한 사랑 이야기',
@@ -972,6 +987,8 @@ export const CONSTELLATIONS: ConstellationData[] = [
     englishName: 'Taurus',
     emoji: '🐂',
     season: '겨울철 대표 밤하늘',
+    birthMonth: '4.20 ~ 5.20 (5월 탄생별)',
+    zodiacSign: '♉ 금우궁',
     overview: '붉게 타오르는 성난 눈 알데바란과 푸른 보석 알갱이 플레이아데스를 품은 용맹한 우주 황소',
     story: {
       title: '파도를 가르고 은하수를 달리는 황금빛 뿔의 황소 이야기',
@@ -1206,6 +1223,8 @@ export const CONSTELLATIONS: ConstellationData[] = [
     englishName: 'Sagittarius',
     emoji: '🏹',
     season: '한여름철 남쪽 밤하늘',
+    birthMonth: '11.23 ~ 12.21 (12월 탄생별)',
+    zodiacSign: '♐ 인마궁',
     overview: '은하수 김을 뿜는 우주 찻주전자와 우리은하 중심 초대질량 블랙홀을 겨눈 켄타우로스 명사수',
     story: {
       title: '은하수 증기를 뿜는 우주 찻주전자와 지혜로운 사수 이야기',
@@ -1328,6 +1347,652 @@ export const CONSTELLATIONS: ConstellationData[] = [
       ['nunki', 'phi_sgr']
     ],
     silhouetteType: 'archer'
+  },
+
+  // 12. 양자리 (Aries) - 4월 생일 별자리 (3.21 ~ 4.19)
+  {
+    id: 'aries',
+    name: '양자리',
+    englishName: 'Aries',
+    emoji: '♈',
+    season: '가을~초겨울 밤하늘',
+    birthMonth: '3.21 ~ 4.19 (4월 탄생별)',
+    zodiacSign: '♈ 백양궁 (Aries)',
+    overview: '황금빛 양털을 휘날리며 아이들을 구하고 하늘로 뛰어오른 용감한 우주 숫양',
+    story: {
+      title: '하늘을 나는 황금빛 털의 착한 우주 숫양 이야기',
+      tagline: '봄의 문을 활짝 여는 황도 제1궁, 용기와 희망의 황금빛 날개 양!',
+      paragraphs: [
+        '옛날 신들의 전령 헤르메스가 위험에 빠진 두 남매를 구하기 위해 눈부신 황금빛 털을 가진 날쌘 양 한 마리를 보내주었어요.',
+        '숫양은 아이들을 넓고 푹신한 등에 태우고 구름 위를 바람처럼 쏜살같이 날아올랐답니다!',
+        '하늘 높이 올라간 숫양은 별들이 총총한 우주에서 밤하늘 가장 앞에 서는 별자리가 되었고, 그 아름다운 뿔은 밤하늘의 으뜸 1궁 자리를 지키게 되었어요.',
+        '양자리의 으뜸별 "하말"은 아랍어로 "어린 양"이라는 뜻으로, 숫양의 늠름하게 굽은 뿔 이마에서 따뜻한 주황빛으로 반짝이고 있답니다!'
+      ],
+      funFact: '양자리는 점성술에서 황도 12궁의 맨 첫 번째 자리를 차지하는 별자리로, 새로운 시작과 활기찬 봄의 시작을 상징해요!'
+    },
+    stars: [
+      {
+        id: 'hamal',
+        name: '하말 (숫양의 뿔)',
+        englishName: 'Hamal (Alpha Arietis)',
+        bayer: 'Alpha Arietis',
+        color: '#fb923c',
+        apparentMagnitude: 2.01,
+        spectralType: 'K2III 오렌지 거성',
+        distanceLy: 66,
+        description: '양자리에서 가장 밝은 별로 태양보다 90배나 밝아요! 숫양의 둥글게 말린 튼튼한 오른쪽 뿔이에요.',
+        skyPos: [0.8, 1.2]
+      },
+      {
+        id: 'sheratan',
+        name: '셰라탄 (숫양의 뿔 관절)',
+        englishName: 'Sheratan (Beta Arietis)',
+        bayer: 'Beta Arietis',
+        color: '#e0f2fe',
+        apparentMagnitude: 2.64,
+        spectralType: 'A5V 백색 분광쌍성',
+        distanceLy: 60,
+        description: '아랍어로 "두 개의 징표"라는 뜻으로, 뿔이 굽어지는 지점에서 빛나는 백색 별이에요.',
+        skyPos: [-1.4, 0.4]
+      },
+      {
+        id: 'mesarthim',
+        name: '메사르팀 (뿔 끝의 이중성)',
+        englishName: 'Mesarthim (Gamma Arietis)',
+        bayer: 'Gamma Arietis',
+        color: '#bae6fd',
+        apparentMagnitude: 3.88,
+        spectralType: 'A1pSi 특이쌍성',
+        distanceLy: 160,
+        description: '망원경으로 보면 똑같은 밝기의 두 푸른 별이 쌍둥이처럼 붙어 도는 아름다운 보석별이에요.',
+        skyPos: [-2.6, -0.2]
+      },
+      {
+        id: 'botein',
+        name: '보테인 (숫양의 등)',
+        englishName: 'Botein (Delta Arietis)',
+        bayer: 'Delta Arietis',
+        color: '#fde047',
+        apparentMagnitude: 4.35,
+        spectralType: 'K0III 황색 거성',
+        distanceLy: 168,
+        description: '아이들을 편안하게 태워준 숫양의 듬직하고 푹신한 등줄기 별이랍니다.',
+        skyPos: [2.4, 0.2]
+      }
+    ],
+    lines: [
+      ['mesarthim', 'sheratan'],
+      ['sheratan', 'hamal'],
+      ['hamal', 'botein']
+    ],
+    silhouetteType: 'ram'
+  },
+
+  // 13. 게자리 (Cancer) - 7월 생일 별자리 (6.22 ~ 7.22)
+  {
+    id: 'cancer',
+    name: '게자리',
+    englishName: 'Cancer',
+    emoji: '♋',
+    season: '늦겨울~봄철 밤하늘',
+    birthMonth: '6.22 ~ 7.22 (7월 탄생별)',
+    zodiacSign: '♋ 거해궁 (Cancer)',
+    overview: '친구를 구하려 용감하게 나선 아기 게와 등껍질 속 천 개의 꿀벌 보석성단 프레세페',
+    story: {
+      title: '우정의 약속을 지킨 용감한 아기 게와 보석성단 이야기',
+      tagline: '친구를 위해 집게발을 번쩍 든 충직한 게와 밤하늘의 꿀벌 보석함!',
+      paragraphs: [
+        '친구인 괴물 히드라가 위험에 처했을 때, 작지만 용감한 숲속의 게 한 마리가 친구를 지켜주기 위해 씩씩하게 집게발을 번쩍 들었어요.',
+        '비록 몸집은 작았지만 물러서지 않고 친구를 위해 온 힘을 다한 게의 착한 마음에 감동한 여신 헤라가 게를 밤하늘의 별자리로 올려주었답니다.',
+        '게자리의 등껍질 한가운데에는 "프레세페(Praesepe)"라는 신비로운 성단이 숨어 있어요. 맑은 밤에 보면 마치 반짝이는 꿀벌들이 모여 있는 꿀통 같아서 "벌집 성단"이라고도 부른답니다!',
+        '게자리는 작고 은은하지만, 밤하늘에서 가장 다정하고 우정 깊은 마음을 품고 있는 별자리예요.'
+      ],
+      funFact: '게자리의 심장부에 있는 프레세페 성단(M44)은 약 1,000개의 아기별들이 옹기종기 뭉쳐 빛나는 눈부신 산개성단이에요!'
+    },
+    stars: [
+      {
+        id: 'praesepe',
+        name: '프레세페 (벌집 보석성단 M44)',
+        englishName: 'Praesepe / Beehive Cluster',
+        color: '#38bdf8',
+        apparentMagnitude: 3.1,
+        spectralType: '산개성단 (1,000여 개 별)',
+        distanceLy: 610,
+        description: '게의 등껍질 한가운데서 보석 가루처럼 쏟아져 내리는 1,000개의 별 무리예요!',
+        skyPos: [0.0, 0.4]
+      },
+      {
+        id: 'acubens',
+        name: '아쿠벤스 (남쪽 집게발)',
+        englishName: 'Acubens (Alpha Cancri)',
+        bayer: 'Alpha Cancri',
+        color: '#e0f2fe',
+        apparentMagnitude: 4.26,
+        spectralType: 'A5m 사중성계',
+        distanceLy: 174,
+        description: '아랍어로 "집게발"이라는 뜻으로, 게의 오른쪽 집게발 끝에서 반짝여요.',
+        skyPos: [2.2, -2.4]
+      },
+      {
+        id: 'asellus_aus',
+        name: '아셀루스 아우스트랄리스 (남쪽 당나귀)',
+        englishName: 'Delta Cancri',
+        bayer: 'Delta Cancri',
+        color: '#fb923c',
+        apparentMagnitude: 3.94,
+        spectralType: 'K0III 주황 거성',
+        distanceLy: 136,
+        description: '게의 몸통 남쪽 모서리를 이루며 프레세페 성단을 지켜보는 별이에요.',
+        skyPos: [0.6, -0.4]
+      },
+      {
+        id: 'asellus_bor',
+        name: '아셀루스 보레알리스 (북쪽 당나귀)',
+        englishName: 'Gamma Cancri',
+        bayer: 'Gamma Cancri',
+        color: '#e0f2fe',
+        apparentMagnitude: 4.66,
+        spectralType: 'A1V 백색별',
+        distanceLy: 158,
+        description: '게의 몸통 북쪽 모서리에서 은은하게 빛나는 백색 주계열성이에요.',
+        skyPos: [-0.4, 1.2]
+      },
+      {
+        id: 'tarf',
+        name: '타르프 (게의 튼튼한 다리)',
+        englishName: 'Tarf (Beta Cancri)',
+        bayer: 'Beta Cancri',
+        color: '#f97316',
+        apparentMagnitude: 3.53,
+        spectralType: 'K4III 오렌지 거성',
+        distanceLy: 290,
+        description: '게자리에서 겉보기 밝기가 가장 밝은 별로 모래사장을 딛고 서 있는 다리 끝이에요.',
+        skyPos: [2.8, -1.0]
+      },
+      {
+        id: 'tegmine',
+        name: '테그민 (북쪽 집게발)',
+        englishName: 'Tegmine (Zeta Cancri)',
+        bayer: 'Zeta Cancri',
+        color: '#fde047',
+        apparentMagnitude: 4.67,
+        spectralType: 'F7V 다중성계',
+        distanceLy: 83,
+        description: '게의 왼쪽 집게발 끝으로 무려 4개의 별이 서로 춤추며 도는 복합성계예요.',
+        skyPos: [-2.4, 1.8]
+      }
+    ],
+    lines: [
+      ['tegmine', 'asellus_bor'],
+      ['asellus_bor', 'praesepe'],
+      ['asellus_aus', 'praesepe'],
+      ['asellus_bor', 'asellus_aus'],
+      ['asellus_aus', 'tarf'],
+      ['asellus_aus', 'acubens']
+    ],
+    silhouetteType: 'crab'
+  },
+
+  // 14. 처녀자리 (Virgo) - 9월 생일 별자리 (8.23 ~ 9.22)
+  {
+    id: 'virgo',
+    name: '처녀자리',
+    englishName: 'Virgo',
+    emoji: '♍',
+    season: '봄철 남쪽 밤하늘',
+    birthMonth: '8.23 ~ 9.22 (9월 탄생별)',
+    zodiacSign: '♍ 처녀궁 (Virgo)',
+    overview: '황금 보리 이삭 스피카를 들고 날개를 펴 날아오르는 정의의 우주 여신 아스트라이아',
+    story: {
+      title: '우주 은하수 밭에 황금 보리를 뿌린 정의의 여신 스피카 이야기',
+      tagline: '순백의 날개를 펴고 눈부신 청백색 보석별 스피카를 든 지혜의 여신!',
+      paragraphs: [
+        '인류가 착하게 살던 황금 시대, 정의의 여신 아스트라이아는 사람들 곁에서 함께 웃으며 곡식과 꽃을 가꾸어 주었어요.',
+        '사람들이 다투기 시작하자 여신은 순백의 날개를 펼치고 하늘로 올라가 밤하늘의 눈부신 처녀자리가 되었답니다.',
+        '여신의 오른손에는 탐스럽게 익은 황금 보리 이삭이 들려 있는데, 그 이삭 끝에서 번쩍이는 1등성이 바로 "스피카(Spica)"예요!',
+        '봄밤 스피카는 차갑고 순수한 푸른빛 다이아몬드처럼 빛나며, 가을에 모든 곡식이 풍요롭게 자라나기를 축복해 준답니다.'
+      ],
+      funFact: '처녀자리 뒤편 깊은 우주에는 수천 개의 은하가 빽빽하게 뭉쳐 있는 거대한 [처녀자리 은하단]이 숨어 있어요!'
+    },
+    stars: [
+      {
+        id: 'spica',
+        name: '스피카 (황금 보리 이삭)',
+        englishName: 'Spica (Alpha Virginis)',
+        bayer: 'Alpha Virginis',
+        color: '#7dd3fc',
+        apparentMagnitude: 1.04,
+        spectralType: 'B1III-IV 청백색 초거성',
+        distanceLy: 250,
+        description: '처녀자리에서 가장 밝은 1등성으로 태양보다 12,000배나 밝아요! 여신이 든 보리 이삭 끝에서 눈부시게 빛납니다.',
+        skyPos: [1.8, -3.2]
+      },
+      {
+        id: 'porrima',
+        name: '포리마 (여신의 허리띠)',
+        englishName: 'Porrima (Gamma Virginis)',
+        bayer: 'Gamma Virginis',
+        color: '#fef08a',
+        apparentMagnitude: 2.74,
+        spectralType: 'F0V 황백색 쌍둥이 쌍성',
+        distanceLy: 38,
+        description: '지구에서 38광년 거리로 우리에게 아주 가까운 쌍둥이 별로 여신의 날씬한 허리띠예요.',
+        skyPos: [-0.6, 0.4]
+      },
+      {
+        id: 'vindemiatrix',
+        name: '빈데미아트릭스 (포도수확의 별)',
+        englishName: 'Vindemiatrix (Epsilon Virginis)',
+        bayer: 'Epsilon Virginis',
+        color: '#fbbf24',
+        apparentMagnitude: 2.85,
+        spectralType: 'G8III 노란 거성',
+        distanceLy: 102,
+        description: '이 별이 새벽 하늘에 떠오르면 포도를 수확하는 가을이 왔음을 알리는 풍요의 별이에요.',
+        skyPos: [-1.4, 3.2]
+      },
+      {
+        id: 'zavijava',
+        name: '자비자바 (여신의 어깨)',
+        englishName: 'Zavijava (Beta Virginis)',
+        bayer: 'Beta Virginis',
+        color: '#e0f2fe',
+        apparentMagnitude: 3.61,
+        spectralType: 'F9V 황백색 주계열성',
+        distanceLy: 36,
+        description: '태양과 성질이 아주 비슷한 친근한 이웃 별로 여신의 오른쪽 어깨 위치예요.',
+        skyPos: [-3.4, 1.0]
+      },
+      {
+        id: 'heze',
+        name: '헤제 (치맛자락)',
+        englishName: 'Heze (Zeta Virginis)',
+        bayer: 'Zeta Virginis',
+        color: '#bae6fd',
+        apparentMagnitude: 3.38,
+        spectralType: 'A3V 백색별',
+        distanceLy: 73,
+        description: '바람에 나부끼는 여신의 아름다운 드레스 치맛자락을 수놓는 백색 별이랍니다.',
+        skyPos: [1.2, -1.2]
+      },
+      {
+        id: 'auva',
+        name: '아우바 (날개 깃털)',
+        englishName: 'Auva (Delta Virginis)',
+        bayer: 'Delta Virginis',
+        color: '#f97316',
+        apparentMagnitude: 3.39,
+        spectralType: 'M3III 붉은 거성',
+        distanceLy: 202,
+        description: '여신의 등 뒤로 활짝 펼쳐진 은빛 날개 깃털의 시작점이에요.',
+        skyPos: [-0.8, 1.8]
+      }
+    ],
+    lines: [
+      ['vindemiatrix', 'auva'],
+      ['auva', 'porrima'],
+      ['zavijava', 'porrima'],
+      ['porrima', 'heze'],
+      ['heze', 'spica']
+    ],
+    silhouetteType: 'maiden'
+  },
+
+  // 15. 천칭자리 (Libra) - 10월 생일 별자리 (9.23 ~ 10.23)
+  {
+    id: 'libra',
+    name: '천칭자리',
+    englishName: 'Libra',
+    emoji: '♎',
+    season: '초여름철 남쪽 밤하늘',
+    birthMonth: '9.23 ~ 10.23 (10월 탄생별)',
+    zodiacSign: '♎ 천칭궁 (Libra)',
+    overview: '정의의 여신이 인간의 선함과 공평함을 측정하던 황금빛 우주 저울과 초록별',
+    story: {
+      title: '착한 마음의 무게를 공평하게 재어주는 황금 우주 저울 이야기',
+      tagline: '밤하늘 유일하게 신비로운 에메랄드 초록빛을 뿜어내는 공평의 상징!',
+      paragraphs: [
+        '정의의 여신 아스트라이아가 하늘로 올라갈 때, 사람들 사이의 다툼을 없애고 공평함을 지키기 위해 들고 다니던 황금 저울도 함께 별자리가 되었어요.',
+        '천칭자리의 북쪽 저울 접시에 있는 별 "주벤에샤마리"는 온 밤하늘 별들 중에서 유일하게 망원경으로 보면 신비로운 "에메랄드 초록빛"을 띠는 것으로 유명하답니다!',
+        '저울의 왼쪽과 오른쪽 접시는 늘 정확하게 수평을 유지하며, 어느 한쪽으로도 치우치지 않는 지혜와 정직함을 가르쳐줘요.',
+        '가을바람이 불어올 때 천칭자리를 바라보면 내 마음속에도 착하고 정직한 마음이 한가득 차오른답니다!'
+      ],
+      funFact: '천칭자리의 "주벤에샤마리(Beta Librae)"는 맨눈으로도 볼 수 있는 별 중 거의 유일하게 초록색 색조를 띤다고 기록된 신비한 별이에요!'
+    },
+    stars: [
+      {
+        id: 'zubeneschamali',
+        name: '주벤에샤마리 (신비한 초록별)',
+        englishName: 'Zubeneschemali (Beta Librae)',
+        bayer: 'Beta Librae',
+        color: '#4ade80',
+        apparentMagnitude: 2.61,
+        spectralType: 'B8V 청록색 주계열성',
+        distanceLy: 160,
+        description: '천칭자리에서 가장 밝은 별로, 밤하늘에서 유일하게 에메랄드 초록빛을 뿜어내는 신비한 별이에요!',
+        skyPos: [0.8, 2.2]
+      },
+      {
+        id: 'zubenelgenubi',
+        name: '주벤엘게누비 (남쪽 저울접시)',
+        englishName: 'Zubenelgenubi (Alpha Librae)',
+        bayer: 'Alpha Librae',
+        color: '#e0f2fe',
+        apparentMagnitude: 2.75,
+        spectralType: 'A3IV 백색 쌍성',
+        distanceLy: 77,
+        description: '쌍안경으로 보면 두 별이 사이좋게 나란히 보이는 남쪽 저울 접시예요.',
+        skyPos: [-1.8, -0.6]
+      },
+      {
+        id: 'zubenelhakrabi',
+        name: '주벤엘아크라브 (저울 손잡이)',
+        englishName: 'Gamma Librae',
+        bayer: 'Gamma Librae',
+        color: '#fb923c',
+        apparentMagnitude: 3.91,
+        spectralType: 'K0III 주황 거성',
+        distanceLy: 163,
+        description: '여신이 저울을 손으로 단단히 잡고 있는 가운데 손잡이 축이에요.',
+        skyPos: [2.4, 0.4]
+      },
+      {
+        id: 'brachium',
+        name: '브라키움 (남쪽 저울추)',
+        englishName: 'Brachium (Sigma Librae)',
+        bayer: 'Sigma Librae',
+        color: '#f87171',
+        apparentMagnitude: 3.25,
+        spectralType: 'M2.5III 붉은 거성',
+        distanceLy: 240,
+        description: '저울 접시의 균형을 맞추기 위해 아래로 뻗어 있는 붉은색 별이랍니다.',
+        skyPos: [-0.8, -2.6]
+      }
+    ],
+    lines: [
+      ['zubenelhakrabi', 'zubeneschamali'],
+      ['zubenelhakrabi', 'zubenelgenubi'],
+      ['zubeneschamali', 'zubenelgenubi'],
+      ['zubenelgenubi', 'brachium']
+    ],
+    silhouetteType: 'scales'
+  },
+
+  // 16. 염소자리 (Capricornus) - 1월 생일 별자리 (12.22 ~ 1.19)
+  {
+    id: 'capricorn',
+    name: '염소자리',
+    englishName: 'Capricornus',
+    emoji: '♑',
+    season: '가을철 남쪽 밤하늘',
+    birthMonth: '12.22 ~ 1.19 (1월 탄생별)',
+    zodiacSign: '♑ 마갈궁 (Capricornus)',
+    overview: '상체는 귀여운 아기 염소, 하체는 은빛 물고기 지느러미를 가진 신비로운 바다 염소',
+    story: {
+      title: '피리를 불며 은하수를 헤엄치는 장난꾸러기 바다 염소 이야기',
+      tagline: '염소의 씩씩한 뿔과 물고기의 유연한 지느러미를 가진 우주 동물!',
+      paragraphs: [
+        '숲과 들판에서 아름다운 갈대 피리를 불어 요정들을 춤추게 하던 목동의 신 판(Pan)이 있었어요.',
+        '어느 날 커다란 괴물이 나타나자, 판 신은 깜짝 놀라 나일강 물속으로 풍덩 뛰어들었답니다!',
+        '물속에서 변신 주문을 너무 급하게 외치는 바람에, 물 밖의 상체는 뿔 달린 씩씩한 아기 염소가 되고, 물속의 하체는 물고기 지느러미가 되고 말았어요!',
+        '제우스 신은 이 유쾌하고 귀여운 모습을 영원히 기억하기 위해 하늘의 별자리로 올려주었답니다.'
+      ],
+      funFact: '염소자리는 겉보기엔 V자 날개 모양의 거대한 부메랑처럼 생겨 가을밤 남쪽 하늘을 멋지게 장식해요!'
+    },
+    stars: [
+      {
+        id: 'deneb_algedi',
+        name: '데네브 알게디 (물고기 꼬리)',
+        englishName: 'Deneb Algedi (Delta Capricorni)',
+        bayer: 'Delta Capricorni',
+        color: '#bae6fd',
+        apparentMagnitude: 2.85,
+        spectralType: 'A7m 사중성계',
+        distanceLy: 39,
+        description: '염소자리에서 가장 밝은 별로 우주를 헤엄치는 은빛 물고기 꼬리 끝이에요.',
+        skyPos: [3.4, 0.4]
+      },
+      {
+        id: 'algedi',
+        name: '알게디 (염소의 뿔)',
+        englishName: 'Algedi (Alpha Capricorni)',
+        bayer: 'Alpha Capricorni',
+        color: '#fde047',
+        apparentMagnitude: 3.58,
+        spectralType: 'G3Ib 맨눈 이중성',
+        distanceLy: 109,
+        description: '맨눈으로도 두 개의 별이 겹쳐 보이는 신기한 염소의 오른쪽 뿔이에요.',
+        skyPos: [-3.2, 1.8]
+      },
+      {
+        id: 'dabih',
+        name: '다비흐 (염소의 맑은 눈)',
+        englishName: 'Dabih (Beta Capricorni)',
+        bayer: 'Beta Capricorni',
+        color: '#fef08a',
+        apparentMagnitude: 3.05,
+        spectralType: 'F8V 다중성계',
+        distanceLy: 39,
+        description: '물속을 호기심 가득하게 바라보는 염소의 맑고 반짝이는 눈이에요.',
+        skyPos: [-2.6, 0.8]
+      },
+      {
+        id: 'nashira',
+        name: '나시라 (비늘 지느러미)',
+        englishName: 'Nashira (Gamma Capricorni)',
+        bayer: 'Gamma Capricorni',
+        color: '#bae6fd',
+        apparentMagnitude: 3.69,
+        spectralType: 'A7III 화학특이성',
+        distanceLy: 139,
+        description: '아랍어로 "기쁜 소식을 가져오는 자"라는 뜻의 은빛 지느러미 별이에요.',
+        skyPos: [2.4, -0.4]
+      },
+      {
+        id: 'omega_cap',
+        name: '오메가 캡 (바다염소 배꼽)',
+        englishName: 'Omega Capricorni',
+        bayer: 'Omega Capricorni',
+        color: '#fb923c',
+        apparentMagnitude: 3.77,
+        spectralType: 'K4III 주황 거성',
+        distanceLy: 580,
+        description: 'V자 역삼각형 몸통의 맨 아래 바닥을 이루는 따뜻한 주황빛 별이에요.',
+        skyPos: [0.2, -2.4]
+      }
+    ],
+    lines: [
+      ['algedi', 'dabih'],
+      ['dabih', 'omega_cap'],
+      ['omega_cap', 'nashira'],
+      ['nashira', 'deneb_algedi'],
+      ['deneb_algedi', 'algedi']
+    ],
+    silhouetteType: 'sea_goat'
+  },
+
+  // 17. 물병자리 (Aquarius) - 2월 생일 별자리 (1.20 ~ 2.18)
+  {
+    id: 'aquarius',
+    name: '물병자리',
+    englishName: 'Aquarius',
+    emoji: '♒',
+    season: '가을철 남쪽 밤하늘',
+    birthMonth: '1.20 ~ 2.18 (2월 탄생별)',
+    zodiacSign: '♒ 보병궁 (Aquarius)',
+    overview: '신들에게 생명의 감로수를 따르는 소년과 은하수로 쏟아지는 푸른 물줄기',
+    story: {
+      title: '영원한 생명의 샘물을 붓는 잘생긴 소년 가니메데 이야기',
+      tagline: '황금 물병에서 콸콸 쏟아져 나온 은하수가 온 우주를 적시는 별자리!',
+      paragraphs: [
+        '트로이의 왕자 가니메데는 황금빛 머릿결과 맑은 눈동자를 가진 세상에서 가장 아름다운 소년이었어요.',
+        '그의 순수함에 반한 신들의 왕 제우스는 독수리를 보내 그를 올림포스 하늘 궁전으로 데려왔답니다.',
+        '가니메데는 신들의 연회에서 영원한 젊음을 주는 신비로운 감로수를 황금 물병에 담아 잔에 채워주는 역할을 맡았어요.',
+        '물병자리에서 쏟아져 내리는 물줄기는 밤하늘의 은하수를 타고 흘러내려 남쪽 물고기자리의 입으로 향하며 생명의 에너지를 불어넣어 준답니다!'
+      ],
+      funFact: '물병자리는 가을철 밤하늘에 위치하지만, 물고기자리, 고래자리, 바다뱀자리 등 [우주의 바다] 별자리들의 원천이 되는 별자리예요!'
+    },
+    stars: [
+      {
+        id: 'sadalsuud',
+        name: '사달수드 (행운 중의 행운)',
+        englishName: 'Sadalsuud (Beta Aquarii)',
+        bayer: 'Beta Aquarii',
+        color: '#fef08a',
+        apparentMagnitude: 2.90,
+        spectralType: 'G0Ib 황색 초거성',
+        distanceLy: 600,
+        description: '물병자리에서 가장 밝은 별로 "최고의 행운"을 뜻하며 소년의 어깨에서 빛나요.',
+        skyPos: [0.2, 2.4]
+      },
+      {
+        id: 'sadalmelik',
+        name: '사달멜릭 (왕의 행운)',
+        englishName: 'Sadalmelik (Alpha Aquarii)',
+        bayer: 'Alpha Aquarii',
+        color: '#fef08a',
+        apparentMagnitude: 2.95,
+        spectralType: 'G2Ib 황색 초거성',
+        distanceLy: 800,
+        description: '태양보다 지름이 60배나 큰 거대한 황색 초거성으로 물병을 쥔 손이에요.',
+        skyPos: [2.0, 1.6]
+      },
+      {
+        id: 'sadalachbia',
+        name: '사달차비아 (물병 주둥이)',
+        englishName: 'Sadalachbia (Gamma Aquarii)',
+        bayer: 'Gamma Aquarii',
+        color: '#e0f2fe',
+        apparentMagnitude: 3.86,
+        spectralType: 'A0V 백색 쌍성',
+        distanceLy: 164,
+        description: '시원한 생명수가 콸콸 쏟아져 나오는 황금 물병의 주둥이 별이에요.',
+        skyPos: [3.2, 0.6]
+      },
+      {
+        id: 'skat',
+        name: '스캇 (쏟아지는 물줄기)',
+        englishName: 'Skat (Delta Aquarii)',
+        bayer: 'Delta Aquarii',
+        color: '#93c5fd',
+        apparentMagnitude: 3.27,
+        spectralType: 'A3V 청백색별',
+        distanceLy: 160,
+        description: '물병에서 흘러나온 시원한 물줄기가 남쪽 하늘로 떨어져 내리는 경로예요.',
+        skyPos: [-1.4, -2.2]
+      },
+      {
+        id: 'albali',
+        name: '알발리 (소년의 발)',
+        englishName: 'Albali (Epsilon Aquarii)',
+        bayer: 'Epsilon Aquarii',
+        color: '#bae6fd',
+        apparentMagnitude: 3.78,
+        spectralType: 'A1V 백색별',
+        distanceLy: 230,
+        description: '구름을 딛고 서 있는 소년의 발끝에서 은은하게 반짝이는 별이랍니다.',
+        skyPos: [-2.8, 0.2]
+      }
+    ],
+    lines: [
+      ['sadalsuud', 'sadalmelik'],
+      ['sadalmelik', 'sadalachbia'],
+      ['sadalsuud', 'albali'],
+      ['albali', 'skat']
+    ],
+    silhouetteType: 'water_bearer'
+  },
+
+  // 18. 물고기자리 (Pisces) - 3월 생일 별자리 (2.19 ~ 3.20)
+  {
+    id: 'pisces',
+    name: '물고기자리',
+    englishName: 'Pisces',
+    emoji: '♓',
+    season: '가을철 밤하늘',
+    birthMonth: '2.19 ~ 3.20 (3월 탄생별)',
+    zodiacSign: '♓ 쌍어궁 (Pisces)',
+    overview: '황금 리본 끈으로 꼬리를 꼭 묶고 우주 은하수로 헤엄치는 영원한 사랑의 두 물고기',
+    story: {
+      title: '절대 헤어지지 않으려 리본을 묶은 두 마리 사랑의 물고기 이야기',
+      tagline: '황금 리본 매듭 알레샤로 이어진 북쪽 물고기와 서쪽 물고기의 영원한 사랑!',
+      paragraphs: [
+        '아름다운 사랑의 여신 아프로디테와 아기 천사 에로스가 향기로운 풀밭을 산책하고 있었어요.',
+        '그때 무서운 백 개의 머리를 가진 괴물이 나타나자, 여신과 에로스는 놀라 넓고 푸른 유프라테스강으로 뛰어들었답니다!',
+        '두 사람은 은빛 비늘을 가진 날쌘 물고기로 변신했는데, 강물의 물살이 너무 세서 서로를 잃어버릴까 봐 두려웠어요.',
+        '그래서 여신은 고운 황금빛 비단 리본 끈을 꺼내 자신과 아들의 꼬리를 꼭 묶었답니다. 덕분에 둘은 절대 헤어지지 않고 밤하늘의 다정한 물고기자리가 되었어요!'
+      ],
+      funFact: '두 물고기를 묶은 리본의 매듭 별 "알레샤"는 아랍어로 "줄, 끈"이라는 뜻이며, 천문학에서 춘분점(봄의 시작점)이 지나는 아주 중요한 별자리예요!'
+    },
+    stars: [
+      {
+        id: 'alrescha',
+        name: '알레샤 (황금 리본 매듭)',
+        englishName: 'Alrescha (Alpha Piscium)',
+        bayer: 'Alpha Piscium',
+        color: '#bae6fd',
+        apparentMagnitude: 3.82,
+        spectralType: 'A0pSi 청백색 쌍성',
+        distanceLy: 139,
+        description: '두 물고기를 묶은 황금 리본 끈의 매듭이에요! V자 끈의 꼭짓점에서 단단하게 묶여 있어요.',
+        skyPos: [0.0, -2.6]
+      },
+      {
+        id: 'fumalsamakah',
+        name: '푸말사마카 (북쪽 물고기 머리)',
+        englishName: 'Beta Piscium',
+        bayer: 'Beta Piscium',
+        color: '#60a5fa',
+        apparentMagnitude: 4.48,
+        spectralType: 'B6Ve 청색 준거성',
+        distanceLy: 500,
+        description: '안드로메다자리를 향해 위쪽으로 헤엄쳐 올라가는 북쪽 물고기의 머리예요.',
+        skyPos: [-3.4, 2.4]
+      },
+      {
+        id: 'torcular',
+        name: '토라라 (북쪽 리본 끈)',
+        englishName: 'Torcular (Omicron Piscium)',
+        bayer: 'Omicron Piscium',
+        color: '#fb923c',
+        apparentMagnitude: 4.24,
+        spectralType: 'K0III 주황 거성',
+        distanceLy: 300,
+        description: '북쪽 물고기로 이어지는 긴 황금빛 리본 끈 한가운데서 빛나요.',
+        skyPos: [-1.8, 0.2]
+      },
+      {
+        id: 'lambda_psc',
+        name: '람다 피시움 (서쪽 물고기 고리)',
+        englishName: 'Lambda Piscium',
+        bayer: 'Lambda Piscium',
+        color: '#e0f2fe',
+        apparentMagnitude: 4.49,
+        spectralType: 'A7V 백색별',
+        distanceLy: 107,
+        description: '동그랗게 모여 있는 7개의 별들이 만드는 서쪽 물고기의 동그란 머리예요.',
+        skyPos: [3.2, 1.8]
+      },
+      {
+        id: 'gamma_psc',
+        name: '감마 피시움 (서쪽 물고기 꼬리)',
+        englishName: 'Gamma Piscium',
+        bayer: 'Gamma Piscium',
+        color: '#fde047',
+        apparentMagnitude: 3.70,
+        spectralType: 'G8III 황색 거성',
+        distanceLy: 130,
+        description: '물병자리 방향으로 헤엄치는 서쪽 물고기의 유연한 꼬리 지느러미예요.',
+        skyPos: [1.8, 0.4]
+      }
+    ],
+    lines: [
+      ['alrescha', 'torcular'],
+      ['torcular', 'fumalsamakah'],
+      ['alrescha', 'gamma_psc'],
+      ['gamma_psc', 'lambda_psc']
+    ],
+    silhouetteType: 'fishes'
   }
 ];
 
@@ -1430,5 +2095,61 @@ export const SEASON_GUIDES: Record<string, SeasonConstellationGuide> = {
     angleRad: Math.PI * 0.5,
     headline: '궁수자리는 여름철 은하수의 진짜 심장!',
     description: '은하수가 가장 짙고 두껍게 흐르는 곳에 위치하며, 찻주전자 주둥이 너머로 우리은하 중심핵이 자리하고 있어요.',
+  },
+  aries: {
+    seasonKey: 'autumn',
+    seasonName: '가을',
+    seasonEmoji: '🍁',
+    angleRad: Math.PI,
+    headline: '양자리는 늦가을부터 초겨울 밤하늘을 달리는 황금 양!',
+    description: '지구가 가을 궤도를 지날 때 동쪽 하늘에서 하말과 셰라탄 두 뿔이 나란히 떠올라 가을 밤을 비춰줘요.',
+  },
+  cancer: {
+    seasonKey: 'spring',
+    seasonName: '봄',
+    seasonEmoji: '🌸',
+    angleRad: 0,
+    headline: '게자리는 따뜻한 봄밤 사자자리와 쌍둥이자리 사이에서 빛나요!',
+    description: '지구가 봄 궤도에 있을 때 밤하늘 중심에 프레세페 벌집성단(M44)이 아기 반딧불이처럼 옹기종기 모여 반짝여요.',
+  },
+  virgo: {
+    seasonKey: 'spring',
+    seasonName: '봄',
+    seasonEmoji: '🌸',
+    angleRad: 0,
+    headline: '처녀자리는 봄철 밤하늘 가장 넓은 우주의 꽃다발!',
+    description: '봄철 밤하늘, 청백색 1등성 스피카가 아르크투루스, 데네볼라와 함께 [봄의 대삼각형]을 이루며 우아하게 빛나요.',
+  },
+  libra: {
+    seasonKey: 'summer',
+    seasonName: '여름',
+    seasonEmoji: '☀️',
+    angleRad: Math.PI * 0.5,
+    headline: '천칭자리는 초여름 밤하늘 정의의 황금 저울!',
+    description: '처녀자리와 전갈자리 사이에서 떠오르며, 신비로운 에메랄드빛 별 주벤에샤마리가 공평한 균형을 잡고 있어요.',
+  },
+  capricorn: {
+    seasonKey: 'autumn',
+    seasonName: '가을',
+    seasonEmoji: '🍁',
+    angleRad: Math.PI,
+    headline: '염소자리는 초가을 남쪽 하늘을 헤엄치는 신비한 바다 염소!',
+    description: '늦여름부터 가을까지 남쪽 지평선 위에서 역삼각형 보트 모양을 그리며 잔잔하고 은은하게 반짝여요.',
+  },
+  aquarius: {
+    seasonKey: 'autumn',
+    seasonName: '가을',
+    seasonEmoji: '🍁',
+    angleRad: Math.PI,
+    headline: '물병자리는 가을철 밤하늘에 생명의 은하수를 쏟아부어요!',
+    description: '지구가 가을 궤도에 있을 때 남쪽 하늘에서 가니메데의 항아리에서 흘러내린 푸른 물줄기가 남쪽물고기자리로 이어져요.',
+  },
+  pisces: {
+    seasonKey: 'autumn',
+    seasonName: '가을',
+    seasonEmoji: '🍁',
+    angleRad: Math.PI,
+    headline: '물고기자리는 늦가을 밤하늘 사랑의 황금 리본으로 묶인 두 물고기!',
+    description: '페가수스 사각형 아래쪽에서 V자 황금 끈을 뻗어 두 마리의 물고기가 서로를 지켜주며 은하수 속을 헤엄쳐요.',
   },
 };

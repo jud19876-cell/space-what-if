@@ -48,6 +48,20 @@ export function generateGhostCanvas(constellationId: string): HTMLCanvasElement 
     drawPegasusGhost(ctx);
   } else if (constellationId === 'sagittarius') {
     drawArcherGhost(ctx);
+  } else if (constellationId === 'aries') {
+    drawRamGhost(ctx);
+  } else if (constellationId === 'cancer') {
+    drawCrabGhost(ctx);
+  } else if (constellationId === 'virgo') {
+    drawMaidenGhost(ctx);
+  } else if (constellationId === 'libra') {
+    drawScalesGhost(ctx);
+  } else if (constellationId === 'capricorn') {
+    drawSeaGoatGhost(ctx);
+  } else if (constellationId === 'aquarius') {
+    drawWaterBearerGhost(ctx);
+  } else if (constellationId === 'pisces') {
+    drawFishesGhost(ctx);
   }
 
   // 주변에 반짝이는 마법 우주 가루 파티클 추가
@@ -763,6 +777,444 @@ function drawArcherGhost(ctx: CanvasRenderingContext2D) {
   ctx.strokeStyle = 'rgba(251, 191, 36, 0.85)';
   ctx.lineWidth = 3.5;
   ctx.stroke();
+
+  ctx.restore();
+}
+
+/** 12. 양자리 황금 뿔과 씩씩한 양 고스트 */
+function drawRamGhost(ctx: CanvasRenderingContext2D) {
+  const [hamalX, hamalY] = toCanvas(1.2, 0.8);
+  const [sheratanX, sheratanY] = toCanvas(-0.6, 0.2);
+  const [mesarX, mesarY] = toCanvas(-1.4, -0.4);
+  const [boteinX, boteinY] = toCanvas(3.2, 1.4);
+
+  ctx.save();
+  ctx.shadowColor = '#f59e0b';
+  ctx.shadowBlur = 18;
+
+  // 웅장하게 말려 올라간 황금 양뿔 (Spiral Horn)
+  ctx.beginPath();
+  ctx.moveTo(hamalX, hamalY);
+  ctx.bezierCurveTo(hamalX + 45, hamalY - 80, hamalX - 35, hamalY - 110, hamalX - 60, hamalY - 45);
+  ctx.bezierCurveTo(hamalX - 75, hamalY, hamalX - 25, hamalY + 25, hamalX, hamalY);
+  ctx.fillStyle = 'rgba(251, 191, 36, 0.25)';
+  ctx.fill();
+  ctx.strokeStyle = '#fcd34d';
+  ctx.lineWidth = 3.5;
+  ctx.stroke();
+
+  // 반대편 작은 양뿔
+  ctx.beginPath();
+  ctx.moveTo(sheratanX, sheratanY);
+  ctx.bezierCurveTo(sheratanX - 40, sheratanY - 60, sheratanX - 70, sheratanY - 30, sheratanX - 45, sheratanY + 15);
+  ctx.fillStyle = 'rgba(251, 191, 36, 0.2)';
+  ctx.fill();
+  ctx.strokeStyle = '#fcd34d';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // 양 머리와 코 (Hamal -> Mesarthim)
+  ctx.beginPath();
+  ctx.moveTo(hamalX, hamalY);
+  ctx.lineTo(sheratanX, sheratanY);
+  ctx.lineTo(mesarX, mesarY);
+  ctx.bezierCurveTo(mesarX + 30, mesarY + 40, hamalX - 10, hamalY + 50, hamalX, hamalY);
+  ctx.fillStyle = 'rgba(245, 158, 11, 0.22)';
+  ctx.fill();
+
+  // 폭신폭신한 황금빛 양털 몸통 (Botein으로 뻗는 등줄기)
+  ctx.beginPath();
+  ctx.moveTo(hamalX, hamalY);
+  ctx.bezierCurveTo(hamalX + 60, hamalY + 40, boteinX - 40, boteinY - 30, boteinX, boteinY);
+  ctx.bezierCurveTo(boteinX + 30, boteinY + 60, hamalX + 30, hamalY + 90, mesarX + 20, mesarY + 40);
+  ctx.fillStyle = 'rgba(251, 191, 36, 0.15)';
+  ctx.fill();
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** 13. 게자리 둥근 등껍질과 반짝이는 집게발 고스트 */
+function drawCrabGhost(ctx: CanvasRenderingContext2D) {
+  const [acubensX, acubensY] = toCanvas(1.5, -1.8);
+  const [altarfX, altarfY] = toCanvas(3.4, -3.2);
+  const [asellusBorX, asellusBorY] = toCanvas(-1.2, 1.6);
+  const [asellusAusX, asellusAusY] = toCanvas(-0.8, -0.4);
+  const [tegmineX, tegmineY] = toCanvas(-2.8, 3.6);
+  const [praesepeX, praesepeY] = toCanvas(-1.0, 0.6); // 심장 벌집성단
+
+  ctx.save();
+  ctx.shadowColor = '#38bdf8';
+  ctx.shadowBlur = 20;
+
+  // 게 등껍질 (Carapace)
+  ctx.beginPath();
+  ctx.ellipse(praesepeX, praesepeY, 80, 60, 0.2, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.22)';
+  ctx.fill();
+  ctx.strokeStyle = '#7dd3fc';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // 북쪽 큰 집게발 (Tegmine 방향)
+  ctx.beginPath();
+  ctx.moveTo(asellusBorX, asellusBorY);
+  ctx.quadraticCurveTo(tegmineX + 40, tegmineY + 30, tegmineX, tegmineY);
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+  ctx.stroke();
+
+  // 벌어진 위쪽 집게
+  ctx.beginPath();
+  ctx.moveTo(tegmineX, tegmineY);
+  ctx.bezierCurveTo(tegmineX - 35, tegmineY - 20, tegmineX - 45, tegmineY + 20, tegmineX - 10, tegmineY + 35);
+  ctx.bezierCurveTo(tegmineX + 15, tegmineY + 25, tegmineX + 5, tegmineY - 10, tegmineX, tegmineY);
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
+  ctx.fill();
+
+  // 남쪽 집게발 (Acubens 방향)
+  ctx.beginPath();
+  ctx.moveTo(asellusAusX, asellusAusY);
+  ctx.quadraticCurveTo(acubensX - 30, acubensY + 40, acubensX, acubensY);
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(acubensX, acubensY);
+  ctx.bezierCurveTo(acubensX + 35, acubensY - 25, acubensX + 45, acubensY + 15, acubensX + 10, acubensY + 30);
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.3)';
+  ctx.fill();
+
+  // 게 다리들 (Altarf 등)
+  ctx.beginPath();
+  ctx.moveTo(praesepeX + 40, praesepeY + 30);
+  ctx.lineTo(altarfX, altarfY);
+  ctx.strokeStyle = 'rgba(125, 211, 252, 0.6)';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** 14. 처녀자리 순백의 날개와 황금 보리 이삭 고스트 */
+function drawMaidenGhost(ctx: CanvasRenderingContext2D) {
+  const [spicaX, spicaY] = toCanvas(0.0, -3.5); // 보리 이삭 (청백색 1등성)
+  const [zavX, zavY] = toCanvas(-3.8, 2.2);
+  const [zanX, zanY] = toCanvas(-2.2, 1.4);
+  const [porrX, porrY] = toCanvas(-0.8, 0.6); // 허리/날개 연결부
+  const [vindX, vindY] = toCanvas(2.0, 2.8); // 왼쪽 날개 끝
+  const [hezeX, hezeY] = toCanvas(0.6, -1.2);
+  const [syrmaX, syrmaY] = toCanvas(2.8, -2.4);
+
+  ctx.save();
+  ctx.shadowColor = '#c084fc';
+  ctx.shadowBlur = 22;
+
+  // 천사의 날개 (Vindemiatrix 방향)
+  ctx.beginPath();
+  ctx.moveTo(porrX, porrY);
+  ctx.bezierCurveTo(porrX + 40, porrY - 60, vindX - 30, vindY - 50, vindX, vindY);
+  ctx.bezierCurveTo(vindX + 30, vindY + 40, porrX + 80, porrY + 50, porrX, porrY + 30);
+  ctx.fillStyle = 'rgba(192, 132, 252, 0.22)';
+  ctx.fill();
+  ctx.strokeStyle = '#e9d5ff';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // 반대편 날개 (Zavijava 방향)
+  ctx.beginPath();
+  ctx.moveTo(zanX, zanY);
+  ctx.bezierCurveTo(zanX - 50, zanY - 40, zavX + 20, zavY - 40, zavX, zavY);
+  ctx.bezierCurveTo(zavX - 20, zavY + 50, zanX - 60, zanY + 50, zanX, zanY + 20);
+  ctx.fillStyle = 'rgba(192, 132, 252, 0.18)';
+  ctx.fill();
+
+  // 우아하게 흘러내리는 드레스 실루엣 (허리 Porrima -> Heze -> Syrma)
+  ctx.beginPath();
+  ctx.moveTo(porrX, porrY);
+  ctx.lineTo(hezeX, hezeY);
+  ctx.lineTo(syrmaX, syrmaY);
+  ctx.bezierCurveTo(syrmaX - 30, syrmaY + 50, hezeX - 40, hezeY + 60, porrX - 30, porrY + 40);
+  ctx.fillStyle = 'rgba(168, 85, 247, 0.2)';
+  ctx.fill();
+  ctx.strokeStyle = '#d8b4fe';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 스피카 손에 쥔 황금빛 보리 이삭 (Spica)
+  ctx.beginPath();
+  ctx.moveTo(hezeX, hezeY);
+  ctx.lineTo(spicaX, spicaY);
+  ctx.strokeStyle = '#fde047';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // 보리알 이삭 낱알들
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.ellipse(spicaX + i * 8, spicaY + i * 10, 10, 4, Math.PI / 4, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(253, 224, 71, 0.45)';
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+/** 15. 천칭자리 균형 잡힌 정의의 황금 저울 고스트 */
+function drawScalesGhost(ctx: CanvasRenderingContext2D) {
+  const [zubNorthX, zubNorthY] = toCanvas(0.5, 2.5); // 북쪽 저울접시 (에메랄드별)
+  const [zubSouthX, zubSouthY] = toCanvas(-1.8, 0.2); // 남쪽 저울접시
+  const [zubEastX, zubEastY] = toCanvas(2.2, 0.6); // 동쪽 축
+  const [brachX, brachY] = toCanvas(-0.2, -2.2); // 저울 바닥 받침대
+
+  ctx.save();
+  ctx.shadowColor = '#10b981';
+  ctx.shadowBlur = 20;
+
+  // 저울 중앙 기둥 받침대
+  const pivotX = (zubNorthX + zubSouthX + zubEastX) / 3;
+  const pivotY = (zubNorthY + zubSouthY + zubEastY) / 3;
+
+  ctx.beginPath();
+  ctx.moveTo(pivotX, pivotY);
+  ctx.lineTo(brachX, brachY);
+  ctx.strokeStyle = '#34d399';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+
+  // 저울 바닥 지지판
+  ctx.beginPath();
+  ctx.ellipse(brachX, brachY, 50, 15, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(16, 185, 129, 0.28)';
+  ctx.fill();
+  ctx.strokeStyle = '#6ee7b7';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // 가로 지렛대 (Beam)
+  ctx.beginPath();
+  ctx.moveTo(zubSouthX, zubSouthY);
+  ctx.lineTo(zubEastX, zubEastY);
+  ctx.strokeStyle = '#fcd34d';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  // 왼쪽 매달린 접시
+  ctx.beginPath();
+  ctx.moveTo(zubSouthX, zubSouthY);
+  ctx.lineTo(zubSouthX - 25, zubSouthY + 50);
+  ctx.moveTo(zubSouthX, zubSouthY);
+  ctx.lineTo(zubSouthX + 25, zubSouthY + 50);
+  ctx.strokeStyle = 'rgba(253, 224, 71, 0.6)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.ellipse(zubSouthX, zubSouthY + 50, 30, 8, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(251, 191, 36, 0.35)';
+  ctx.fill();
+
+  // 오른쪽(북쪽) 매달린 접시 (주벤에샤마리 - 에메랄드 접시)
+  ctx.beginPath();
+  ctx.moveTo(zubNorthX, zubNorthY);
+  ctx.lineTo(zubNorthX - 25, zubNorthY + 50);
+  ctx.moveTo(zubNorthX, zubNorthY);
+  ctx.lineTo(zubNorthX + 25, zubNorthY + 50);
+  ctx.strokeStyle = 'rgba(52, 211, 153, 0.7)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.ellipse(zubNorthX, zubNorthY + 50, 32, 9, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(16, 185, 129, 0.4)';
+  ctx.fill();
+  ctx.strokeStyle = '#a7f3d0';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** 16. 염소자리 바다 염소 (염소 상체 + 물고기 지느러미) 고스트 */
+function drawSeaGoatGhost(ctx: CanvasRenderingContext2D) {
+  const [algiX, algiY] = toCanvas(-3.5, 2.8); // 뿔
+  const [dabX, dabY] = toCanvas(-3.2, 1.8); // 머리
+  const [nashX, nashY] = toCanvas(2.8, -0.6); // 꼬리 시작
+  const [denebX, denebY] = toCanvas(3.8, -0.2); // 꼬리 지느러미
+  const [omgX, omgY] = toCanvas(-0.5, -2.2); // 배 바닥
+
+  ctx.save();
+  ctx.shadowColor = '#06b6d4';
+  ctx.shadowBlur = 20;
+
+  // 뾰족하게 휜 염소 뿔 (Algedi)
+  ctx.beginPath();
+  ctx.moveTo(dabX, dabY);
+  ctx.quadraticCurveTo(algiX - 30, algiY + 20, algiX, algiY);
+  ctx.bezierCurveTo(algiX - 40, algiY - 30, algiX - 10, algiY - 50, algiX + 15, algiY - 30);
+  ctx.strokeStyle = '#67e8f9';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  // 염소 가슴과 앞발 실루엣
+  ctx.beginPath();
+  ctx.moveTo(dabX, dabY);
+  ctx.lineTo(omgX, omgY);
+  ctx.bezierCurveTo(omgX + 40, omgY + 30, nashX - 40, nashY + 20, nashX, nashY);
+  ctx.lineTo(denebX, denebY);
+  ctx.bezierCurveTo(nashX + 20, nashY - 40, omgX - 20, omgY - 40, dabX, dabY);
+  ctx.fillStyle = 'rgba(6, 182, 212, 0.2)';
+  ctx.fill();
+  ctx.strokeStyle = '#22d3ee';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // 꼬리 지느러미 (Deneb Algedi 바다 인어 꼬리)
+  ctx.beginPath();
+  ctx.moveTo(denebX, denebY);
+  ctx.bezierCurveTo(denebX + 45, denebY - 40, denebX + 55, denebY - 10, denebX + 30, denebY);
+  ctx.bezierCurveTo(denebX + 55, denebY + 20, denebX + 40, denebY + 45, denebX, denebY);
+  ctx.fillStyle = 'rgba(34, 211, 238, 0.35)';
+  ctx.fill();
+  ctx.strokeStyle = '#a5f3fc';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** 17. 물병자리 푸른 생명의 물줄기를 쏟는 물병 고스트 */
+function drawWaterBearerGhost(ctx: CanvasRenderingContext2D) {
+  const [suudX, suudY] = toCanvas(-1.8, 1.8); // 왼쪽 어깨
+  const [melikX, melikY] = toCanvas(0.5, 2.2); // 오른쪽 어깨 & 물병
+  const [skatX, skatY] = toCanvas(3.2, -3.0); // 물줄기 바닥
+  const [sadachX, sadachY] = toCanvas(1.8, 1.2); // 물병 입구
+  const [anchaX, anchaY] = toCanvas(-0.6, -0.8); // 몸통
+
+  ctx.save();
+  ctx.shadowColor = '#3b82f6';
+  ctx.shadowBlur = 24;
+
+  // 신비한 황금빛 물병 (Sadalmelik -> Sadachbia)
+  ctx.beginPath();
+  ctx.ellipse(melikX + 15, melikY - 10, 35, 25, Math.PI / 4, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(96, 165, 250, 0.35)';
+  ctx.fill();
+  ctx.strokeStyle = '#93c5fd';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // 물병 주둥이
+  ctx.beginPath();
+  ctx.moveTo(melikX + 25, melikY);
+  ctx.lineTo(sadachX, sadachY);
+  ctx.strokeStyle = '#60a5fa';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+
+  // 쏟아져 내리는 굽이치는 생명의 푸른 물줄기 (Flowing Stream to Skat)
+  ctx.beginPath();
+  ctx.moveTo(sadachX, sadachY);
+  ctx.bezierCurveTo(sadachX + 30, sadachY + 60, skatX - 60, skatY - 80, skatX, skatY);
+  ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
+  ctx.lineWidth = 6;
+  ctx.stroke();
+
+  // 물줄기 파동 리본
+  ctx.beginPath();
+  ctx.moveTo(sadachX + 10, sadachY + 15);
+  ctx.bezierCurveTo(sadachX + 50, sadachY + 80, skatX - 30, skatY - 60, skatX + 25, skatY);
+  ctx.strokeStyle = 'rgba(147, 197, 253, 0.5)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // 물병 소년의 실루엣 (어깨와 몸통)
+  ctx.beginPath();
+  ctx.moveTo(suudX, suudY);
+  ctx.lineTo(melikX, melikY);
+  ctx.lineTo(anchaX, anchaY);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(59, 130, 246, 0.18)';
+  ctx.fill();
+
+  ctx.restore();
+}
+
+/** 18. 물고기자리 황금 리본으로 연결된 두 물고기 고스트 */
+function drawFishesGhost(ctx: CanvasRenderingContext2D) {
+  const [alreschaX, alreschaY] = toCanvas(0.0, -2.8); // 황금 리본 매듭
+  const [fumalX, fumalY] = toCanvas(-3.4, 2.4); // 북쪽 물고기
+  const [torcX, torcY] = toCanvas(-1.8, 0.2); // 북쪽 끈
+  const [lambdaX, lambdaY] = toCanvas(3.2, 1.8); // 서쪽 물고기
+  const [gammaX, gammaY] = toCanvas(1.8, 0.4); // 서쪽 끈
+
+  ctx.save();
+  ctx.shadowColor = '#38bdf8';
+  ctx.shadowBlur = 20;
+
+  // 1) 황금 리본 매듭 (Alrescha)
+  ctx.beginPath();
+  ctx.arc(alreschaX, alreschaY, 14, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(251, 191, 36, 0.5)';
+  ctx.fill();
+  ctx.strokeStyle = '#fcd34d';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // 2) 북쪽으로 뻗는 리본 끈
+  ctx.beginPath();
+  ctx.moveTo(alreschaX, alreschaY);
+  ctx.quadraticCurveTo(torcX + 20, torcY + 40, torcX, torcY);
+  ctx.lineTo(fumalX, fumalY);
+  ctx.strokeStyle = 'rgba(251, 191, 36, 0.7)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // 3) 북쪽 물고기 실루엣 (Fumalsamakah)
+  ctx.beginPath();
+  ctx.ellipse(fumalX, fumalY, 40, 22, -Math.PI / 4, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.28)';
+  ctx.fill();
+  ctx.strokeStyle = '#7dd3fc';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+  // 꼬리 지느러미
+  ctx.beginPath();
+  ctx.moveTo(fumalX - 25, fumalY + 20);
+  ctx.lineTo(fumalX - 45, fumalY + 35);
+  ctx.lineTo(fumalX - 35, fumalY + 10);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
+  ctx.fill();
+
+  // 4) 서쪽으로 뻗는 리본 끈
+  ctx.beginPath();
+  ctx.moveTo(alreschaX, alreschaY);
+  ctx.quadraticCurveTo(gammaX - 20, gammaY + 40, gammaX, gammaY);
+  ctx.lineTo(lambdaX, lambdaY);
+  ctx.strokeStyle = 'rgba(251, 191, 36, 0.7)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // 5) 서쪽 물고기 실루엣 (Lambda Piscium 고리)
+  ctx.beginPath();
+  ctx.ellipse(lambdaX, lambdaY, 42, 24, Math.PI / 6, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.28)';
+  ctx.fill();
+  ctx.strokeStyle = '#7dd3fc';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+  // 꼬리 지느러미
+  ctx.beginPath();
+  ctx.moveTo(lambdaX + 28, lambdaY + 15);
+  ctx.lineTo(lambdaX + 50, lambdaY + 30);
+  ctx.lineTo(lambdaX + 40, lambdaY + 5);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
+  ctx.fill();
 
   ctx.restore();
 }
