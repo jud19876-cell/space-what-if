@@ -7,9 +7,11 @@ import {
 import {
   CONSTELLATIONS,
   SEASON_GUIDES,
+  ZODIAC_MONTHS,
   type ConstellationData,
   type SeasonKey,
   type StarData,
+  type ZodiacMonthInfo,
 } from './constellationsData.ts';
 
 interface ConstellationSimProps {
@@ -30,6 +32,10 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
   // 4계절 지구 공전 시뮬레이션 상태
   const [activeSeason, setActiveSeason] = useState<SeasonKey>('summer');
   const [seasonAutoPlay, setSeasonAutoPlay] = useState(false);
+
+  // 🎡 1~12월 황도 12궁 전체 휠 시뮬레이션 상태
+  const [wheelMonth, setWheelMonth] = useState(4); // 기본 4월 양자리
+  const [wheelAutoPlay, setWheelAutoPlay] = useState(false);
 
   // 카테고리 필터: 'all' | 'zodiac' | 'spring' | 'summer' | 'autumn' | 'winter'
   type ConstellationFilterMode = 'all' | 'zodiac' | 'spring' | 'summer' | 'autumn' | 'winter';
@@ -124,7 +130,22 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
         setActiveSeason(guide.seasonKey);
         sceneRef.current?.setSeasonAngle(guide.angleRad);
       }
+    } else if (mode === 'zodiac_wheel') {
+      sceneRef.current?.setZodiacWheelMonth(wheelMonth);
     }
+  };
+
+  const handleWheelMonthChange = (month: number) => {
+    setWheelMonth(month);
+    setWheelAutoPlay(false);
+    sceneRef.current?.setZodiacWheelAutoPlay(false);
+    sceneRef.current?.setZodiacWheelMonth(month);
+  };
+
+  const handleToggleWheelPlay = () => {
+    const next = !wheelAutoPlay;
+    setWheelAutoPlay(next);
+    sceneRef.current?.setZodiacWheelAutoPlay(next);
   };
 
   const handleToggleArt = () => {
@@ -317,6 +338,15 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
           >
             <span>🌞 계절 공전 뷰</span>
             <small>4계절 별자리 비밀</small>
+          </button>
+
+          <button
+            className={`btn-view-toggle highlight-rainbow ${viewMode === 'zodiac_wheel' ? 'active' : ''}`}
+            onClick={() => handleViewModeChange('zodiac_wheel')}
+            title="1~12월 황도 12궁 전체가 한 화면에 360도로 다 보이며, 지구가 태양을 공전·자전함에 따라 계절별로 별자리가 달라 보이는 걸 한눈에 관측"
+          >
+            <span>🎡 1~12월 황도대 전체 뷰!</span>
+            <small>지구 공전·자전 파노라마</small>
           </button>
 
           <button
@@ -548,6 +578,76 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
               <span>💡 {SEASON_GUIDES[activeConstellation.id]?.description}</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 🎡 1~12월 황도 12궁 전체 360도 파노라마 컨트롤 독 */}
+      {viewMode === 'zodiac_wheel' && (
+        <div className="zodiac-wheel-dock">
+          <div className="zodiac-dock-header">
+            <div className="zodiac-dock-title-wrap">
+              <span className="dock-badge rainbow">🎡 1~12월 황도 12궁 360도 전체 파노라마</span>
+              <h4>지구가 태양을 돌며 밤에 보이는 별자리와 낮에 숨겨지는 별자리가 매달 바뀌어요!</h4>
+            </div>
+            <button
+              className={`btn-zodiac-play ${wheelAutoPlay ? 'playing' : ''}`}
+              onClick={handleToggleWheelPlay}
+              title={wheelAutoPlay ? '1년 공전 멈춤' : '지구가 1년 동안 12궁을 도는 모습 자동 재생'}
+            >
+              <span>{wheelAutoPlay ? '⏸ 1년 공전 멈춤' : '▶ 1년 공전 자동 재생'}</span>
+            </button>
+          </div>
+
+          {/* 1월부터 12월까지 월 선택 탭 그리드 */}
+          <div className="zodiac-months-grid">
+            {ZODIAC_MONTHS.map((zm) => (
+              <button
+                key={zm.month}
+                className={`zodiac-month-btn ${wheelMonth === zm.month ? 'active' : ''}`}
+                onClick={() => handleWheelMonthChange(zm.month)}
+              >
+                <span className="zm-badge">{zm.month}월</span>
+                <span className="zm-emoji">{zm.emoji}</span>
+                <strong className="zm-name">{zm.name}</strong>
+              </button>
+            ))}
+          </div>
+
+          {/* 실시간 천문 원리 설명 카드 */}
+          {(() => {
+            const curInfo = ZODIAC_MONTHS.find((z) => z.month === wheelMonth) || ZODIAC_MONTHS[3];
+            const oppConstellation = CONSTELLATIONS.find((c) => c.id === curInfo.oppositeConstellationId);
+
+            return (
+              <div className="zodiac-insight-card">
+                <div className="insight-row">
+                  <div className="insight-box night">
+                    <div className="insight-label">
+                      <span>🌌 [한밤중 밤하늘]에 높이 뜨는 별자리</span>
+                      <strong>{oppConstellation?.emoji} {oppConstellation?.name}</strong>
+                    </div>
+                    <p>
+                      지구가 태양 반대편(어두운 우주)을 바라보는 자정에는 <strong>{oppConstellation?.name}</strong>가 남쪽 밤하늘에서 밤새도록 찬란하게 빛나요!
+                    </p>
+                  </div>
+
+                  <div className="insight-box day">
+                    <div className="insight-label">
+                      <span>☀️ [낮 하늘] 태양 뒤편에 숨는 생일별</span>
+                      <strong>{curInfo.emoji} {curInfo.sunConstellation} ({curInfo.month}월 생일별)</strong>
+                    </div>
+                    <p>
+                      태양이 <strong>{curInfo.sunConstellation}</strong> 바로 앞에 있어서 낮 동안 눈부신 햇빛 때문에 지구에서는 보이지 않아요!
+                    </p>
+                  </div>
+                </div>
+
+                <div className="zodiac-story-tip">
+                  <span>💡 <strong>{curInfo.month}월의 비밀:</strong> {curInfo.description}</span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

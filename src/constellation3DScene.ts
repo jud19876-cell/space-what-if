@@ -1,10 +1,16 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { type ConstellationData, type StarData } from './constellationsData.ts';
+import {
+  CONSTELLATIONS,
+  ZODIAC_MONTHS,
+  type ConstellationData,
+  type StarData,
+  type ZodiacMonthInfo,
+} from './constellationsData.ts';
 import { generateGhostCanvas } from './constellationGhostArt.ts';
 import { generateEarthCanvas, generateSunCanvas } from './earthGlobeTexture.ts';
 
-export type ConstellationViewMode = 'earth' | 'space3d' | 'top' | 'season_orbit';
+export type ConstellationViewMode = 'earth' | 'space3d' | 'top' | 'season_orbit' | 'zodiac_wheel';
 
 export interface ConstellationScene {
   setConstellation(constellation: ConstellationData): void;
@@ -12,6 +18,8 @@ export interface ConstellationScene {
   resetView(): void;
   setSeasonAngle(angleRad: number): void;
   setSeasonAutoPlay(play: boolean): void;
+  setZodiacWheelMonth(month: number): void;
+  setZodiacWheelAutoPlay(play: boolean): void;
   setShowArt(show: boolean): void;
   setShowGuides(show: boolean): void;
   setSelectedStar(starId: string | null): void;
@@ -374,6 +382,232 @@ export function createConstellation3DScene(
     nightCone.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), new THREE.Vector3(dirX, 0, dirZ));
   }
 
+  // 5. 🎡 황도 12궁 전체 파노라마 휠 시뮬레이션 그룹 (1~12월 별자리 전체 동시 출현 뷰)
+  const zodiacWheelGroup = new THREE.Group();
+  zodiacWheelGroup.visible = false;
+  scene.add(zodiacWheelGroup);
+
+  const ZODIAC_RING_R = 95; // 12대 별자리 원형 배치 반경
+  const ZODIAC_ORBIT_R = 28; // 지구 공전 반경
+
+  // (1) 중앙 태양 (0, 0, 0)
+  const wheelSunGroup = new THREE.Group();
+  zodiacWheelGroup.add(wheelSunGroup);
+
+  const wheelSunTex = new THREE.CanvasTexture(generateSunCanvas());
+  wheelSunTex.colorSpace = THREE.SRGBColorSpace;
+  const wheelSunMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(6.2, 32, 32),
+    new THREE.MeshBasicMaterial({ map: wheelSunTex })
+  );
+  wheelSunGroup.add(wheelSunMesh);
+
+  const wheelSunLight = new THREE.PointLight(0xfff7ed, 3.8, 400);
+  wheelSunGroup.add(wheelSunLight);
+
+  const wheelSunLabel = makeLabelSprite('☀️ 태양 (황도 중심)', 'rgba(80, 20, 10, 0.92)', '#fef08a', '#ea580c', 10, 2.5);
+  wheelSunLabel.position.set(0, 8.8, 0);
+  wheelSunGroup.add(wheelSunLabel);
+
+  // (2) 황도면 원형 황금 가이드 링 (Golden Ecliptic Ring)
+  const eclipticPts: THREE.Vector3[] = [];
+  for (let i = 0; i <= 144; i++) {
+    const a = (i / 144) * Math.PI * 2;
+    eclipticPts.push(new THREE.Vector3(ZODIAC_RING_R * Math.cos(a), 0, ZODIAC_RING_R * Math.sin(a)));
+  }
+  const eclipticLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(eclipticPts),
+    new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.45 })
+  );
+  zodiacWheelGroup.add(eclipticLine);
+
+  // 지구 공전 궤도선
+  const wheelEarthOrbitPts: THREE.Vector3[] = [];
+  for (let i = 0; i <= 96; i++) {
+    const a = (i / 96) * Math.PI * 2;
+    wheelEarthOrbitPts.push(new THREE.Vector3(ZODIAC_ORBIT_R * Math.cos(a), 0, ZODIAC_ORBIT_R * Math.sin(a)));
+  }
+  const wheelEarthOrbitLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(wheelEarthOrbitPts),
+    new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65 })
+  );
+  zodiacWheelGroup.add(wheelEarthOrbitLine);
+
+  // (3) 공전 및 자전하는 지구 모델
+  const wheelEarthGroup = new THREE.Group();
+  zodiacWheelGroup.add(wheelEarthGroup);
+
+  const wheelEarthMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(2.4, 24, 24),
+    new THREE.MeshStandardMaterial({ map: earthTex, roughness: 0.55 })
+  );
+  wheelEarthGroup.add(wheelEarthMesh);
+
+  const wheelEarthLabel = makeLabelSprite('🌍 공전·자전 지구', 'rgba(10, 24, 60, 0.92)', '#ffffff', '#38bdf8', 8.5, 2.1);
+  wheelEarthLabel.position.set(0, 4.0, 0);
+  wheelEarthGroup.add(wheelEarthLabel);
+
+  // 밤하늘 시야 빔 콘 (지구의 밤에서 바깥 12궁을 비추는 웅장한 부채꼴 콘)
+  const wheelNightCone = new THREE.Mesh(
+    new THREE.ConeGeometry(15, 54, 24, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.32,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+  );
+  zodiacWheelGroup.add(wheelNightCone);
+
+  // (4) 12대 별자리 3D 성좌 & 네온 고스트 & 텍스트 라벨 빌드
+  interface ZodiacNode {
+    monthInfo: ZodiacMonthInfo;
+    group: THREE.Group;
+    label: THREE.Sprite;
+    ghostMat: THREE.MeshBasicMaterial;
+    stars: THREE.Mesh[];
+  }
+  const zodiacNodes: ZodiacNode[] = [];
+
+  const miniSphereGeo = new THREE.SphereGeometry(0.8, 16, 16);
+  const miniHaloPlaneGeo = new THREE.PlaneGeometry(2.6, 2.6);
+
+  ZODIAC_MONTHS.forEach((zm) => {
+    const cData = CONSTELLATIONS.find((c) => c.id === zm.id);
+    if (!cData) return;
+
+    const angle = zm.angleRad;
+    const cX = ZODIAC_RING_R * Math.cos(angle);
+    const cZ = ZODIAC_RING_R * Math.sin(angle);
+
+    const cGroup = new THREE.Group();
+    cGroup.position.set(cX, 0, cZ);
+    cGroup.lookAt(0, 0, 0);
+    zodiacWheelGroup.add(cGroup);
+
+    // 1. 라벨 스프라이트 (예: "🎂 4월 양자리 ♈")
+    const labelSprite = makeLabelSprite(
+      `🎂 ${zm.month}월 ${cData.name} ${cData.emoji}`,
+      'rgba(14, 20, 52, 0.92)',
+      '#ffffff',
+      '#38bdf8',
+      12.5,
+      3.1
+    );
+    labelSprite.position.set(0, 11.5, 0);
+    cGroup.add(labelSprite);
+
+    // 2. 네온 고스트 일러스트
+    const ghostCanvas = generateGhostCanvas(cData.id);
+    const ghostTex = new THREE.CanvasTexture(ghostCanvas);
+    ghostTex.colorSpace = THREE.SRGBColorSpace;
+    const gMat = new THREE.MeshBasicMaterial({
+      map: ghostTex,
+      transparent: true,
+      opacity: 0.75,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const gMesh = new THREE.Mesh(new THREE.PlaneGeometry(24, 24), gMat);
+    gMesh.position.set(0, 0, 0);
+    cGroup.add(gMesh);
+
+    // 3. 3D 별들과 연결선 (skyPos를 로컬 배치)
+    const starMap = new Map<string, THREE.Vector3>();
+    const nodeStars: THREE.Mesh[] = [];
+
+    cData.stars.forEach((star) => {
+      const sx = star.skyPos[0] * 1.6;
+      const sy = star.skyPos[1] * 1.6;
+      const sz = 0.5;
+      const spos = new THREE.Vector3(sx, sy, sz);
+      starMap.set(star.id, spos);
+
+      const sMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(star.color),
+        emissive: new THREE.Color(star.color),
+        emissiveIntensity: 0.9,
+      });
+      const sMesh = new THREE.Mesh(miniSphereGeo, sMat);
+      sMesh.position.copy(spos);
+      cGroup.add(sMesh);
+      nodeStars.push(sMesh);
+
+      // 후광
+      const hMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(star.color),
+        transparent: true,
+        opacity: 0.5,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const hMesh = new THREE.Mesh(miniHaloPlaneGeo, hMat);
+      hMesh.position.copy(spos);
+      cGroup.add(hMesh);
+    });
+
+    // 연결선
+    cData.lines.forEach(([idA, idB]) => {
+      const pA = starMap.get(idA);
+      const pB = starMap.get(idB);
+      if (pA && pB) {
+        const lineGeo = new THREE.BufferGeometry().setFromPoints([pA, pB]);
+        const lineMat = new THREE.LineBasicMaterial({
+          color: 0x6ee7b7,
+          transparent: true,
+          opacity: 0.75,
+        });
+        cGroup.add(new THREE.Line(lineGeo, lineMat));
+      }
+    });
+
+    zodiacNodes.push({
+      monthInfo: zm,
+      group: cGroup,
+      label: labelSprite,
+      ghostMat: gMat,
+      stars: nodeStars,
+    });
+  });
+
+  let zodiacMonth = 4; // 기본 4월 양자리 위치
+  let zodiacWheelAutoPlay = false;
+
+  function updateZodiacWheel(month: number) {
+    const angle = ((month - 1) / 12) * Math.PI * 2;
+    const earthX = ZODIAC_ORBIT_R * Math.cos(angle);
+    const earthZ = ZODIAC_ORBIT_R * Math.sin(angle);
+    wheelEarthGroup.position.set(earthX, 0, earthZ);
+
+    // 밤하늘 시선 방향: 태양(0,0,0) -> 지구(earthX, earthZ) 외향 방향
+    const dirX = Math.cos(angle);
+    const dirZ = Math.sin(angle);
+
+    wheelNightCone.position.set(earthX + dirX * 27, 0, earthZ + dirZ * 27);
+    wheelNightCone.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), new THREE.Vector3(dirX, 0, dirZ));
+
+    // 각 별자리 노드 밝기 및 하이라이트 갱신
+    zodiacNodes.forEach((node) => {
+      const nodeDirX = Math.cos(node.monthInfo.angleRad);
+      const nodeDirZ = Math.sin(node.monthInfo.angleRad);
+      const dot = dirX * nodeDirX + dirZ * nodeDirZ; // 1이면 밤하늘 정면, -1이면 태양 뒤편(낮)
+
+      if (dot > 0.8) {
+        node.ghostMat.opacity = 0.95;
+        node.group.scale.setScalar(1.22);
+      } else if (dot < -0.8) {
+        node.ghostMat.opacity = 0.22;
+        node.group.scale.setScalar(0.9);
+      } else {
+        node.ghostMat.opacity = 0.55;
+        node.group.scale.setScalar(1.0);
+      }
+    });
+  }
+
   // 선택 링
   const selectRingGeo = new THREE.RingGeometry(1.1, 1.3, 32);
   const selectRingMat = new THREE.MeshBasicMaterial({
@@ -564,6 +798,12 @@ export function createConstellation3DScene(
         pos: new THREE.Vector3(0, 56, 16),
         look: new THREE.Vector3(0, 0, 16),
       };
+    } else if (mode === 'zodiac_wheel') {
+      // zodiac_wheel 모드: 12대 별자리 원형 링과 중앙 태양, 지구 공전 궤도를 한눈에 다 조망하는 웅장한 부감 뷰
+      return {
+        pos: new THREE.Vector3(0, 140, -120),
+        look: new THREE.Vector3(0, 0, 0),
+      };
     } else {
       // season_orbit 모드: 태양과 지구 공전 궤도, 밤하늘 시야 콘을 함께 조망하는 시점
       return {
@@ -583,11 +823,26 @@ export function createConstellation3DScene(
     if (mode === 'season_orbit') {
       earthGlobeGroup.visible = false;
       seasonOrbitGroup.visible = true;
+      zodiacWheelGroup.visible = false;
+      constellationGroup.visible = true;
       updateSeasonOrbit(seasonAngle);
+      playWarpChime();
+    } else if (mode === 'zodiac_wheel') {
+      earthGlobeGroup.visible = false;
+      seasonOrbitGroup.visible = false;
+      zodiacWheelGroup.visible = true;
+      constellationGroup.visible = false;
+      guideGroup.visible = false;
+      artGroup.visible = false;
+      updateZodiacWheel(zodiacMonth);
       playWarpChime();
     } else {
       earthGlobeGroup.visible = true;
       seasonOrbitGroup.visible = false;
+      zodiacWheelGroup.visible = false;
+      constellationGroup.visible = true;
+      guideGroup.visible = showGuides;
+      artGroup.visible = showArt;
       if (mode === 'earth') playStarChime(440);
       else if (mode === 'space3d') playWarpChime();
       else playStarChime(660);
@@ -691,10 +946,17 @@ export function createConstellation3DScene(
     // 3D 지구 자전 및 공전 애니메이션
     earthMesh.rotation.y += 0.003;
     orbEarthMesh.rotation.y += 0.008;
+    wheelEarthMesh.rotation.y += 0.012;
+    wheelSunMesh.rotation.y += 0.002;
 
     if (viewMode === 'season_orbit' && seasonAutoPlay) {
       seasonAngle = (seasonAngle + 0.004) % (Math.PI * 2);
       updateSeasonOrbit(seasonAngle);
+    }
+
+    if (viewMode === 'zodiac_wheel' && zodiacWheelAutoPlay) {
+      zodiacMonth = ((zodiacMonth - 1 + 0.006) % 12) + 1;
+      updateZodiacWheel(zodiacMonth);
     }
 
     beamMat.opacity = 0.55 + Math.sin(Date.now() * 0.005) * 0.25;
@@ -743,6 +1005,13 @@ export function createConstellation3DScene(
     },
     setSeasonAutoPlay(play: boolean) {
       seasonAutoPlay = play;
+    },
+    setZodiacWheelMonth(month: number) {
+      zodiacMonth = month;
+      updateZodiacWheel(zodiacMonth);
+    },
+    setZodiacWheelAutoPlay(play: boolean) {
+      zodiacWheelAutoPlay = play;
     },
     setShowArt(show: boolean) {
       showArt = show;
