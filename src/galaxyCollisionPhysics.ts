@@ -22,6 +22,10 @@ export interface GalaxyParticles {
   galaxyId: Uint8Array;   // 0: 우리은하, 1: 안드로메다, 2: 삼각형자리, 3: 대마젤란, 4: 소마젤란, 5: 블랙홀
   isGas: Uint8Array;      // 0: 별(Star), 1: 성운 가스 구름(Nebula Gas Cloud)
   alive: Uint8Array;      // 1: 생존, 0: 블랙홀 흡수
+  orbitR?: Float32Array;
+  orbitTheta?: Float32Array;
+  orbitZ?: Float32Array;
+  omega?: Float32Array;
   count: number;
 }
 
@@ -36,6 +40,7 @@ export type GalaxyScenarioType =
 export interface GalaxySimState {
   cores: GalacticCore[];
   particles: GalaxyParticles;
+  galaxyMatrices?: number[][];
   solarSystemPos: [number, number, number]; // 우리은하 내 태양계 실시간 3D 위치
   solarAngleRad: number;
   timeMyr: number;        // 경과 시간 (백만 년, Myr)
@@ -92,7 +97,18 @@ export function createSpiralGalaxyParticles(
   tiltZ: number,
   baseColor: [number, number, number],
   armColor: [number, number, number],
-): { pos: number[]; vel: number[]; col: number[]; sz: number[]; gid: number[]; isGas: number[] } {
+): {
+  pos: number[];
+  vel: number[];
+  col: number[];
+  sz: number[];
+  gid: number[];
+  isGas: number[];
+  orbitR: number[];
+  orbitTheta: number[];
+  orbitZ: number[];
+  omega: number[];
+} {
   const rotMat = makeRotationMatrix(tiltX, tiltY, tiltZ);
 
   const pos: number[] = [];
@@ -101,6 +117,10 @@ export function createSpiralGalaxyParticles(
   const sz: number[] = [];
   const gid: number[] = [];
   const isGas: number[] = [];
+  const orbitR: number[] = [];
+  const orbitTheta: number[] = [];
+  const orbitZ: number[] = [];
+  const omega: number[] = [];
 
   const totalCount = starCount + gasCount;
   const arms = 2; // 2개의 주 나선팔
@@ -139,6 +159,10 @@ export function createSpiralGalaxyParticles(
 
     gid.push(galaxyIndex);
     isGas.push(isThisGas ? 1 : 0);
+    orbitR.push(r);
+    orbitTheta.push(theta);
+    orbitZ.push(zThickness);
+    omega.push(vCirc / Math.max(r, 0.5));
 
     if (isThisGas) {
       sz.push(3.5 + Math.random() * 3.5);
@@ -164,7 +188,7 @@ export function createSpiralGalaxyParticles(
     }
   }
 
-  return { pos, vel, col, sz, gid, isGas };
+  return { pos, vel, col, sz, gid, isGas, orbitR, orbitTheta, orbitZ, omega };
 }
 
 /** 시나리오별 초기 물리 상태 생성 (기본: 국부은하군 평형 모드) */
@@ -177,8 +201,22 @@ export function createGalaxyScenario(scenario: GalaxyScenarioType): GalaxySimSta
   let allGid: number[] = [];
   let allIsGas: number[] = [];
 
+  let allOrbitR: number[] = [];
+  let allOrbitTheta: number[] = [];
+  let allOrbitZ: number[] = [];
+  let allOmega: number[] = [];
+  let galaxyMatrices: number[][] = [];
+
   switch (scenario) {
     case 'local_group': {
+      galaxyMatrices = [
+        makeRotationMatrix(0, 0, 0),
+        makeRotationMatrix(45, 25, 10),
+        makeRotationMatrix(-25, 30, -15),
+        makeRotationMatrix(30, -20, 10),
+        makeRotationMatrix(15, 25, -20),
+      ];
+
       // 🌌 [기본] 우리은하 및 국부은하군 (Local Group Cosmic Neighborhood)
       // 1. 우리은하 (Milky Way Galaxy) - 태양계가 위치한 중심 은하
       cores.push({
@@ -261,6 +299,10 @@ export function createGalaxyScenario(scenario: GalaxyScenarioType): GalaxySimSta
       allSz = [...gMilkyWay.sz, ...gAndromeda.sz, ...gTriangulum.sz, ...gLMC.sz, ...gSMC.sz];
       allGid = [...gMilkyWay.gid, ...gAndromeda.gid, ...gTriangulum.gid, ...gLMC.gid, ...gSMC.gid];
       allIsGas = [...gMilkyWay.isGas, ...gAndromeda.isGas, ...gTriangulum.isGas, ...gLMC.isGas, ...gSMC.isGas];
+      allOrbitR = [...gMilkyWay.orbitR, ...gAndromeda.orbitR, ...gTriangulum.orbitR, ...gLMC.orbitR, ...gSMC.orbitR];
+      allOrbitTheta = [...gMilkyWay.orbitTheta, ...gAndromeda.orbitTheta, ...gTriangulum.orbitTheta, ...gLMC.orbitTheta, ...gSMC.orbitTheta];
+      allOrbitZ = [...gMilkyWay.orbitZ, ...gAndromeda.orbitZ, ...gTriangulum.orbitZ, ...gLMC.orbitZ, ...gSMC.orbitZ];
+      allOmega = [...gMilkyWay.omega, ...gAndromeda.omega, ...gTriangulum.omega, ...gLMC.omega, ...gSMC.omega];
       break;
     }
 
@@ -437,6 +479,10 @@ export function createGalaxyScenario(scenario: GalaxyScenarioType): GalaxySimSta
     galaxyId: new Uint8Array(allGid),
     isGas: new Uint8Array(allIsGas),
     alive: aliveArr,
+    orbitR: allOrbitR.length > 0 ? new Float32Array(allOrbitR) : undefined,
+    orbitTheta: allOrbitTheta.length > 0 ? new Float32Array(allOrbitTheta) : undefined,
+    orbitZ: allOrbitZ.length > 0 ? new Float32Array(allOrbitZ) : undefined,
+    omega: allOmega.length > 0 ? new Float32Array(allOmega) : undefined,
     count,
   };
 
@@ -459,6 +505,7 @@ export function createGalaxyScenario(scenario: GalaxyScenarioType): GalaxySimSta
   return {
     cores,
     particles,
+    galaxyMatrices: galaxyMatrices.length > 0 ? galaxyMatrices : undefined,
     solarSystemPos,
     solarAngleRad,
     timeMyr: 0,
@@ -484,45 +531,117 @@ export function stepGalaxySystem(state: GalaxySimState, dtSec: number): void {
   const nCores = cores.length;
   const isViewModeOnly = state.scenario === 'local_group';
 
-  // 1. 중심핵 간 상호 중력 가속도 (시뮬레이션 조건 모드에서만 활성화)
-  if (!isViewModeOnly) {
-    const coreAcc: [number, number, number][] = cores.map(() => [0, 0, 0]);
-
+  if (isViewModeOnly) {
+    // 🌌 [기본 뷰 모드]: 은하 간 상호 중력 0. 각 은하는 자기 위치에 완전히 고정되고 자체 자전만 수행
     for (let i = 0; i < nCores; i++) {
-      for (let j = i + 1; j < nCores; j++) {
-        const c1 = cores[i];
-        const c2 = cores[j];
-        const dx = c2.pos[0] - c1.pos[0];
-        const dy = c2.pos[1] - c1.pos[1];
-        const dz = c2.pos[2] - c1.pos[2];
-        const r2 = dx * dx + dy * dy + dz * dz;
-        const invR3 = 1.0 / Math.pow(r2 + CORE_SOFTENING2, 1.5);
+      cores[i].vel[0] = 0;
+      cores[i].vel[1] = 0;
+      cores[i].vel[2] = 0;
+    }
 
-        const fX = G_GALACTIC * dx * invR3;
-        const fY = G_GALACTIC * dy * invR3;
-        const fZ = G_GALACTIC * dz * invR3;
+    // 우리은하 내 태양계 위치 공전 갱신
+    const mwCore = cores.find((c) => c.id.includes('milkyway')) ?? cores[0];
+    const rSun = 8.5;
+    const omegaSun = Math.sqrt((G_GALACTIC * mwCore.mass) / (rSun * rSun * rSun)) * 0.8;
+    state.solarAngleRad += omegaSun * dt;
+    state.solarSystemPos[0] = mwCore.pos[0] + Math.cos(state.solarAngleRad) * rSun;
+    state.solarSystemPos[1] = mwCore.pos[1] + Math.sin(state.solarAngleRad) * rSun;
+    state.solarSystemPos[2] = mwCore.pos[2] + 0.1;
 
-        coreAcc[i][0] += fX * c2.mass;
-        coreAcc[i][1] += fY * c2.mass;
-        coreAcc[i][2] += fZ * c2.mass;
+    // 은하 간 기준 거리 유지
+    if (nCores >= 2) {
+      state.distanceKpc = Math.hypot(
+        cores[0].pos[0] - cores[1].pos[0],
+        cores[0].pos[1] - cores[1].pos[1],
+        cores[0].pos[2] - cores[1].pos[2],
+      );
+    }
 
-        coreAcc[j][0] -= fX * c1.mass;
-        coreAcc[j][1] -= fY * c1.mass;
-        coreAcc[j][2] -= fZ * c1.mass;
+    const p = state.particles;
+    const pos = p.pos;
+    const vel = p.vel;
+    const gids = p.galaxyId;
+    const count = p.count;
+    const orbR = p.orbitR;
+    const orbTh = p.orbitTheta;
+    const orbZ = p.orbitZ;
+    const omega = p.omega;
+    const matrices = state.galaxyMatrices;
+
+    if (orbR && orbTh && orbZ && omega && matrices) {
+      for (let i = 0; i < count; i++) {
+        if (p.alive[i] === 0) continue;
+        const gid = gids[i] < nCores ? gids[i] : 0;
+        const core = cores[gid];
+        const mat = matrices[gid];
+
+        const r = orbR[i];
+        const curTheta = orbTh[i] + omega[i] * state.timeMyr;
+        const z = orbZ[i];
+
+        const lx = Math.cos(curTheta) * r;
+        const ly = Math.sin(curTheta) * r;
+        const lz = z;
+
+        const wx = mat[0] * lx + mat[1] * ly + mat[2] * lz;
+        const wy = mat[3] * lx + mat[4] * ly + mat[5] * lz;
+        const wz = mat[6] * lx + mat[7] * ly + mat[8] * lz;
+
+        const idx = i * 3;
+        pos[idx] = core.pos[0] + wx;
+        pos[idx + 1] = core.pos[1] + wy;
+        pos[idx + 2] = core.pos[2] + wz;
+
+        const vCirc = omega[i] * r;
+        const lvx = -Math.sin(curTheta) * vCirc;
+        const lvy = Math.cos(curTheta) * vCirc;
+        vel[idx] = mat[0] * lvx + mat[1] * lvy;
+        vel[idx + 1] = mat[3] * lvx + mat[4] * lvy;
+        vel[idx + 2] = mat[6] * lvx + mat[7] * lvy;
       }
     }
 
-    // 중심핵 위치 전진
-    for (let i = 0; i < nCores; i++) {
-      const c = cores[i];
-      c.vel[0] += coreAcc[i][0] * dt;
-      c.vel[1] += coreAcc[i][1] * dt;
-      c.vel[2] += coreAcc[i][2] * dt;
+    state.tidalDistortion = 0.0;
+    return;
+  }
 
-      c.pos[0] += c.vel[0] * dt;
-      c.pos[1] += c.vel[1] * dt;
-      c.pos[2] += c.vel[2] * dt;
+  // 1. 중심핵 간 상호 중력 가속도 (시뮬레이션 조건 모드)
+  const coreAcc: [number, number, number][] = cores.map(() => [0, 0, 0]);
+
+  for (let i = 0; i < nCores; i++) {
+    for (let j = i + 1; j < nCores; j++) {
+      const c1 = cores[i];
+      const c2 = cores[j];
+      const dx = c2.pos[0] - c1.pos[0];
+      const dy = c2.pos[1] - c1.pos[1];
+      const dz = c2.pos[2] - c1.pos[2];
+      const r2 = dx * dx + dy * dy + dz * dz;
+      const invR3 = 1.0 / Math.pow(r2 + CORE_SOFTENING2, 1.5);
+
+      const fX = G_GALACTIC * dx * invR3;
+      const fY = G_GALACTIC * dy * invR3;
+      const fZ = G_GALACTIC * dz * invR3;
+
+      coreAcc[i][0] += fX * c2.mass;
+      coreAcc[i][1] += fY * c2.mass;
+      coreAcc[i][2] += fZ * c2.mass;
+
+      coreAcc[j][0] -= fX * c1.mass;
+      coreAcc[j][1] -= fY * c1.mass;
+      coreAcc[j][2] -= fZ * c1.mass;
     }
+  }
+
+  // 중심핵 위치 전진
+  for (let i = 0; i < nCores; i++) {
+    const c = cores[i];
+    c.vel[0] += coreAcc[i][0] * dt;
+    c.vel[1] += coreAcc[i][1] * dt;
+    c.vel[2] += coreAcc[i][2] * dt;
+
+    c.pos[0] += c.vel[0] * dt;
+    c.pos[1] += c.vel[1] * dt;
+    c.pos[2] += c.vel[2] * dt;
   }
 
   // 거리 갱신
@@ -541,12 +660,11 @@ export function stepGalaxySystem(state: GalaxySimState, dtSec: number): void {
   state.solarSystemPos[1] = mwCore.pos[1] + Math.sin(state.solarAngleRad) * rSun;
   state.solarSystemPos[2] = mwCore.pos[2] + 0.1;
 
-  // 2. 별과 가스 구름에 대한 중력 가속도
+  // 2. 별과 가스 구름에 대한 중력 가속도 (모든 중심핵의 중력 및 조석력 작용)
   const p = state.particles;
   const pos = p.pos;
   const vel = p.vel;
   const alive = p.alive;
-  const gids = p.galaxyId;
   const count = p.count;
 
   let totalDisplacement = 0;
@@ -564,39 +682,23 @@ export function stepGalaxySystem(state: GalaxySimState, dtSec: number): void {
     let ay = 0;
     let az = 0;
 
-    if (isViewModeOnly) {
-      // 🌟 [기본 뷰 모드]: 은하 간 상호 중력 작용을 없앰. 각 천체는 자신의 모은하 중심핵 인력만 받아 안정적으로 회전
-      const myCoreIdx = gids[i] < nCores ? gids[i] : 0;
-      const core = cores[myCoreIdx];
+    for (let c = 0; c < nCores; c++) {
+      const core = cores[c];
       const dx = core.pos[0] - px;
       const dy = core.pos[1] - py;
       const dz = core.pos[2] - pz;
       const r2 = dx * dx + dy * dy + dz * dz;
 
-      const invR3 = (G_GALACTIC * core.mass) / Math.pow(r2 + STAR_SOFTENING2, 1.5);
-      ax = dx * invR3;
-      ay = dy * invR3;
-      az = dz * invR3;
-    } else {
-      // 💥 [시뮬레이션 조건 모드]: 모든 중심핵의 중력 및 조석력이 전 천체에 작용하여 충돌/변형 발생
-      for (let c = 0; c < nCores; c++) {
-        const core = cores[c];
-        const dx = core.pos[0] - px;
-        const dy = core.pos[1] - py;
-        const dz = core.pos[2] - pz;
-        const r2 = dx * dx + dy * dy + dz * dz;
-
-        if (core.isBlackHole && r2 < core.radius * core.radius * 1.3) {
-          alive[i] = 0;
-          state.swallowedCount++;
-          break;
-        }
-
-        const invR3 = (G_GALACTIC * core.mass) / Math.pow(r2 + STAR_SOFTENING2, 1.5);
-        ax += dx * invR3;
-        ay += dy * invR3;
-        az += dz * invR3;
+      if (core.isBlackHole && r2 < core.radius * core.radius * 1.3) {
+        alive[i] = 0;
+        state.swallowedCount++;
+        break;
       }
+
+      const invR3 = (G_GALACTIC * core.mass) / Math.pow(r2 + STAR_SOFTENING2, 1.5);
+      ax += dx * invR3;
+      ay += dy * invR3;
+      az += dz * invR3;
     }
 
     if (alive[i] === 0) continue;
@@ -609,15 +711,11 @@ export function stepGalaxySystem(state: GalaxySimState, dtSec: number): void {
     pos[idx + 1] += vel[idx + 1] * dt;
     pos[idx + 2] += vel[idx + 2] * dt;
 
-    if (!isViewModeOnly) {
-      totalDisplacement += Math.abs(ax) + Math.abs(ay);
-      activeStarCount++;
-    }
+    totalDisplacement += Math.abs(ax) + Math.abs(ay);
+    activeStarCount++;
   }
 
-  if (isViewModeOnly) {
-    state.tidalDistortion = 0.0;
-  } else if (activeStarCount > 0) {
+  if (activeStarCount > 0) {
     const rawTide = (totalDisplacement / activeStarCount) * 1.5;
     state.tidalDistortion = Math.min(1.0, Math.max(0.05, rawTide));
   }

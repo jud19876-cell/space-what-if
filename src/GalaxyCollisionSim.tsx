@@ -8,6 +8,7 @@ import {
   type GalaxyScenarioType,
   type GalaxySimState,
 } from './galaxyCollisionPhysics.ts';
+import CosmicScaleViewer from './CosmicScaleViewer.tsx';
 
 interface GalaxyCollisionSimProps {
   onBackToSolar: () => void;
@@ -74,6 +75,7 @@ export default function GalaxyCollisionSim({
   const [showTrails, setShowTrails] = useState(true);
   const [customDistance, setCustomDistance] = useState(240);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [subMode, setSubMode] = useState<'galaxy' | 'cosmic_scale'>('galaxy');
 
   const [metrics, setMetrics] = useState({
     timeMyr: 0,
@@ -156,6 +158,10 @@ export default function GalaxyCollisionSim({
 
   const currentScInfo = SCENARIOS.find((s) => s.id === activeScenario);
 
+  if (subMode === 'cosmic_scale') {
+    return <CosmicScaleViewer onBackToGalaxyLab={() => setSubMode('galaxy')} />;
+  }
+
   return (
     <div className="galaxy-sim-root">
       {/* 3D 캔버스 영역 */}
@@ -177,6 +183,23 @@ export default function GalaxyCollisionSim({
           </div>
         </div>
 
+        {/* 은하 연구소 vs 우주 크기 비교 메인 모드 전환 탭 */}
+        <div className="galaxy-main-mode-toggle">
+          <button
+            className="galaxy-mode-tab-btn active"
+            onClick={() => setSubMode('galaxy')}
+          >
+            <span>🌌 은하 관측 & 충돌</span>
+          </button>
+          <button
+            className="galaxy-mode-tab-btn highlight-scale"
+            onClick={() => setSubMode('cosmic_scale')}
+            title="지구 서울(10km)부터 지구, 태양계, 우리은하, 관측 가능한 전체 우주까지 10의 거듭제곱 크기 순 비교 시뮬레이션"
+          >
+            <span>📐 우주 크기 비교 (Powers of Ten)</span>
+          </button>
+        </div>
+
         {/* 6대 은하 시나리오 선택 탭 바 */}
         <div className="galaxy-scenarios-bar">
           {SCENARIOS.map((sc) => (
@@ -196,6 +219,13 @@ export default function GalaxyCollisionSim({
       {/* 중앙 상단: 카메라 시점 모드 바 (우리은하 내 태양계 및 주변 은하 바로가기) */}
       <div className="galaxy-viewmode-bar">
         <div className="view-mode-pill">
+          <button
+            className="btn-view-toggle highlight-scale-pill"
+            onClick={() => setSubMode('cosmic_scale')}
+            title="서울(10km) - 지구 - 태양계 - 우리은하 - 전체 우주 크기 순 비교 시뮬레이션 열기"
+          >
+            <span>📐 크기 순 우주 비교</span>
+          </button>
           <button
             className={`btn-view-toggle highlight-universe ${cameraView === 'universe' ? 'active' : ''}`}
             onClick={() => handleViewChange('universe')}

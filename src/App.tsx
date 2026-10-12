@@ -30,7 +30,7 @@ export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SpaceScene | null>(null);
   const [simMode, setSimMode] = useState<'solar' | 'spaghetti' | 'constellation' | 'galaxy'>('solar');
-  const [galaxyScenario, setGalaxyScenario] = useState<GalaxyScenarioType>('grazing');
+  const [galaxyScenario, setGalaxyScenario] = useState<GalaxyScenarioType>('local_group');
   const [selected, setSelected] = useState<string | null>(null);
   const [toast, setToast] = useState<{ key: number; emoji: string; text: string; type?: 'normal' | 'impact' | 'explosion' } | null>(null);
   const [hinted, setHinted] = useState(false);
@@ -411,7 +411,7 @@ export default function App() {
             id="btn-galaxy-sim"
             className="btn galaxy-nav-btn"
             onClick={() => {
-              setGalaxyScenario('grazing');
+              setGalaxyScenario('local_group');
               setSimMode('galaxy');
             }}
             title="광활한 심우주 스케일에서 성운 가스 구름과 두 은하의 상호작용 및 대충돌 관찰"
