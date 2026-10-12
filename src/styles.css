@@ -1903,11 +1903,11 @@ body,
   left: 0;
   right: 0;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: clamp(10px, 1.6vh, 18px) clamp(14px, 2vw, 28px);
-  background: linear-gradient(to bottom, rgba(2, 3, 15, 0.94), rgba(2, 3, 15, 0.4) 75%, transparent);
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  padding: 10px 16px 14px 16px;
+  background: linear-gradient(to bottom, rgba(2, 3, 15, 0.98) 0%, rgba(2, 3, 15, 0.88) 85%, transparent 100%);
   z-index: 20;
   pointer-events: none;
 }
@@ -1915,48 +1915,143 @@ body,
   pointer-events: auto;
 }
 
+.constellation-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.btn-open-catalog {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 15px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(168, 85, 247, 0.45));
+  border: 1.5px solid #c084fc;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(168, 85, 247, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.2s ease;
+}
+.btn-open-catalog:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.55), rgba(168, 85, 247, 0.65));
+  border-color: #e9d5ff;
+  box-shadow: 0 6px 22px rgba(168, 85, 247, 0.55);
+  transform: translateY(-1px);
+}
+
+/* 탭 바 래퍼: 좌우 화살표 버튼과 넓어진 탭 바 */
+.constellation-tabs-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  position: relative;
+}
+
+.btn-tab-scroll {
+  flex-shrink: 0;
+  width: 34px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(14, 20, 52, 0.95);
+  border: 1.5px solid rgba(79, 227, 193, 0.45);
+  color: #4fe3c1;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.btn-tab-scroll:hover {
+  background: rgba(22, 34, 82, 0.98);
+  border-color: #6ee7b7;
+  color: #ffffff;
+  transform: scale(1.05);
+  box-shadow: 0 0 16px rgba(79, 227, 193, 0.4);
+}
+.btn-tab-scroll:active {
+  transform: scale(0.95);
+}
+
 .constellation-tabs-bar {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: 1;
+  min-width: 0;
   overflow-x: auto;
-  max-width: min(80vw, 760px);
-  padding: 4px 6px;
+  padding: 5px 8px 8px 8px;
   border-radius: 999px;
-  background: rgba(14, 20, 52, 0.85);
-  border: 1px solid rgba(130, 160, 255, 0.25);
+  background: rgba(14, 20, 52, 0.88);
+  border: 1px solid rgba(130, 160, 255, 0.3);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
+/* 세련된 네온 스크롤바 노출 - 사용자가 우측에 더 많은 별자리가 있음을 인지하게 함! */
 .constellation-tabs-bar::-webkit-scrollbar {
-  display: none;
+  height: 5px;
+  display: block;
+}
+.constellation-tabs-bar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+  margin: 0 12px;
+}
+.constellation-tabs-bar::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #4fe3c1, #38bdf8);
+  border-radius: 999px;
+  box-shadow: 0 0 8px rgba(79, 227, 193, 0.6);
+}
+.constellation-tabs-bar::-webkit-scrollbar-thumb:hover {
+  background: #6ee7b7;
 }
 
-/* 별자리 필터 스위치: 전체 ↔ 탄생월 12궁 */
+/* 별자리 필터 스위치: 전체 ↔ 탄생월 12궁 ↔ 4계절 */
 .constellation-filter-switch {
   display: flex;
   align-items: center;
   gap: 4px;
-  background: rgba(14, 20, 52, 0.9);
-  padding: 3px;
+  background: rgba(14, 20, 52, 0.92);
+  padding: 3px 5px;
   border-radius: 999px;
-  border: 1px solid rgba(130, 160, 255, 0.3);
+  border: 1px solid rgba(130, 160, 255, 0.35);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+  overflow-x: auto;
+  max-width: 100%;
 }
 .btn-filter-pill {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 13px;
+  padding: 5px 12px;
   border-radius: 999px;
   border: 1px solid transparent;
   background: transparent;
   color: #94a3b8;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -2005,10 +2100,11 @@ body,
   background: transparent;
   color: #cbd5e1;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 13.5px;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 .constellation-tab-btn:hover {
   background: rgba(255, 255, 255, 0.1);
@@ -2022,13 +2118,13 @@ body,
   box-shadow: 0 0 16px rgba(37, 99, 235, 0.6);
 }
 .c-tab-emoji {
-  font-size: 18px;
+  font-size: 17px;
 }
 
-/* 중앙 상단 2D 평면 ↔ 3D 입체 전환 바 - 단일 행 슬림 가로 레일 */
+/* 중앙 상단 2D 평면 ↔ 3D 입체 전환 바 - 단일 행 슬림 가로 레일 (2행 헤더 아래 위치) */
 .constellation-mode-bar {
   position: absolute;
-  top: clamp(68px, 9vh, 80px);
+  top: clamp(108px, 13.5vh, 122px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -2749,6 +2845,280 @@ body,
   .season-tab-btn .s-months {
     display: none;
   }
+}
+
+/* ==========================================================================
+   📑 18대 별자리 전체 도감 한눈에 보기 모달 (Constellation Catalog Modal)
+   ========================================================================== */
+.constellation-catalog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 24, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(12px, 2.5vw, 24px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.constellation-catalog-dialog {
+  width: min(1080px, 96vw);
+  max-height: min(88vh, 850px);
+  background: rgba(12, 17, 44, 0.96);
+  border: 1.5px solid rgba(130, 160, 255, 0.35);
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85), 0 0 35px rgba(99, 102, 241, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: scaleUp 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.catalog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px 14px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.catalog-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.catalog-icon {
+  font-size: 28px;
+  filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.6));
+}
+
+.catalog-title-wrap h3 {
+  margin: 0;
+  font-size: clamp(17px, 1.3vw, 20px);
+  color: #ffffff;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.catalog-title-wrap p {
+  margin: 3px 0 0 0;
+  font-size: 12.5px;
+  color: #94a3b8;
+}
+
+.catalog-close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+.catalog-close-btn:hover {
+  background: rgba(239, 68, 68, 0.35);
+  border-color: #ef4444;
+  color: #ffffff;
+  transform: rotate(90deg);
+}
+
+.catalog-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 24px;
+  background: rgba(8, 12, 32, 0.7);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  overflow-x: auto;
+}
+
+.catalog-filter-chip {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+.catalog-filter-chip:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+.catalog-filter-chip.active {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(37, 99, 235, 0.5);
+}
+.catalog-filter-chip.highlight.active {
+  background: linear-gradient(135deg, #ec4899, #8b5cf6);
+  box-shadow: 0 0 14px rgba(236, 72, 153, 0.5);
+}
+
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  padding: 20px 24px;
+  overflow-y: auto;
+  max-height: calc(88vh - 170px);
+}
+.catalog-grid::-webkit-scrollbar {
+  width: 6px;
+}
+.catalog-grid::-webkit-scrollbar-thumb {
+  background: rgba(130, 160, 255, 0.25);
+  border-radius: 999px;
+}
+.catalog-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(130, 160, 255, 0.45);
+}
+
+.catalog-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(18, 26, 60, 0.65);
+  border: 1px solid rgba(130, 160, 255, 0.2);
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+.catalog-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(79, 227, 193, 0.08), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+.catalog-card:hover {
+  transform: translateY(-3px) scale(1.015);
+  background: rgba(26, 38, 86, 0.85);
+  border-color: rgba(79, 227, 193, 0.6);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5), 0 0 20px rgba(79, 227, 193, 0.25);
+}
+.catalog-card:hover::before {
+  opacity: 1;
+}
+.catalog-card.selected {
+  background: rgba(30, 48, 105, 0.9);
+  border: 1.8px solid #4fe3c1;
+  box-shadow: 0 0 24px rgba(79, 227, 193, 0.45);
+}
+
+.card-top-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.card-emoji {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+.card-name-group {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.card-name {
+  font-size: 16px;
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+.card-eng {
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+.card-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.card-badge.birth {
+  color: #f472b6;
+  background: rgba(244, 114, 182, 0.16);
+  border: 1px solid rgba(244, 114, 182, 0.4);
+}
+.card-badge.season {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.card-desc {
+  margin: 0;
+  font-size: 12.5px;
+  color: #cbd5e1;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.card-stars-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stars-count {
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+.stars-dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.star-dot-sm {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px currentColor;
+}
+.card-pick-btn {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4fe3c1;
+  transition: color 0.15s;
+}
+.catalog-card:hover .card-pick-btn {
+  color: #6ee7b7;
 }
 
 /* ==========================================================================

@@ -31,8 +31,11 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
   const [activeSeason, setActiveSeason] = useState<SeasonKey>('summer');
   const [seasonAutoPlay, setSeasonAutoPlay] = useState(false);
 
-  // 카테고리 필터: 'all' (전체 18개) | 'zodiac' (탄생월 12궁 1~12월 순서)
-  const [filterMode, setFilterMode] = useState<'all' | 'zodiac'>('all');
+  // 카테고리 필터: 'all' | 'zodiac' | 'spring' | 'summer' | 'autumn' | 'winter'
+  type ConstellationFilterMode = 'all' | 'zodiac' | 'spring' | 'summer' | 'autumn' | 'winter';
+  const [filterMode, setFilterMode] = useState<ConstellationFilterMode>('all');
+  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
 
   const ZODIAC_ORDER = [
     'capricorn',   // 1월 (12.22 ~ 1.19)
@@ -49,9 +52,37 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
     'sagittarius', // 12월 (11.23 ~ 12.21)
   ];
 
-  const displayedConstellations = filterMode === 'zodiac'
-    ? ZODIAC_ORDER.map((id) => CONSTELLATIONS.find((c) => c.id === id)!).filter(Boolean)
-    : CONSTELLATIONS;
+  const getFilteredList = (mode: ConstellationFilterMode) => {
+    switch (mode) {
+      case 'zodiac':
+        return ZODIAC_ORDER.map((id) => CONSTELLATIONS.find((c) => c.id === id)!).filter(Boolean);
+      case 'spring':
+        return CONSTELLATIONS.filter((c) => SEASON_GUIDES[c.id]?.seasonKey === 'spring');
+      case 'summer':
+        return CONSTELLATIONS.filter((c) => SEASON_GUIDES[c.id]?.seasonKey === 'summer');
+      case 'autumn':
+        return CONSTELLATIONS.filter((c) => SEASON_GUIDES[c.id]?.seasonKey === 'autumn');
+      case 'winter':
+        return CONSTELLATIONS.filter((c) => SEASON_GUIDES[c.id]?.seasonKey === 'winter');
+      case 'all':
+      default:
+        return CONSTELLATIONS;
+    }
+  };
+
+  const displayedConstellations = getFilteredList(filterMode);
+
+  const scrollTabs = (offset: number) => {
+    if (tabsContainerRef.current) {
+      tabsContainerRef.current.scrollBy({ left: offset, behavior: 'smooth' });
+    }
+  };
+
+  const handleTabsWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (tabsContainerRef.current) {
+      tabsContainerRef.current.scrollLeft += e.deltaY;
+    }
+  };
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -77,6 +108,11 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
       setActiveSeason(guide.seasonKey);
       sceneRef.current?.setSeasonAngle(guide.angleRad);
     }
+    // 선택한 탭이 화면 중앙으로 오도록 부드럽게 스크롤
+    setTimeout(() => {
+      const tabEl = document.getElementById(`tab-c-${c.id}`);
+      tabEl?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }, 60);
   };
 
   const handleViewModeChange = (mode: ConstellationViewMode) => {
@@ -131,52 +167,116 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
       <div ref={containerRef} className="constellation-canvas-container" />
 
       {/* 상단 메인 헤더 */}
+      {/* 상단 메인 헤더 - 2행 구조 (상단 컨트롤 바 + 하단 스크롤 탭 바) */}
       <header className="constellation-header">
-        <button className="btn btn-back-solar" onClick={onBackToSolar}>
-          <span>🌌</span>
-          <strong>태양계 우주로 돌아가기</strong>
-        </button>
-
-        {/* 별자리 필터 스위치: 전체 18종 ↔ 탄생월 12궁 */}
-        <div className="constellation-filter-switch">
-          <button
-            className={`btn-filter-pill ${filterMode === 'all' ? 'active' : ''}`}
-            onClick={() => setFilterMode('all')}
-            title="밤하늘 전체 18대 대표 별자리 탐험하기"
-          >
-            <span>✨ 전체 ({CONSTELLATIONS.length})</span>
+        <div className="constellation-header-top">
+          <button className="btn btn-back-solar" onClick={onBackToSolar}>
+            <span>🌌</span>
+            <strong>태양계 우주로 돌아가기</strong>
           </button>
+
+          {/* 카테고리 필터 스위치: 전체 ↔ 탄생월 12궁 ↔ 4계절 */}
+          <div className="constellation-filter-switch">
+            <button
+              className={`btn-filter-pill ${filterMode === 'all' ? 'active' : ''}`}
+              onClick={() => setFilterMode('all')}
+              title="밤하늘 전체 18대 대표 별자리 보기"
+            >
+              <span>✨ 전체 ({CONSTELLATIONS.length})</span>
+            </button>
+            <button
+              className={`btn-filter-pill highlight-zodiac ${filterMode === 'zodiac' ? 'active' : ''}`}
+              onClick={() => setFilterMode('zodiac')}
+              title="1월부터 12월까지 내 생일 탄생월 별자리 (황도 12궁 12개) 모아보기"
+            >
+              <span>🎂 탄생월 12궁 (생일별)</span>
+            </button>
+            <button
+              className={`btn-filter-pill ${filterMode === 'spring' ? 'active' : ''}`}
+              onClick={() => setFilterMode('spring')}
+              title="따뜻한 봄철 밤하늘 대표 별자리 보기"
+            >
+              <span>🌸 봄 ({getFilteredList('spring').length})</span>
+            </button>
+            <button
+              className={`btn-filter-pill ${filterMode === 'summer' ? 'active' : ''}`}
+              onClick={() => setFilterMode('summer')}
+              title="여름철 은하수 주변 대표 별자리 보기"
+            >
+              <span>☀️ 여름 ({getFilteredList('summer').length})</span>
+            </button>
+            <button
+              className={`btn-filter-pill ${filterMode === 'autumn' ? 'active' : ''}`}
+              onClick={() => setFilterMode('autumn')}
+              title="청명한 가을철 밤하늘 대표 별자리 보기"
+            >
+              <span>🍁 가을 ({getFilteredList('autumn').length})</span>
+            </button>
+            <button
+              className={`btn-filter-pill ${filterMode === 'winter' ? 'active' : ''}`}
+              onClick={() => setFilterMode('winter')}
+              title="찬란한 겨울철 다이아몬드 별자리 보기"
+            >
+              <span>❄️ 겨울 ({getFilteredList('winter').length})</span>
+            </button>
+          </div>
+
+          {/* 18대 전체 별자리 한눈에 보기 모달 팝업 버튼 */}
           <button
-            className={`btn-filter-pill highlight-zodiac ${filterMode === 'zodiac' ? 'active' : ''}`}
-            onClick={() => setFilterMode('zodiac')}
-            title="1월부터 12월까지 내 생일 탄생월 별자리 (황도 12궁) 모아보기"
+            className="btn btn-open-catalog"
+            onClick={() => setIsCatalogModalOpen(true)}
+            title="18대 전체 별자리를 카드 격자 형태로 한눈에 펼쳐서 선택하기"
           >
-            <span>🎂 탄생월 12궁 (생일별)</span>
+            <span>📑</span>
+            <strong>전체 도감 한눈에 보기 ({displayedConstellations.length})</strong>
           </button>
         </div>
 
-        {/* 별자리 선택 탭 바 */}
-        <div className="constellation-tabs-bar">
-          {displayedConstellations.map((c) => {
-            const monthMatch = c.birthMonth?.match(/(\d+)월/);
-            const monthLabel = monthMatch ? `${monthMatch[1]}월` : null;
+        {/* 하단 탭 바 래퍼: 좌우 스크롤 화살표 + 가로 스크롤 가능한 탭 바 */}
+        <div className="constellation-tabs-wrapper">
+          <button
+            className="btn-tab-scroll left"
+            onClick={() => scrollTabs(-320)}
+            title="이전 별자리 목록으로 스크롤"
+          >
+            ◀
+          </button>
 
-            return (
-              <button
-                key={c.id}
-                className={`constellation-tab-btn ${activeConstellation.id === c.id ? 'active' : ''} ${c.birthMonth ? 'is-zodiac' : ''}`}
-                onClick={() => handleSelectConstellation(c)}
-              >
-                <span className="c-tab-emoji">{c.emoji}</span>
-                <span className="c-tab-name">{c.name}</span>
-                {monthLabel && (
-                  <span className="c-tab-month-tag" title={c.birthMonth}>
-                    {monthLabel}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          <div
+            ref={tabsContainerRef}
+            className="constellation-tabs-bar"
+            onWheel={handleTabsWheel}
+          >
+            {displayedConstellations.map((c) => {
+              const monthMatch = c.birthMonth?.match(/(\d+)월/);
+              const monthLabel = monthMatch ? `${monthMatch[1]}월` : null;
+
+              return (
+                <button
+                  id={`tab-c-${c.id}`}
+                  key={c.id}
+                  className={`constellation-tab-btn ${activeConstellation.id === c.id ? 'active' : ''} ${c.birthMonth ? 'is-zodiac' : ''}`}
+                  onClick={() => handleSelectConstellation(c)}
+                >
+                  <span className="c-tab-emoji">{c.emoji}</span>
+                  <span className="c-tab-name">{c.name}</span>
+                  {monthLabel && (
+                    <span className="c-tab-month-tag" title={c.birthMonth}>
+                      {monthLabel}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            className="btn-tab-scroll right"
+            onClick={() => scrollTabs(320)}
+            title="다음 별자리 목록으로 스크롤"
+          >
+            ▶
+          </button>
         </div>
       </header>
 
@@ -446,6 +546,116 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
             )}
             <div className="season-tip">
               <span>💡 {SEASON_GUIDES[activeConstellation.id]?.description}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📑 전체 18대 별자리 한눈에 보기 팝업 모달 */}
+      {isCatalogModalOpen && (
+        <div className="constellation-catalog-overlay" onClick={() => setIsCatalogModalOpen(false)}>
+          <div className="constellation-catalog-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="catalog-header">
+              <div className="catalog-title-wrap">
+                <span className="catalog-icon">🌌</span>
+                <div>
+                  <h3>밤하늘 18대 대표 별자리 전체 도감</h3>
+                  <p>선택하고 싶은 별자리를 클릭하면 3D 우주 시점이 즉시 이동합니다.</p>
+                </div>
+              </div>
+              <button className="catalog-close-btn" onClick={() => setIsCatalogModalOpen(false)}>
+                ✕
+              </button>
+            </div>
+
+            <div className="catalog-filter-bar">
+              <button
+                className={`catalog-filter-chip ${filterMode === 'all' ? 'active' : ''}`}
+                onClick={() => setFilterMode('all')}
+              >
+                ✨ 전체 ({CONSTELLATIONS.length})
+              </button>
+              <button
+                className={`catalog-filter-chip highlight ${filterMode === 'zodiac' ? 'active' : ''}`}
+                onClick={() => setFilterMode('zodiac')}
+              >
+                🎂 탄생월 12궁 (생일별 12개)
+              </button>
+              <button
+                className={`catalog-filter-chip ${filterMode === 'spring' ? 'active' : ''}`}
+                onClick={() => setFilterMode('spring')}
+              >
+                🌸 봄철 ({getFilteredList('spring').length})
+              </button>
+              <button
+                className={`catalog-filter-chip ${filterMode === 'summer' ? 'active' : ''}`}
+                onClick={() => setFilterMode('summer')}
+              >
+                ☀️ 여름철 ({getFilteredList('summer').length})
+              </button>
+              <button
+                className={`catalog-filter-chip ${filterMode === 'autumn' ? 'active' : ''}`}
+                onClick={() => setFilterMode('autumn')}
+              >
+                🍁 가을철 ({getFilteredList('autumn').length})
+              </button>
+              <button
+                className={`catalog-filter-chip ${filterMode === 'winter' ? 'active' : ''}`}
+                onClick={() => setFilterMode('winter')}
+              >
+                ❄️ 겨울철 ({getFilteredList('winter').length})
+              </button>
+            </div>
+
+            <div className="catalog-grid">
+              {displayedConstellations.map((c) => {
+                const isSelected = activeConstellation.id === c.id;
+                const monthMatch = c.birthMonth?.match(/(\d+)월/);
+                const monthLabel = monthMatch ? `${monthMatch[1]}월 생일별` : null;
+
+                return (
+                  <div
+                    key={c.id}
+                    className={`catalog-card ${isSelected ? 'selected' : ''}`}
+                    onClick={() => {
+                      handleSelectConstellation(c);
+                      setIsCatalogModalOpen(false);
+                    }}
+                  >
+                    <div className="card-top-row">
+                      <span className="card-emoji">{c.emoji}</span>
+                      <div className="card-name-group">
+                        <strong className="card-name">{c.name}</strong>
+                        <small className="card-eng">{c.englishName}</small>
+                      </div>
+                      {monthLabel ? (
+                        <span className="card-badge birth">🎂 {monthLabel}</span>
+                      ) : (
+                        <span className="card-badge season">{c.season.split(' ')[0]}</span>
+                      )}
+                    </div>
+
+                    <p className="card-desc">{c.overview}</p>
+
+                    <div className="card-footer">
+                      <div className="card-stars-preview">
+                        <span className="stars-count">별 {c.stars.length}개</span>
+                        <div className="stars-dots">
+                          {c.stars.slice(0, 5).map((s) => (
+                            <span
+                              key={s.id}
+                              className="star-dot-sm"
+                              style={{ backgroundColor: s.color }}
+                              title={`${s.name} (${s.distanceLy}광년)`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <span className="card-pick-btn">{isSelected ? '선택됨 ✓' : '선택하기 →'}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
