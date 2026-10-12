@@ -2175,10 +2175,10 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     emoji: '♑',
     zodiacSign: '마갈궁',
     birthRange: '12.22 ~ 1.19',
-    angleRad: 0,
+    angleRad: (1 * Math.PI) / 6, // 1시 방향 (30°)
     sunConstellation: '염소자리',
     oppositeConstellationId: 'cancer',
-    description: '1월에는 태양이 염소자리에 머물러요! 한밤중 밤하늘에서는 맞은편 [게자리]와 [사자자리]가 높이 떠올라요.',
+    description: '1월 (시계 1시 방향): 지구가 1월 공전 위치에 서면 밤하늘 정면에 [염소자리]가 곧바로 펼쳐져요! 태양-지구-염소자리가 일직선을 이루며 겨울 밤하늘을 수놓습니다.',
   },
   {
     month: 2,
@@ -2187,10 +2187,10 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     emoji: '♒',
     zodiacSign: '보병궁',
     birthRange: '1.20 ~ 2.18',
-    angleRad: Math.PI / 6,
+    angleRad: (2 * Math.PI) / 6, // 2시 방향 (60°)
     sunConstellation: '물병자리',
     oppositeConstellationId: 'leo',
-    description: '2월에는 태양이 물병자리를 지나요! 한밤중에는 사자의 심장 레굴루스가 빛나는 [사자자리]가 가장 밝게 보여요.',
+    description: '2월 (시계 2시 방향): 지구가 2월 공전 위치로 이동하면 밤하늘 정면에 푸른 물병을 든 [물병자리]를 마주해요! 밤하늘 시야 빔이 물병자리를 향해 비춥니다.',
   },
   {
     month: 3,
@@ -2199,10 +2199,10 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     emoji: '♓',
     zodiacSign: '쌍어궁',
     birthRange: '2.19 ~ 3.20',
-    angleRad: (Math.PI / 6) * 2,
+    angleRad: (3 * Math.PI) / 6, // 3시 방향 (90°)
     sunConstellation: '물고기자리',
     oppositeConstellationId: 'virgo',
-    description: '3월 춘분 무렵, 태양이 물고기자리에 있어요! 밤하늘에는 청백색 1등성 스피카를 품은 [처녀자리]가 환하게 떠올라요.',
+    description: '3월 (시계 3시 방향): 지구가 3월 위치에 도달하면 밤하늘 정면에 은빛 리본으로 연결된 [물고기자리]가 헤엄치는 신비로운 모습을 조망합니다.',
   },
   {
     month: 4,
@@ -2211,10 +2211,10 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     emoji: '♈',
     zodiacSign: '백양궁',
     birthRange: '3.21 ~ 4.19',
-    angleRad: (Math.PI / 6) * 3,
+    angleRad: (4 * Math.PI) / 6, // 4시 방향 (120°)
     sunConstellation: '양자리',
     oppositeConstellationId: 'libra',
-    description: '4월에는 태양이 양자리 방향에 위치해요! 한밤중에는 정의의 황금 저울 [천칭자리]가 밤하늘 중앙을 지켜요.',
+    description: '4월 (시계 4시 방향): 지구가 4월 위치에 서면 밤하늘 정면에 황금 양털을 휘날리는 [양자리]가 우뚝 솟아 봄밤의 밤하늘을 밝혀줍니다.',
   },
   {
     month: 5,
@@ -2223,10 +2223,10 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     emoji: '♉',
     zodiacSign: '금우궁',
     birthRange: '4.20 ~ 5.20',
-    angleRad: (Math.PI / 6) * 4,
+    angleRad: (5 * Math.PI) / 6, // 5시 방향 (150°)
     sunConstellation: '황소자리',
     oppositeConstellationId: 'scorpius',
-    description: '5월에는 태양이 황소자리를 지나요! 한밤중 남쪽 하늘에는 붉은 심장을 가진 [전갈자리]가 웅장하게 떠올라요.',
+    description: '5월 (시계 5시 방향): 지구가 5월 공전 위치로 나아가면 밤하늘 정면에 붉은 눈 알데바란과 플레이아데스 성단의 [황소자리]를 똑바로 바라봅니다.',
   },
   {
     month: 6,
@@ -2235,10 +2235,10 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     emoji: '♊',
     zodiacSign: '쌍자궁',
     birthRange: '5.21 ~ 6.21',
-    angleRad: (Math.PI / 6) * 5,
+    angleRad: (6 * Math.PI) / 6, // 6시 방향 (180°)
     sunConstellation: '쌍둥이자리',
     oppositeConstellationId: 'sagittarius',
-    description: '6월 하지 무렵, 태양이 쌍둥이자리에 머물러요! 밤하늘에는 은하수 중심을 품은 [궁수자리]가 화려하게 빛나요.',
+    description: '6월 (시계 6시 방향): 지구가 6월 위치에 도달하면 밤하늘 정면에 다정한 쌍둥이 형제별 카스토르와 폴룩스의 [쌍둥이자리]가 나란히 빛납니다.',
   },
   {
     month: 7,
@@ -2247,10 +2247,10 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     emoji: '♋',
     zodiacSign: '거해궁',
     birthRange: '6.22 ~ 7.22',
-    angleRad: (Math.PI / 6) * 6,
+    angleRad: (7 * Math.PI) / 6, // 7시 방향 (210°)
     sunConstellation: '게자리',
     oppositeConstellationId: 'capricorn',
-    description: '7월 한여름, 태양이 게자리에 있어요! 자정에는 남쪽 지평선 너머로 바다 염소 [염소자리]를 관측할 수 있어요.',
+    description: '7월 (시계 7시 방향): 지구가 7월 위치로 이동하면 밤하늘 정면에 은하수 보석 프레세페 성단을 품은 귀여운 바다 [게자리]를 정면으로 관측합니다.',
   },
   {
     month: 8,
@@ -2259,10 +2259,10 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     emoji: '♌',
     zodiacSign: '사자궁',
     birthRange: '7.23 ~ 8.22',
-    angleRad: (Math.PI / 6) * 7,
+    angleRad: (8 * Math.PI) / 6, // 8시 방향 (240°)
     sunConstellation: '사자자리',
     oppositeConstellationId: 'aquarius',
-    description: '8월 무더운 여름, 태양이 사자자리를 지나요! 한밤중에는 생명의 푸른 물을 쏟아내는 [물병자리]가 밤하늘을 적셔요.',
+    description: '8월 (시계 8시 방향): 지구가 8월 위치에 서면 밤하늘 정면에 용맹한 백수의 왕 [사자자리]의 심장 레굴루스가 당당하게 포효하듯 떠오릅니다.',
   },
   {
     month: 9,
@@ -2271,10 +2271,10 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     emoji: '♍',
     zodiacSign: '처녀궁',
     birthRange: '8.23 ~ 9.22',
-    angleRad: (Math.PI / 6) * 8,
+    angleRad: (9 * Math.PI) / 6, // 9시 방향 (270°)
     sunConstellation: '처녀자리',
     oppositeConstellationId: 'pisces',
-    description: '9월 추분 무렵, 태양이 처녀자리에 있어요! 밤하늘에는 황금 리본으로 연결된 두 물고기 [물고기자리]가 헤엄쳐요.',
+    description: '9월 (시계 9시 방향): 지구가 9월 위치로 공전하면 밤하늘 정면에 청백색 다이아몬드 1등성 스피카를 품은 [처녀자리]가 우아하게 밤하늘을 수놓습니다.',
   },
   {
     month: 10,
@@ -2283,10 +2283,10 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     emoji: '♎',
     zodiacSign: '천칭궁',
     birthRange: '9.23 ~ 10.23',
-    angleRad: (Math.PI / 6) * 9,
+    angleRad: (10 * Math.PI) / 6, // 10시 방향 (300°)
     sunConstellation: '천칭자리',
     oppositeConstellationId: 'aries',
-    description: '10월 선선한 가을, 태양이 천칭자리에 머물러요! 한밤중에는 황금 뿔을 가진 용감한 [양자리]가 하늘 높이 솟아올라요.',
+    description: '10월 (시계 10시 방향): 지구가 10월 위치에 도달하면 밤하늘 정면에 정의와 평화의 황금 저울 [천칭자리]가 밤하늘 중앙에서 균형을 잡습니다.',
   },
   {
     month: 11,
@@ -2295,10 +2295,10 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     emoji: '♏',
     zodiacSign: '천갈궁',
     birthRange: '10.24 ~ 11.22',
-    angleRad: (Math.PI / 6) * 10,
+    angleRad: (11 * Math.PI) / 6, // 11시 방향 (330°)
     sunConstellation: '전갈자리',
     oppositeConstellationId: 'taurus',
-    description: '11월 늦가을, 태양이 전갈자리에 있어요! 한밤중에는 붉은 눈 알데바란과 플레이아데스 성단의 [황소자리]가 찬란하게 빛나요.',
+    description: '11월 (시계 11시 방향): 지구가 11월 위치로 이동하면 밤하늘 정면에 붉게 고동치는 심장 안타레스의 거대한 [전갈자리]를 마주합니다.',
   },
   {
     month: 12,
@@ -2307,10 +2307,10 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     emoji: '♐',
     zodiacSign: '인마궁',
     birthRange: '11.23 ~ 12.21',
-    angleRad: (Math.PI / 6) * 11,
+    angleRad: (12 * Math.PI) / 6, // 12시 방향 (360° / 0°)
     sunConstellation: '궁수자리',
     oppositeConstellationId: 'gemini',
-    description: '12월 동지 무렵, 태양이 궁수자리에 머물러요! 한밤중에는 다정한 형제별 [쌍둥이자리]가 겨울 밤하늘을 환하게 밝혀줘요.',
+    description: '12월 (시계 12시 방향): 지구가 12시 위치에 서면 밤하늘 정면에 은하수 심장부를 향해 활을 겨눈 반인반마 켄타우로스 [궁수자리]를 장엄하게 조망합니다.',
   },
 ];
 
