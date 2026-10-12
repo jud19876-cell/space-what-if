@@ -64,10 +64,17 @@ function lerpColor(c1: [number, number, number], c2: [number, number, number], t
   ];
 }
 
+const planetTextureCache = new Map<string, THREE.CanvasTexture>();
+
 /**
  * 1024x512 고품질 행성 디퓨즈 텍스처 생성
  */
 export function createPlanetTexture(id: string, width = 1024, height = 512): THREE.CanvasTexture {
+  const cacheKey = `${id}_${width}x${height}`;
+  if (planetTextureCache.has(cacheKey)) {
+    return planetTextureCache.get(cacheKey)!;
+  }
+
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -222,13 +229,21 @@ export function createPlanetTexture(id: string, width = 1024, height = 512): THR
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.ClampToEdgeWrapping;
+  planetTextureCache.set(cacheKey, texture);
   return texture;
 }
+
+const normalMapCache = new Map<string, THREE.CanvasTexture>();
 
 /**
  * 디퓨즈 캔버스로부터 입체 노멀맵(Normal Map) 자동 생성
  */
 export function createNormalMap(diffuseTexture: THREE.CanvasTexture, bumpStrength = 2.0): THREE.CanvasTexture {
+  const cacheKey = `${diffuseTexture.uuid}_${bumpStrength}`;
+  if (normalMapCache.has(cacheKey)) {
+    return normalMapCache.get(cacheKey)!;
+  }
+
   const srcCanvas = diffuseTexture.image as HTMLCanvasElement;
   const width = srcCanvas.width;
   const height = srcCanvas.height;
@@ -282,13 +297,21 @@ export function createNormalMap(diffuseTexture: THREE.CanvasTexture, bumpStrengt
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.ClampToEdgeWrapping;
+  normalMapCache.set(cacheKey, texture);
   return texture;
 }
+
+const ringTextureCache = new Map<string, THREE.CanvasTexture>();
 
 /**
  * 토성 및 천왕성의 정밀 알파 투명 링 텍스처 (카시니 간극 완벽 구현)
  */
 export function createRingTexture(planetId = 'saturn', width = 512, height = 16): THREE.CanvasTexture {
+  const cacheKey = `${planetId}_${width}x${height}`;
+  if (ringTextureCache.has(cacheKey)) {
+    return ringTextureCache.get(cacheKey)!;
+  }
+
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -335,5 +358,6 @@ export function createRingTexture(planetId = 'saturn', width = 512, height = 16)
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.ClampToEdgeWrapping;
   texture.wrapT = THREE.ClampToEdgeWrapping;
+  ringTextureCache.set(cacheKey, texture);
   return texture;
 }

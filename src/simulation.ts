@@ -514,6 +514,8 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
         velocity: vel,
         physicalRadius,
         visualRadius: cmd.visualRadius,
+        typeId: cmd.typeId,
+        hasRings: cmd.hasRings,
       });
       return true;
     }

@@ -89,6 +89,12 @@ export default function App() {
             hasRings: config.hasRings,
           },
         ]);
+        const s = stateRef.current;
+        const newBody = s.bodies[s.bodies.length - 1];
+        if (newBody) {
+          setSelected(newBody.id);
+          sceneRef.current?.focusBody(newBody.id);
+        }
         setToast({
           key: Date.now(),
           emoji: '🪐✨',
@@ -815,6 +821,12 @@ export default function App() {
         onRunCommands={runCommands}
         onStartMousePlacement={handleStartMousePlacement}
         onSpawnSuccess={(planetName) => {
+          const s = stateRef.current;
+          const newBody = s.bodies[s.bodies.length - 1];
+          if (newBody) {
+            setSelected(newBody.id);
+            sceneRef.current?.focusBody(newBody.id);
+          }
           setToast({
             key: Date.now(),
             emoji: '🪐✨',

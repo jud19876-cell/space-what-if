@@ -28,10 +28,12 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
 
   const isSun = body.id === 'sun';
   const isBlackHole = isBlackHoleBody(body);
-  const info = BODY_INFO[body.id as BodyId] ?? (
+  const baseType = body.typeId || (body.id.startsWith('custom_') ? body.id.split('_')[1] : null);
+  const baseInfo = baseType ? BODY_INFO[baseType as BodyId] : undefined;
+  const info = BODY_INFO[body.id as BodyId] ?? baseInfo ?? (
     isBlackHole
       ? BODY_INFO['black_hole']
-      : { emoji: '🪐', color: '#66a6ff', lines: ['우주의 신비로운 천체입니다.'] }
+      : { emoji: '🪐', color: '#38bdf8', lines: ['우주의 신비로운 천체입니다.'] }
   );
 
   const sun = findBody(state, 'sun');

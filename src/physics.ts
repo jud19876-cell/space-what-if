@@ -13,6 +13,8 @@ export interface Body {
   physicalRadius: number; // km (실제 반지름, 정보 표시용)
   visualRadius: number; // 화면 단위 (보기 좋게 조절한 크기)
   isBlackHole?: boolean;
+  typeId?: string;
+  hasRings?: boolean;
 }
 
 export interface AbsorptionEvent {
@@ -63,7 +65,7 @@ export function getSolarWind(): boolean {
 }
 
 export function calculateCircularSpeed(centralMass: number, distanceAU: number): number {
-  const gEff = Math.max(0.01, G * Math.max(0.1, gravityMultiplier));
+  const gEff = G * Math.max(0.01, gravityMultiplier);
   return Math.sqrt((gEff * centralMass) / Math.max(1e-4, distanceAU));
 }
 

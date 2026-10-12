@@ -1,5 +1,5 @@
 // 핵심 물리 시나리오 자동 테스트.  실행: npm run test:physics  (Node 22.6+ / 24)
-import { dist2, length, totalEnergy, type Body, type Vec3 } from '../src/physics.ts';
+import { dist2, length, totalEnergy, calculateCircularSpeed, AU_PER_DAY_TO_KM_S, SUN_MASS, type Body, type Vec3 } from '../src/physics.ts';
 import { createInitialState, executeCommand, findBody, advance, DAYS_PER_SECOND, type SimState } from '../src/simulation.ts';
 import { createSolarSystem } from '../src/solarSystem.ts';
 import { createGalaxyScenario, stepGalaxySystem } from '../src/galaxyCollisionPhysics.ts';
@@ -352,6 +352,41 @@ const r0 = (b: Body) => length(b.position);
     stepGalaxySystem(bhState, 0.05);
   }
   check('괴물 블랙홀 포식 진행: 삼킨 별 기록 갱신', bhState.swallowedCount > 0, `삼킨 별: ${bhState.swallowedCount}개`);
+}
+
+// 10. 커스텀 행성 마우스 궤도 안착 & 케플러 원궤도 공전 검증
+{
+  // 1) 1 AU 원궤도 공전 속도 물리 정밀도 (지구 공전 속도 ≈ 29.78 km/s, 0.0172 AU/day)
+  const vCirc1AU = calculateCircularSpeed(SUN_MASS, 1.0);
+  const vCircKmS = vCirc1AU * AU_PER_DAY_TO_KM_S;
+  check('원궤도 속도 정밀도: 1 AU에서 약 29.8 km/s (0.0172 AU/day)', Math.abs(vCircKmS - 29.78) < 0.2, `계산된 속도: ${vCircKmS.toFixed(2)} km/s`);
+
+  // 2) 마우스 좌표 지정 배치 후 300일 공전 시 궤도 이탈 없이 안정적 공전 유지 (<1.5% 반경 오차)
+  const s = createInitialState();
+  const initClickPos: Vec3 = [2.4, 1.8, 0];
+  const targetR = Math.hypot(initClickPos[0], initClickPos[1]); // 3.0 AU
+
+  executeCommand(s, {
+    action: 'spawn_custom_planet',
+    name: '케플러-실험체 B',
+    typeId: 'saturn',
+    position: initClickPos,
+    visualRadius: 1.2,
+    massMultiplier: 10.0,
+    hasRings: true,
+  });
+
+  const spawned = s.bodies.find((b) => b.name === '케플러-실험체 B');
+  check('새 행성 마우스 배치: 천체 생성 및 ID 등록 확인', !!spawned && spawned.position[0] === initClickPos[0], `초기 위치: [${spawned?.position.map((v) => v.toFixed(2)).join(', ')}]`);
+
+  // 300일 동안 공전 시뮬레이션 진행
+  run(s, 300);
+  const afterSpawn = s.bodies.find((b) => b.name === '케플러-실험체 B');
+  const finalR = afterSpawn ? Math.hypot(afterSpawn.position[0], afterSpawn.position[1]) : 0;
+  const radiusError = Math.abs(finalR - targetR) / targetR;
+
+  check('새 행성 마우스 배치: 300일 공전 후에도 태양 거리 보존 (<1.5% 오차)', radiusError < 0.015, `초기 ${targetR.toFixed(3)} AU → 300일 후 ${finalR.toFixed(3)} AU (오차 ${(radiusError * 100).toFixed(2)}%)`);
+  check('새 행성 마우스 배치: 속도 발산(초광속 우주 탈출) 결함 원천 차단 (<0.02 AU/day)', !!afterSpawn && length(afterSpawn.velocity) < 0.02, `현재 속도: ${(afterSpawn ? length(afterSpawn.velocity) * AU_PER_DAY_TO_KM_S : 0).toFixed(1)} km/s`);
 }
 
 console.log(failed ? `\n${failed}개 실패` : '\n모든 테스트 통과');

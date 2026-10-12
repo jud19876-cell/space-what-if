@@ -230,7 +230,11 @@ export function createSpaceScene(
     const isBlackHole = isBlackHoleBody(b);
     const isAsteroid = b.id.includes('asteroid') || b.id.includes('fragment');
     const isGiant = b.id.includes('giant');
-    const info = BODY_INFO[id] ?? (isBlackHole ? BODY_INFO['black_hole'] : isAsteroid ? (isGiant ? BODY_INFO['giant_asteroid'] : BODY_INFO['asteroid']) : { emoji: '🪐', color: '#888888', lines: [] });
+    const isCustom = b.id.startsWith('custom_');
+    const customType = b.typeId || (isCustom ? b.id.split('_')[1] : null);
+    const effectiveType = customType || id;
+    const baseInfo = customType ? BODY_INFO[customType as BodyId] : undefined;
+    const info = BODY_INFO[id] ?? baseInfo ?? (isBlackHole ? BODY_INFO['black_hole'] : isAsteroid ? (isGiant ? BODY_INFO['giant_asteroid'] : BODY_INFO['asteroid']) : { emoji: '🪐', color: '#38bdf8', lines: [] });
     const group = new THREE.Group();
 
     let sphere: THREE.Mesh;
@@ -289,7 +293,7 @@ export function createSpaceScene(
       group.add(sphere);
       group.add(makeAsteroidFlameGlow(isGiant));
     } else {
-      const isSun = id === 'sun';
+      const isSun = effectiveType === 'sun';
       let mat: THREE.Material;
       let sunTex: THREE.CanvasTexture | undefined;
 
@@ -297,14 +301,17 @@ export function createSpaceScene(
         sunTex = createPlanetTexture('sun');
         mat = new THREE.MeshBasicMaterial({ map: sunTex });
       } else {
-        const diffTex = createPlanetTexture(id);
+        const textureKey = ['mercury', 'venus', 'earth', 'moon', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'].includes(effectiveType) ? effectiveType : id;
+        const diffTex = createPlanetTexture(textureKey);
         const normTex = createNormalMap(diffTex, 2.4);
         mat = new THREE.MeshStandardMaterial({
           map: diffTex,
           normalMap: normTex,
           normalScale: new THREE.Vector2(1.25, 1.25),
-          roughness: id === 'earth' ? 0.35 : 0.78,
-          metalness: id === 'earth' ? 0.15 : 0.05,
+          roughness: effectiveType === 'earth' ? 0.35 : 0.75,
+          metalness: effectiveType === 'earth' ? 0.15 : 0.05,
+          emissive: new THREE.Color(info.color),
+          emissiveIntensity: isCustom ? 0.2 : 0.02,
         });
       }
 
@@ -316,19 +323,17 @@ export function createSpaceScene(
       }
 
       // 대기권 산란 림 글로우 효과 (Atmospheric Rim Glow)
-      if (id === 'earth') group.add(makeAtmosphereGlow(0x4da6ff, 1.04));
-      if (id === 'venus') group.add(makeAtmosphereGlow(0xffcc66, 1.035));
-      if (id === 'neptune') group.add(makeAtmosphereGlow(0x3388ff, 1.035));
-      if (id === 'uranus') group.add(makeAtmosphereGlow(0x5ce6ff, 1.035));
-      if (id === 'jupiter') group.add(makeAtmosphereGlow(0xffddaa, 1.025));
+      if (effectiveType === 'earth') group.add(makeAtmosphereGlow(0x4da6ff, 1.04));
+      if (effectiveType === 'venus') group.add(makeAtmosphereGlow(0xffcc66, 1.035));
+      if (effectiveType === 'neptune') group.add(makeAtmosphereGlow(0x3388ff, 1.035));
+      if (effectiveType === 'uranus') group.add(makeAtmosphereGlow(0x5ce6ff, 1.035));
+      if (effectiveType === 'jupiter') group.add(makeAtmosphereGlow(0xffddaa, 1.025));
 
       // 고리 시스템 (토성 및 천왕성 정밀 절차적 링)
-      if (id === 'saturn') {
+      if (b.hasRings || effectiveType === 'saturn' || id === 'saturn' || id === 'andros_titan') {
         group.add(makeProceduralRing('saturn', 1.35, 2.45, 0.45));
-      } else if (id === 'uranus') {
+      } else if (effectiveType === 'uranus' || id === 'uranus') {
         group.add(makeProceduralRing('uranus', 1.25, 1.85, 1.7));
-      } else if (id === 'andros_titan') {
-        group.add(makeProceduralRing('saturn', 1.45, 2.8, 0.4));
       }
 
       // 인접 나선은하 안드로스 중심핵 및 외계 거성 효과
@@ -368,7 +373,7 @@ export function createSpaceScene(
 
     // 네온 궤도선 (Neon Orbit Path Line)
     let orbitLine: THREE.LineLoop | undefined;
-    if (id !== 'sun' && !isBlackHole && !isAsteroid) {
+    if (id !== 'sun' && effectiveType !== 'sun' && !isBlackHole && !isAsteroid) {
       const orbitPts: THREE.Vector3[] = [];
       for (let i = 0; i <= 64; i++) {
         orbitPts.push(new THREE.Vector3());
@@ -377,7 +382,7 @@ export function createSpaceScene(
       const orbitMat = new THREE.LineBasicMaterial({
         color: new THREE.Color(info.color).getHex(),
         transparent: true,
-        opacity: id === 'moon' ? 0.25 : 0.42,
+        opacity: id === 'moon' ? 0.25 : (isCustom ? 0.65 : 0.42),
       });
       orbitLine = new THREE.LineLoop(orbitGeo, orbitMat);
       scene.add(orbitLine);
