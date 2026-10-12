@@ -1,113 +1,538 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
-export interface ScaleLevel {
-  id: number;
-  key: string;
-  emoji: string;
+export type CosmicCategory = 'all' | 'human_earth' | 'planets_moons' | 'stars_giants' | 'black_holes' | 'galaxies_universe';
+
+export interface CosmicObject {
+  id: string;
   name: string;
-  subtitle: string;
-  realSize: string;
-  meters: number;
-  lightTime: string;
-  ratioFromPrev: string;
-  ratioFromSeoul: string;
-  analogy: string;
-  description: string;
+  enName: string;
+  category: CosmicCategory;
+  emoji: string;
+  diameterMeters: number;      // 실제 물리적 직경 (미터)
+  diameterDisplay: string;     // 표시용 직경 문자열
+  lightCrossTime: string;      // 빛이 이 천체를 횡단하는 시간
+  ratioFromEarth: number;      // 지구 직경 대비 비율
+  marbleEquivalent: string;    // "지구가 1.2cm 구슬일 때" 체감 크기 비유
+  description: string;         // 천체 설명
+  trivia: string;              // 흥미로운 천문학적 사실
   color: string;
+  meshType:
+    | 'human' | 'tower' | 'mountain' | 'seoul' | 'moon' | 'terrestrial'
+    | 'earth' | 'gas_giant' | 'saturn' | 'sun' | 'blue_star' | 'orange_giant'
+    | 'red_supergiant' | 'stephenson' | 'black_hole_sgr' | 'black_hole_ton'
+    | 'nebula' | 'solar_system' | 'galaxy_spiral' | 'galaxy_giant_ic'
+    | 'local_group' | 'cosmic_web';
 }
 
-export const SCALE_LEVELS: ScaleLevel[] = [
+export const COSMIC_CATALOG: CosmicObject[] = [
+  // 1. 인간 & 지구 지역 (Human & Earth Scale)
   {
-    id: 0,
-    key: 'seoul',
+    id: 'human',
+    name: '인간 (Human)',
+    enName: 'Human Being',
+    category: 'human_earth',
+    emoji: '🧍',
+    diameterMeters: 1.8,
+    diameterDisplay: '1.8 m',
+    lightCrossTime: '0.000000006초 (6 ns)',
+    ratioFromEarth: 1.8 / 1.2742e7,
+    marbleEquivalent: '0.00000017 mm (DNA 한 가닥 크기)',
+    description: '우주를 탐구하고 스스로를 인식하는 의식을 가진 생명체입니다.',
+    trivia: '인간의 몸을 이루는 원소(탄소, 산소, 철)는 수십억 년 전 초신성 폭발에서 만들어진 별의 먼지입니다.',
+    color: '#f43f5e',
+    meshType: 'human',
+  },
+  {
+    id: 'lotte_tower',
+    name: '롯데월드타워 (Lotte World Tower)',
+    enName: 'Lotte World Tower (Seoul)',
+    category: 'human_earth',
+    emoji: '🗼',
+    diameterMeters: 555,
+    diameterDisplay: '555 m',
+    lightCrossTime: '0.00000185초 (1.85 µs)',
+    ratioFromEarth: 555 / 1.2742e7,
+    marbleEquivalent: '0.00005 mm (세균 1마리 크기)',
+    description: '대한민국 서울에 우뚝 솟은 높이 555m, 123층의 초고층 랜드마크 마천루입니다.',
+    trivia: '세계에서 6번째로 높은 건축물로, 지상에서 구름을 뚫고 솟아 있습니다.',
+    color: '#06b6d4',
+    meshType: 'tower',
+  },
+  {
+    id: 'everest',
+    name: '에베레스트 산 (Mt. Everest)',
+    enName: 'Mount Everest',
+    category: 'human_earth',
+    emoji: '🏔️',
+    diameterMeters: 8848,
+    diameterDisplay: '8,848 m (8.85 km)',
+    lightCrossTime: '0.0000295초 (29.5 µs)',
+    ratioFromEarth: 8848 / 1.2742e7,
+    marbleEquivalent: '0.008 mm (적혈구 1개 크기)',
+    description: '지구상에서 가장 높은 산으로 해발 8,848m의 험준한 히말라야 봉우리입니다.',
+    trivia: '인도 판과 유라시아 판의 충돌로 인해 매년 약 4mm씩 여전히 하늘로 솟구치고 있습니다.',
+    color: '#94a3b8',
+    meshType: 'mountain',
+  },
+  {
+    id: 'seoul',
+    name: '대한민국 서울 (Seoul)',
+    enName: 'Seoul Metropolitan Area',
+    category: 'human_earth',
     emoji: '🏙️',
-    name: '1단계: 대한민국 서울 도심',
-    subtitle: 'Seoul Metropolitan Area',
-    realSize: '직경 10 km (10,000 m)',
-    meters: 1e4,
-    lightTime: '0.000033초 (33 µs)',
-    ratioFromPrev: '기준점 (1x)',
-    ratioFromSeoul: '1배 (기준점)',
-    analogy: '천만 명의 인류가 생활하는 한강과 남산의 거대 메트로폴리스',
-    description: '대한민국의 심장 서울입니다. 한강 줄기와 N서울타워, 수많은 고층 빌딩이 밀집해 있으나, 광활한 우주의 척도로는 먼지 하나의 원자보다 작은 영역입니다.',
+    diameterMeters: 10000,
+    diameterDisplay: '10 km (10,000 m)',
+    lightCrossTime: '0.000033초 (33 µs)',
+    ratioFromEarth: 10000 / 1.2742e7,
+    marbleEquivalent: '0.0094 mm (미세먼지 1톨 크기)',
+    description: '천만 명의 인류가 생활하는 한강과 남산타워를 품은 거대 메트로폴리스입니다.',
+    trivia: '이 거대한 대도시조차 지구 전체 표면적의 0.08%에 불과한 찰나의 영역입니다.',
     color: '#38bdf8',
+    meshType: 'seoul',
+  },
+
+  // 2. 위성 & 왜소행성 & 암석행성 (Moons & Rocky Planets)
+  {
+    id: 'ceres',
+    name: '세레스 (Ceres)',
+    enName: 'Dwarf Planet Ceres',
+    category: 'planets_moons',
+    emoji: '☄️',
+    diameterMeters: 940000,
+    diameterDisplay: '940 km',
+    lightCrossTime: '0.0031초',
+    ratioFromEarth: 940000 / 1.2742e7,
+    marbleEquivalent: '0.88 mm (모래알 크기)',
+    description: '화성과 목성 사이 소행성대에 위치한 가장 거대한 왜소행성입니다.',
+    trivia: '표면 아래에 거대한 얼음 바다가 존재할 가능성이 높아 생명체 탐사의 핵심 후보입니다.',
+    color: '#a1a1aa',
+    meshType: 'moon',
   },
   {
-    id: 1,
-    key: 'earth',
+    id: 'moon',
+    name: '달 (The Moon)',
+    enName: 'Earth Moon',
+    category: 'planets_moons',
+    emoji: '🌕',
+    diameterMeters: 3474000,
+    diameterDisplay: '3,474 km',
+    lightCrossTime: '0.0116초',
+    ratioFromEarth: 3474000 / 1.2742e7,
+    marbleEquivalent: '3.3 mm (참깨 1알 크기)',
+    description: '지구의 유일한 자연위성으로 수많은 운석 충돌구(크레이터)를 간직하고 있습니다.',
+    trivia: '지구가 1.2cm 구슬이라면 달은 3.3mm 참깨 크기로 약 36cm 떨어진 곳을 돌고 있습니다.',
+    color: '#e2e8f0',
+    meshType: 'moon',
+  },
+  {
+    id: 'mercury',
+    name: '수성 (Mercury)',
+    enName: 'Planet Mercury',
+    category: 'planets_moons',
+    emoji: '🩶',
+    diameterMeters: 4879000,
+    diameterDisplay: '4,879 km',
+    lightCrossTime: '0.0163초',
+    ratioFromEarth: 4879000 / 1.2742e7,
+    marbleEquivalent: '4.6 mm (작은 콩알 크기)',
+    description: '태양에 가장 가까운 행성으로 낮에는 430도, 밤에는 영하 180도에 달합니다.',
+    trivia: '거대한 철질 핵이 행성 부피의 60%를 차지하는 금속 덩어리 행성입니다.',
+    color: '#94a3b8',
+    meshType: 'terrestrial',
+  },
+  {
+    id: 'mars',
+    name: '화성 (Mars)',
+    enName: 'Planet Mars',
+    category: 'planets_moons',
+    emoji: '🔴',
+    diameterMeters: 6779000,
+    diameterDisplay: '6,779 km',
+    lightCrossTime: '0.0226초',
+    ratioFromEarth: 6779000 / 1.2742e7,
+    marbleEquivalent: '6.4 mm (BB탄 총알 크기)',
+    description: '산화철 붉은 먼지로 뒤덮인 붉은 행성으로 태양계 최대 화산 올림포스 산을 가집니다.',
+    trivia: '지구의 절반 크기이지만 육지 면적만 따지면 지구의 전체 대륙 면적과 거의 같습니다.',
+    color: '#f87171',
+    meshType: 'terrestrial',
+  },
+  {
+    id: 'venus',
+    name: '금성 (Venus)',
+    enName: 'Planet Venus',
+    category: 'planets_moons',
+    emoji: '🟡',
+    diameterMeters: 12104000,
+    diameterDisplay: '12,104 km',
+    lightCrossTime: '0.0404초',
+    ratioFromEarth: 12104000 / 1.2742e7,
+    marbleEquivalent: '1.14 cm (지구 구슬과 거의 같은 크기)',
+    description: '지구의 쌍둥이 행성이지만 농도 96%의 이산화탄소와 황산 구름으로 불타는 지옥입니다.',
+    trivia: '표면 기압이 수심 900m와 같고 온도는 470도로 납도 녹아내립니다.',
+    color: '#fde047',
+    meshType: 'terrestrial',
+  },
+  {
+    id: 'earth',
+    name: '지구 (Earth)',
+    enName: 'Planet Earth [Baseline]',
+    category: 'planets_moons',
     emoji: '🌍',
-    name: '2단계: 행성 지구',
-    subtitle: 'Planet Earth',
-    realSize: '직경 12,742 km',
-    meters: 1.2742e7,
-    lightTime: '0.0425초 (빛이 1초에 7.5바퀴)',
-    ratioFromPrev: '서울의 약 1,274배',
-    ratioFromSeoul: '1,274배',
-    analogy: '서울(10 km)은 지구 표면의 0.08%에 불과한 미세한 한 점',
-    description: '인류가 살아가는 유일한 푸른 요람입니다. 지구 표면 한구석에 깜빡이는 붉은 점이 바로 방금 우리가 서 있던 서울 도심 전체입니다.',
+    diameterMeters: 12742000,
+    diameterDisplay: '12,742 km',
+    lightCrossTime: '0.0425초 (1초에 지구 7.5바퀴)',
+    ratioFromEarth: 1.0,
+    marbleEquivalent: '1.20 cm (손바닥 위의 유리구슬 - 기준점)',
+    description: '인류가 살아 숨 쉬는 푸른 대양과 생명의 요람, 이 모든 비교의 절대 기준점입니다.',
+    trivia: '이 시뮬레이터에서 지구를 1.2cm 구슬로 상상하면 우주 전체의 크기를 온몸으로 체감할 수 있습니다!',
     color: '#22c55e',
+    meshType: 'earth',
+  },
+
+  // 3. 거대 가스/얼음 행성 (Giant Planets)
+  {
+    id: 'neptune',
+    name: '해왕성 (Neptune)',
+    enName: 'Ice Giant Neptune',
+    category: 'planets_moons',
+    emoji: '🔵',
+    diameterMeters: 49244000,
+    diameterDisplay: '49,244 km',
+    lightCrossTime: '0.164초',
+    ratioFromEarth: 49244000 / 1.2742e7,
+    marbleEquivalent: '4.6 cm (탁구공 크기)',
+    description: '메탄 대기가 빚어낸 짙은 청색의 얼음 거대행성으로 시속 2,100km의 태풍이 붑니다.',
+    trivia: '태양계 최강의 폭풍이 휘몰아치는 혹한의 얼음 세상입니다.',
+    color: '#3b82f6',
+    meshType: 'gas_giant',
   },
   {
-    id: 2,
-    key: 'solarsystem',
+    id: 'uranus',
+    name: '천왕성 (Uranus)',
+    enName: 'Ice Giant Uranus',
+    category: 'planets_moons',
+    emoji: '🩵',
+    diameterMeters: 50724000,
+    diameterDisplay: '50,724 km',
+    lightCrossTime: '0.169초',
+    ratioFromEarth: 50724000 / 1.2742e7,
+    marbleEquivalent: '4.8 cm (골프공 크기)',
+    description: '자전축이 98도 옆으로 누운 채 공전하는 기묘하고 차가운 청록색 행성입니다.',
+    trivia: '극지방이 태양을 정면으로 마주보며 42년 동안 낮, 42년 동안 밤이 이어집니다.',
+    color: '#67e8f9',
+    meshType: 'gas_giant',
+  },
+  {
+    id: 'saturn',
+    name: '토성 (Saturn + Rings)',
+    enName: 'Saturn & Majestic Rings',
+    category: 'planets_moons',
+    emoji: '🪐',
+    diameterMeters: 116460000,
+    diameterDisplay: '본체 116,460 km (고리 282,000 km)',
+    lightCrossTime: '0.388초 (고리 0.94초)',
+    ratioFromEarth: 116460000 / 1.2742e7,
+    marbleEquivalent: '11.0 cm (오렌지 크기 / 고리 27cm 접시)',
+    description: '얼음과 암석 파편으로 이루어진 장엄하고 화려한 거대 고리를 두른 행성입니다.',
+    trivia: '밀도가 0.69 g/cm³로 물보다 가벼워, 거대한 욕조가 있다면 물에 둥둥 뜹니다.',
+    color: '#fcd34d',
+    meshType: 'saturn',
+  },
+  {
+    id: 'jupiter',
+    name: '목성 (Jupiter)',
+    enName: 'Gas Giant Jupiter',
+    category: 'planets_moons',
+    emoji: '🟠',
+    diameterMeters: 139820000,
+    diameterDisplay: '139,820 km',
+    lightCrossTime: '0.466초',
+    ratioFromEarth: 139820000 / 1.2742e7,
+    marbleEquivalent: '13.2 cm (자몽 / 작은 멜론 크기)',
+    description: '태양계 모든 행성을 합친 것보다 2.5배 무거운 태양계 행성의 제왕입니다.',
+    trivia: '지구 1,321개가 목성 내부에 들어가며, 대적점 폭풍 하나에만 지구가 통째로 들어갑니다.',
+    color: '#fb923c',
+    meshType: 'gas_giant',
+  },
+
+  // 4. 항성 & 초거대성 (Stars & Hypergiants)
+  {
+    id: 'sun',
+    name: '태양 (The Sun)',
+    enName: 'Yellow Dwarf Sun',
+    category: 'stars_giants',
     emoji: '☀️',
-    name: '3단계: 태양계 전체 (카이퍼 벨트)',
-    subtitle: 'Solar System Planetary Disk',
-    realSize: '직경 100 AU (약 150억 km)',
-    meters: 1.496e13,
-    lightTime: '약 13.9시간',
-    ratioFromPrev: '지구의 약 1,174,000배 (117만 배)',
-    ratioFromSeoul: '약 15억 배',
-    analogy: '태양계가 축구장(100m)이라면 지구는 0.08mm의 미세 먼지',
-    description: '태양의 중력이 지배하는 8대 행성과 카이퍼 벨트 소행성대입니다. 지구(1 AU)조차 태양 바로 옆을 도는 작은 점으로 축소되며 서울은 완전히 시야에서 사라집니다.',
-    color: '#eab308',
+    diameterMeters: 1392700000,
+    diameterDisplay: '1,392,700 km',
+    lightCrossTime: '4.65초',
+    ratioFromEarth: 1392700000 / 1.2742e7,
+    marbleEquivalent: '1.31 m (사람 키만한 거대한 비치볼/황금 구체)',
+    description: '태양계 질량의 99.86%를 차지하며 빛과 열을 뿜어내는 중심 항성입니다.',
+    trivia: '지구 109개를 일렬로 세운 지름이며, 내부에는 지구 130만 개가 들어갑니다.',
+    color: '#facc15',
+    meshType: 'sun',
   },
   {
-    id: 3,
-    key: 'milkyway',
-    emoji: '🌌',
-    name: '4단계: 우리은하 (은하수)',
-    subtitle: 'Milky Way Galaxy',
-    realSize: '직경 100,000 광년 (약 9.5×10¹⁷ km)',
-    meters: 9.46e20,
-    lightTime: '100,000년 (10만 년)',
-    ratioFromPrev: '태양계의 약 63,240,000배 (6,324만 배)',
-    ratioFromSeoul: '약 10¹⁷ 배',
-    analogy: '우리은하가 한반도 크기라면 태양계 전체는 모래알 1톨',
-    description: '2,000억~4,000억 개의 별이 소용돌이치는 장엄한 나선은하입니다. 방금 보았던 거대한 태양계(150억 km) 전체가 오리온자리 나선팔의 반짝이는 핀 하나에 불과합니다.',
+    id: 'sirius_a',
+    name: '시리우스 A (Sirius A)',
+    enName: 'Brightest Star Sirius A',
+    category: 'stars_giants',
+    emoji: '💎',
+    diameterMeters: 2380000000,
+    diameterDisplay: '2,380,000 km',
+    lightCrossTime: '7.94초',
+    ratioFromEarth: 2380000000 / 1.2742e7,
+    marbleEquivalent: '2.24 m (태양의 1.7배)',
+    description: '지구 밤하늘에서 가장 밝게 빛나는 큰개자리의 눈부신 청백색 주계열성입니다.',
+    trivia: '태양보다 25배 밝으며 표면온도는 9,940K에 이릅니다.',
+    color: '#93c5fd',
+    meshType: 'blue_star',
+  },
+  {
+    id: 'pollux',
+    name: '폴룩스 (Pollux)',
+    enName: 'Orange Giant Pollux',
+    category: 'stars_giants',
+    emoji: '🌟',
+    diameterMeters: 12500000000,
+    diameterDisplay: '12,500,000 km',
+    lightCrossTime: '41.7초',
+    ratioFromEarth: 12500000000 / 1.2742e7,
+    marbleEquivalent: '11.8 m (건물 4층 높이의 거대 별)',
+    description: '쌍둥이자리에서 가장 밝은 주황색 거성으로 중심부 헬륨 융합 단계에 있습니다.',
+    trivia: '태양 지름의 약 9배에 달하며 주위를 도는 외계행성도 발견되었습니다.',
+    color: '#fdba74',
+    meshType: 'orange_giant',
+  },
+  {
+    id: 'arcturus',
+    name: '아크투루스 (Arcturus)',
+    enName: 'Red Giant Arcturus',
+    category: 'stars_giants',
+    emoji: '🏵️',
+    diameterMeters: 35400000000,
+    diameterDisplay: '35,400,000 km',
+    lightCrossTime: '118초 (약 2분)',
+    ratioFromEarth: 35400000000 / 1.2742e7,
+    marbleEquivalent: '33.3 m (아파트 12층 높이 거대 구체)',
+    description: '목동자리의 붉은 거성으로 태양 지름의 25배에 달하는 거대한 항성입니다.',
+    trivia: '태양보다 170배 많은 에너지를 방출하며 수십억 년 뒤 태양의 미래 모습이기도 합니다.',
+    color: '#fb923c',
+    meshType: 'orange_giant',
+  },
+  {
+    id: 'betelgeuse',
+    name: '베텔게우스 (Betelgeuse)',
+    enName: 'Red Supergiant Betelgeuse',
+    category: 'stars_giants',
+    emoji: '🏮',
+    diameterMeters: 1060000000000,
+    diameterDisplay: '1,060,000,000 km (약 7.1 AU)',
+    lightCrossTime: '58.9분 (약 1시간)',
+    ratioFromEarth: 1.06e12 / 1.2742e7,
+    marbleEquivalent: '1.0 km (마을/테마파크 전체를 덮는 초대형 별)',
+    description: '오리온자리의 어깨에 위치한 붉은 초거성으로 언제든 초신성 폭발을 앞두고 있습니다.',
+    trivia: '태양 위치에 두면 수성, 금성, 지구, 화성은 물론 목성 궤도까지 통째로 삼켜버립니다.',
+    color: '#ef4444',
+    meshType: 'red_supergiant',
+  },
+  {
+    id: 'stephenson',
+    name: '스티븐슨 2-18 (Stephenson 2-18)',
+    enName: 'Hypergiant Stephenson 2-18',
+    category: 'stars_giants',
+    emoji: '👑',
+    diameterMeters: 2990000000000,
+    diameterDisplay: '2,990,000,000 km (약 20 AU)',
+    lightCrossTime: '2.77시간',
+    ratioFromEarth: 2.99e12 / 1.2742e7,
+    marbleEquivalent: '2.81 km (거대한 산맥 / 지리산 정상 크기!)',
+    description: '인류가 관측한 우주 역사상 가장 거대한 극대거성(Hypergiant)입니다.',
+    trivia: '태양 2,150개를 나란히 놓은 크기로, 태양계 토성 궤도(20 AU)를 집어삼키고도 남습니다!',
+    color: '#dc2626',
+    meshType: 'stephenson',
+  },
+
+  // 5. 괴물 블랙홀 & 성운 & 행성계 (Black Holes & Nebulae)
+  {
+    id: 'sgr_a',
+    name: '궁수자리 A* (Sagittarius A*)',
+    enName: 'Milky Way Central Black Hole',
+    category: 'black_holes',
+    emoji: '🕳️',
+    diameterMeters: 24000000000,
+    diameterDisplay: '사건의 지평선 24,000,000 km',
+    lightCrossTime: '80초',
+    ratioFromEarth: 24000000000 / 1.2742e7,
+    marbleEquivalent: '22.6 m (대형 건물 크기)',
+    description: '우리은하의 중심에서 400만 태양질량으로 은하 전체를 지배하는 초대질량 블랙홀입니다.',
+    trivia: '2022년 사건지평선망원경(EHT)에 의해 인류 최초로 그림자가 직접 촬영되었습니다.',
     color: '#a855f7',
+    meshType: 'black_hole_sgr',
   },
   {
-    id: 4,
-    key: 'localgroup',
+    id: 'm87_blackhole',
+    name: 'M87* 초대질량 블랙홀',
+    enName: 'M87 Supermassive Black Hole',
+    category: 'black_holes',
+    emoji: '🕳️',
+    diameterMeters: 38000000000000,
+    diameterDisplay: '사건의 지평선 380억 km (약 250 AU)',
+    lightCrossTime: '35.2시간',
+    ratioFromEarth: 3.8e13 / 1.2742e7,
+    marbleEquivalent: '35.8 km (서울시 전체 면적 크기)',
+    description: '처녀자리 A 은하 중심의 65억 태양질량 블랙홀로 인류 역사상 최초로 사진이 찍힌 블랙홀입니다.',
+    trivia: '명왕성 궤도(80 AU) 전체의 3배가 넘는 거대한 암흑의 싱크홀입니다.',
+    color: '#e11d48',
+    meshType: 'black_hole_ton',
+  },
+  {
+    id: 'ton_618',
+    name: 'TON 618 (우주 최대 괴물 블랙홀)',
+    enName: 'Hypermassive Black Hole TON 618',
+    category: 'black_holes',
+    emoji: '🌌🕳️',
+    diameterMeters: 390000000000000,
+    diameterDisplay: '사건의 지평선 3,900억 km (약 2,600 AU)',
+    lightCrossTime: '15일 (빛으로도 보름이 걸림!)',
+    ratioFromEarth: 3.9e14 / 1.2742e7,
+    marbleEquivalent: '367 km (서울에서 부산까지의 거리!)',
+    description: '태양 660억 배 질량의 인류가 발견한 우주 최대 크기의 초대질량 블랙홀 괴물입니다.',
+    trivia: '태양계 전체(명왕성 궤도)를 33번 삼키고도 남으며, 태양 140조 개 밝기의 퀘이사 빛을 뿜습니다!',
+    color: '#7c3aed',
+    meshType: 'black_hole_ton',
+  },
+  {
+    id: 'cat_eye_nebula',
+    name: '고양이 눈 성운 (Cat Eye Nebula)',
+    enName: 'Planetary Nebula NGC 6543',
+    category: 'black_holes',
+    emoji: '👁️',
+    diameterMeters: 4.73e15,
+    diameterDisplay: '직경 0.5 광년 (약 4.7조 km)',
+    lightCrossTime: '6개월 (0.5년)',
+    ratioFromEarth: 4.73e15 / 1.2742e7,
+    marbleEquivalent: '4,450 km (서울에서 괌/하와이 거리)',
+    description: '죽어가는 별이 가스를 동심원으로 뿜어내며 만든 신비로운 동심원 성운입니다.',
+    trivia: '허블 우주망원경이 촬영한 가장 복잡하고 정교한 가스 매듭 구조를 자랑합니다.',
+    color: '#06b6d4',
+    meshType: 'nebula',
+  },
+  {
+    id: 'solar_system_oort',
+    name: '태양계 전체 (오르트 구름)',
+    enName: 'Full Solar System (Oort Cloud)',
+    category: 'black_holes',
+    emoji: '☀️🪐',
+    diameterMeters: 1.89e16,
+    diameterDisplay: '직경 2 광년 (약 19조 km)',
+    lightCrossTime: '2년',
+    ratioFromEarth: 1.89e16 / 1.2742e7,
+    marbleEquivalent: '17,800 km (지구 지름의 1.4배 거리)',
+    description: '태양의 중력이 미치는 최외곽 혜성 구름으로 수조 개의 얼음 덩어리가 둘러싸고 있습니다.',
+    trivia: '카이퍼 벨트를 지나 태양과 가장 가까운 별 프록시마 센타우리 절반까지 뻗어 있습니다.',
+    color: '#eab308',
+    meshType: 'solar_system',
+  },
+
+  // 6. 은하 & 우주 거대구조 (Galaxies & The Universe)
+  {
+    id: 'milky_way',
+    name: '우리은하 (Milky Way Galaxy)',
+    enName: 'Milky Way Spiral Galaxy',
+    category: 'galaxies_universe',
+    emoji: '🌌',
+    diameterMeters: 9.46e20,
+    diameterDisplay: '100,000 광년 (약 9.5×10¹⁷ km)',
+    lightCrossTime: '100,000년 (10만 년)',
+    ratioFromEarth: 9.46e20 / 1.2742e7,
+    marbleEquivalent: '890,000 km (지구-달 거리의 2.3배!)',
+    description: '2,000억~4,000억 개의 별이 소용돌이치는 장엄한 막대나선은하입니다.',
+    trivia: '태양계는 중심에서 26,000광년 떨어진 오리온자리 팔에서 시속 80만 km로 은하를 공전합니다.',
+    color: '#38bdf8',
+    meshType: 'galaxy_spiral',
+  },
+  {
+    id: 'andromeda',
+    name: '안드로메다 은하 (Andromeda M31)',
+    enName: 'Andromeda Spiral Galaxy',
+    category: 'galaxies_universe',
+    emoji: '💜',
+    diameterMeters: 2.08e21,
+    diameterDisplay: '220,000 광년 (우리은하의 2.2배)',
+    lightCrossTime: '220,000년',
+    ratioFromEarth: 2.08e21 / 1.2742e7,
+    marbleEquivalent: '1,960,000 km (지구-달 거리의 5배)',
+    description: '국부은하군에서 가장 거대한 은하로 1조 개 이상의 별을 품고 있습니다.',
+    trivia: '약 45억 년 뒤 우리은하와 정면 충돌하여 거대한 밀코메다(Milkomeda) 타원은하가 됩니다.',
+    color: '#c084fc',
+    meshType: 'galaxy_spiral',
+  },
+  {
+    id: 'ic_1101',
+    name: 'IC 1101 (우주 최대 괴물 타원은하)',
+    enName: 'Supergiant Galaxy IC 1101',
+    category: 'galaxies_universe',
+    emoji: '👑🌌',
+    diameterMeters: 5.68e22,
+    diameterDisplay: '6,000,000 광년 (우리은하의 60배!)',
+    lightCrossTime: '6,000,000년 (600만 년)',
+    ratioFromEarth: 5.68e22 / 1.2742e7,
+    marbleEquivalent: '53,400,000 km (지구-화성 간 거리!)',
+    description: '인류가 발견한 관측 가능한 우주 역사상 가장 거대한 괴물 거대은하입니다.',
+    trivia: '우리은하를 60개 나란히 놓을 수 있으며, 100조 개 이상의 별이 들어찬 우주의 거인입니다!',
+    color: '#fbbf24',
+    meshType: 'galaxy_giant_ic',
+  },
+  {
+    id: 'local_group',
+    name: '국부은하군 (Local Group)',
+    enName: 'Local Group of Galaxies',
+    category: 'galaxies_universe',
     emoji: '🌀',
-    name: '5단계: 국부은하군',
-    subtitle: 'Local Group of Galaxies',
-    realSize: '직경 10,000,000 광년 (1천만 광년)',
-    meters: 9.46e22,
-    lightTime: '10,000,000년 (1,000만 년)',
-    ratioFromPrev: '우리은하의 약 100배',
-    ratioFromSeoul: '약 10¹⁹ 배',
-    analogy: '우리은하와 안드로메다(M31), 삼각형자리 은하가 모인 은하 가족',
-    description: '우리은하를 포함하여 안드로메다, 삼각형자리, 마젤란 은하 등 50여 개 은하들이 중력으로 묶인 은하 군집입니다. 거대 은하들조차 우주 바다에 뜬 섬들처럼 보입니다.',
+    diameterMeters: 9.46e22,
+    diameterDisplay: '10,000,000 광년 (1천만 광년)',
+    lightCrossTime: '10,000,000년 (1천만 년)',
+    ratioFromEarth: 9.46e22 / 1.2742e7,
+    marbleEquivalent: '89,000,000 km',
+    description: '우리은하, 안드로메다, 삼각형자리 등 50여 개 은하들이 중력으로 묶인 은하 가족입니다.',
+    trivia: '은하들이 거대한 우주의 섬처럼 모여 서로를 끌어당기며 군무를 펼칩니다.',
     color: '#ec4899',
+    meshType: 'local_group',
   },
   {
-    id: 5,
-    key: 'universe',
-    emoji: '🕸️',
-    name: '6단계: 관측 가능한 전체 우주',
-    subtitle: 'Observable Universe & Cosmic Web',
-    realSize: '직경 93,000,000,000 광년 (930억 광년)',
-    meters: 8.8e26,
-    lightTime: '930억 년',
-    ratioFromPrev: '국부은하군의 약 9,300배 (우리은하의 93만 배)',
-    ratioFromSeoul: '약 10²³ 배 (1,000해 배!)',
-    analogy: '서울에서 출발해 10²³배(100,000,000,000,000,000,000,000배) 확장된 궁극의 시공간',
-    description: '빅뱅 이후 빛이 도달할 수 있는 2조 개 이상의 은하와 초은하단이 거미줄처럼 얽힌 거대 우주망(Cosmic Web)입니다. 우주 배경 복사(CMB) 구체가 인간 인식의 지평선을 감싸고 있습니다.',
+    id: 'laniakea',
+    name: '라니아케아 초은하단 (Laniakea)',
+    enName: 'Laniakea Supercluster',
+    category: 'galaxies_universe',
+    emoji: '🌊✨',
+    diameterMeters: 4.92e24,
+    diameterDisplay: '520,000,000 광년 (5.2억 광년)',
+    lightCrossTime: '5.2억 년',
+    ratioFromEarth: 4.92e24 / 1.2742e7,
+    marbleEquivalent: '4,630,000,000 km (지구에서 명왕성 거리!)',
+    description: '하와이어로 "끝없는 천국"을 뜻하며 10만 개 은하들이 중력 흐름을 이루는 거대 초은하단입니다.',
+    trivia: '모든 은하들이 신비로운 미지의 거대 인력체(Great Attractor)를 향해 강물처럼 흐르고 있습니다.',
+    color: '#f59e0b',
+    meshType: 'cosmic_web',
+  },
+  {
+    id: 'observable_universe',
+    name: '관측 가능한 전체 우주',
+    enName: 'Observable Universe & Cosmic Web',
+    category: 'galaxies_universe',
+    emoji: '🕸️🌐',
+    diameterMeters: 8.8e26,
+    diameterDisplay: '93,000,000,000 광년 (930억 광년)',
+    lightCrossTime: '930억 년',
+    ratioFromEarth: 8.8e26 / 1.2742e7,
+    marbleEquivalent: '829,000,000,000 km (지구가 구슬일 때도 태양계의 60배!)',
+    description: '빅뱅 이후 빛이 도달할 수 있는 2조 개 이상의 은하들이 엮인 궁극의 거대 우주망입니다.',
+    trivia: '우리가 출발했던 인간(1.8m)이나 서울(10km)에서 무려 10²³배(1,000해 배) 확장된 시공간입니다.',
     color: '#6366f1',
+    meshType: 'cosmic_web',
   },
 ];
 
@@ -117,24 +542,425 @@ interface CosmicScaleViewerProps {
 
 export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [currentLevel, setCurrentLevel] = useState<number>(0);
-  const [isAutoPlaying, setIsAutoPlaying] = useState<boolean>(false);
-  const [autoDirection, setAutoDirection] = useState<'zoomOut' | 'zoomIn'>('zoomOut');
-  const [sliderVal, setSliderVal] = useState<number>(0);
 
-  // Three.js scene refs
+  // 모드 상태:
+  // 'arena' (1:1 실시간 3D 나란히 비교 무대 - MetaBallStudios 3D 스타일)
+  // 'marble' (지구 구슬 1.2cm 축소 체감 모드 - 사용자 제공 영상 핵심 테마)
+  // 'tour' (Powers of Ten 연속 비행 줌 투어)
+  const [viewMode, setViewMode] = useState<'arena' | 'marble' | 'tour'>('arena');
+
+  // 비교 대상 인덱스
+  const [targetAIndex, setTargetAIndex] = useState<number>(9); // 기본 A: 지구 (Earth)
+  const [targetBIndex, setTargetBIndex] = useState<number>(13); // 기본 B: 목성 (Jupiter)
+  const [selectedCategory, setSelectedCategory] = useState<CosmicCategory>('all');
+  const [isAutoTouring, setIsAutoTouring] = useState<boolean>(false);
+  const [tourIndex, setTourIndex] = useState<number>(9);
+
+  // Three.js refs
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
 
-  // Scale object groups
-  const levelGroupsRef = useRef<THREE.Group[]>([]);
-  const targetCamDistRef = useRef<number>(20);
-  const currentCamDistRef = useRef<number>(20);
-  const pingMeshesRef = useRef<THREE.Mesh[]>([]);
+  // 3D 무대 오브젝트 그룹
+  const stageGroupRef = useRef<THREE.Group | null>(null);
+  const meshARef = useRef<THREE.Group | null>(null);
+  const meshBRef = useRef<THREE.Group | null>(null);
+  const floorGridRef = useRef<THREE.GridHelper | null>(null);
+  const caliperLineRef = useRef<THREE.Line | null>(null);
 
-  // 1. Three.js 초기화 및 6단계 3D 오브젝트 구축
+  const targetA = COSMIC_CATALOG[targetAIndex];
+  const targetB = COSMIC_CATALOG[targetBIndex];
+
+  // 필터링된 카탈로그 목록
+  const filteredCatalog = useMemo(() => {
+    if (selectedCategory === 'all') return COSMIC_CATALOG;
+    return COSMIC_CATALOG.filter((c) => c.category === selectedCategory);
+  }, [selectedCategory]);
+
+  // 배율 계산 (B / A)
+  const ratioBoverA = targetB.diameterMeters / Math.max(1e-10, targetA.diameterMeters);
+  const volumeRatio = Math.pow(ratioBoverA, 3);
+
+  // ==========================================
+  // 절차적 고품질 3D 텍스처 생성 유틸리티들
+  // ==========================================
+  const textures = useMemo(() => {
+    // 1. 지구 텍스처 (Ocean + Continents + Cloud highlights)
+    const earthC = document.createElement('canvas');
+    earthC.width = 1024;
+    earthC.height = 512;
+    const eg = earthC.getContext('2d')!;
+    eg.fillStyle = '#0f2756'; // Deep ocean
+    eg.fillRect(0, 0, 1024, 512);
+    // Continents
+    eg.fillStyle = '#166534';
+    eg.beginPath();
+    eg.ellipse(680, 200, 180, 100, 0, 0, Math.PI * 2); // Eurasia
+    eg.fill();
+    eg.fillStyle = '#22c55e';
+    eg.beginPath();
+    eg.ellipse(750, 190, 50, 70, 0.2, 0, Math.PI * 2); // East Asia / Korea
+    eg.fill();
+    eg.fillStyle = '#15803d';
+    eg.beginPath();
+    eg.ellipse(260, 220, 120, 90, 0.3, 0, Math.PI * 2); // Americas
+    eg.fill();
+    eg.beginPath();
+    eg.ellipse(540, 290, 90, 120, -0.2, 0, Math.PI * 2); // Africa
+    eg.fill();
+    // Swirling Clouds
+    eg.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    for (let i = 0; i < 40; i++) {
+      eg.beginPath();
+      eg.arc(Math.random() * 1024, Math.random() * 512, 20 + Math.random() * 60, 0, Math.PI * 2);
+      eg.fill();
+    }
+    const earthTex = new THREE.CanvasTexture(earthC);
+
+    // 2. 목성 텍스처 (Banded Gas Clouds + Great Red Spot)
+    const jupC = document.createElement('canvas');
+    jupC.width = 1024;
+    jupC.height = 512;
+    const jg = jupC.getContext('2d')!;
+    const jupBands = ['#7c2d12', '#fed7aa', '#9a3412', '#ffedd5', '#c2410c', '#fef3c7', '#ea580c', '#fed7aa'];
+    for (let y = 0; y < 512; y++) {
+      const bandIdx = Math.floor((y / 512) * jupBands.length);
+      const wave = Math.sin(y * 0.1) * 15;
+      jg.fillStyle = jupBands[bandIdx];
+      jg.fillRect(0, y, 1024, 1);
+    }
+    // Great Red Spot
+    jg.fillStyle = '#b91c1c';
+    jg.beginPath();
+    jg.ellipse(650, 320, 70, 42, 0, 0, Math.PI * 2);
+    jg.fill();
+    const jupTex = new THREE.CanvasTexture(jupC);
+
+    // 3. 태양 표면 (Solar Convection Granulation + Flares)
+    const sunC = document.createElement('canvas');
+    sunC.width = 512;
+    sunC.height = 256;
+    const sg = sunC.getContext('2d')!;
+    const grad = sg.createRadialGradient(256, 128, 10, 256, 128, 256);
+    grad.addColorStop(0, '#fef08a');
+    grad.addColorStop(0.3, '#f59e0b');
+    grad.addColorStop(0.7, '#d97706');
+    grad.addColorStop(1, '#b45309');
+    sg.fillStyle = grad;
+    sg.fillRect(0, 0, 512, 256);
+    for (let i = 0; i < 150; i++) {
+      sg.fillStyle = `rgba(254, 240, 138, ${0.15 + Math.random() * 0.35})`;
+      sg.beginPath();
+      sg.arc(Math.random() * 512, Math.random() * 256, 5 + Math.random() * 25, 0, Math.PI * 2);
+      sg.fill();
+    }
+    const sunTex = new THREE.CanvasTexture(sunC);
+
+    // 4. 초거대성 표면 (Boiling Supergiant Convection)
+    const giantC = document.createElement('canvas');
+    giantC.width = 512;
+    giantC.height = 256;
+    const gg = giantC.getContext('2d')!;
+    gg.fillStyle = '#7f1d1d';
+    gg.fillRect(0, 0, 512, 256);
+    for (let i = 0; i < 120; i++) {
+      gg.fillStyle = `rgba(239, 68, 68, ${0.2 + Math.random() * 0.4})`;
+      gg.beginPath();
+      gg.arc(Math.random() * 512, Math.random() * 256, 12 + Math.random() * 40, 0, Math.PI * 2);
+      gg.fill();
+    }
+    const giantTex = new THREE.CanvasTexture(giantC);
+
+    return { earthTex, jupTex, sunTex, giantTex };
+  }, []);
+
+  // 천체 3D 비주얼 모델 빌더
+  const buildObjectMesh = (obj: CosmicObject, visualRadius: number): THREE.Group => {
+    const group = new THREE.Group();
+
+    switch (obj.meshType) {
+      case 'human': {
+        // 정교한 3D 인간 모델 (머리, 몸통, 팔, 다리)
+        const skinMat = new THREE.MeshStandardMaterial({ color: 0xfbcfe8, roughness: 0.5 });
+        const clothMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.7 });
+        const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+
+        const head = new THREE.Mesh(new THREE.SphereGeometry(visualRadius * 0.2, 16, 16), skinMat);
+        head.position.y = visualRadius * 0.85;
+        group.add(head);
+
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(visualRadius * 0.22, visualRadius * 0.2, visualRadius * 0.6, 12), clothMat);
+        body.position.y = visualRadius * 0.45;
+        group.add(body);
+
+        const legL = new THREE.Mesh(new THREE.CylinderGeometry(visualRadius * 0.08, visualRadius * 0.07, visualRadius * 0.7, 8), pantsMat);
+        legL.position.set(-visualRadius * 0.12, -visualRadius * 0.2, 0);
+        group.add(legL);
+
+        const legR = new THREE.Mesh(new THREE.CylinderGeometry(visualRadius * 0.08, visualRadius * 0.07, visualRadius * 0.7, 8), pantsMat);
+        legR.position.set(visualRadius * 0.12, -visualRadius * 0.2, 0);
+        group.add(legR);
+        break;
+      }
+
+      case 'tower': {
+        // 롯데월드타워 곡선 마천루
+        const towerMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.85, roughness: 0.15, transparent: true, opacity: 0.95 });
+        const towerGeo = new THREE.CylinderGeometry(visualRadius * 0.12, visualRadius * 0.45, visualRadius * 2.0, 16);
+        const tower = new THREE.Mesh(towerGeo, towerMat);
+        tower.position.y = visualRadius;
+        group.add(tower);
+
+        // 첨탑 비콘
+        const beacon = new THREE.Mesh(new THREE.SphereGeometry(visualRadius * 0.06, 8, 8), new THREE.MeshBasicMaterial({ color: 0xf43f5e }));
+        beacon.position.y = visualRadius * 2.05;
+        group.add(beacon);
+        break;
+      }
+
+      case 'mountain': {
+        // 에베레스트 산악 지형
+        const mountainGeo = new THREE.ConeGeometry(visualRadius * 1.4, visualRadius * 1.6, 7);
+        const mountainMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9 });
+        const mountain = new THREE.Mesh(mountainGeo, mountainMat);
+        mountain.position.y = visualRadius * 0.8;
+        group.add(mountain);
+
+        // 만년설 눈덮인 정상
+        const snowGeo = new THREE.ConeGeometry(visualRadius * 0.6, visualRadius * 0.7, 7);
+        const snowMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 });
+        const snow = new THREE.Mesh(snowGeo, snowMat);
+        snow.position.y = visualRadius * 1.25;
+        group.add(snow);
+        break;
+      }
+
+      case 'seoul': {
+        // 서울 한강 & 도심 그리드 & 남산타워
+        const baseGeo = new THREE.CylinderGeometry(visualRadius * 1.2, visualRadius * 1.2, visualRadius * 0.08, 36);
+        const baseMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x0284c7, emissiveIntensity: 0.2 });
+        group.add(new THREE.Mesh(baseGeo, baseMat));
+
+        // 한강 리본
+        const riverGeo = new THREE.TorusGeometry(visualRadius * 0.8, visualRadius * 0.06, 8, 24, Math.PI * 0.8);
+        const riverMat = new THREE.MeshBasicMaterial({ color: 0x06b6d4 });
+        const river = new THREE.Mesh(riverGeo, riverMat);
+        river.rotation.x = Math.PI / 2;
+        group.add(river);
+
+        // N서울타워
+        const nTower = new THREE.Mesh(new THREE.CylinderGeometry(visualRadius * 0.03, visualRadius * 0.06, visualRadius * 0.9, 8), new THREE.MeshBasicMaterial({ color: 0xf43f5e }));
+        nTower.position.set(-visualRadius * 0.1, visualRadius * 0.45, 0);
+        group.add(nTower);
+        break;
+      }
+
+      case 'earth': {
+        // 사실적인 절차적 텍스처 지구 + 대기층 헤일로
+        const earthMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(visualRadius, 48, 48),
+          new THREE.MeshStandardMaterial({ map: textures.earthTex, roughness: 0.5, metalness: 0.1 }),
+        );
+        earthMesh.rotation.z = (23.5 * Math.PI) / 180;
+        group.add(earthMesh);
+
+        // 대기층 광선 산란 헤일로
+        const atmo = new THREE.Mesh(
+          new THREE.SphereGeometry(visualRadius * 1.035, 32, 32),
+          new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.25, side: THREE.BackSide }),
+        );
+        group.add(atmo);
+        break;
+      }
+
+      case 'saturn': {
+        // 토성 본체
+        const saturnMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(visualRadius, 36, 36),
+          new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.6 }),
+        );
+        group.add(saturnMesh);
+
+        // 화려한 토성 고리 (카시니 간극 이중 링)
+        const ringGeo = new THREE.RingGeometry(visualRadius * 1.35, visualRadius * 2.35, 64);
+        const ringMat = new THREE.MeshStandardMaterial({
+          color: 0xfef08a,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.85,
+          roughness: 0.3,
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2 + 0.35;
+        group.add(ring);
+        break;
+      }
+
+      case 'gas_giant': {
+        // 목성 / 해왕성 등 가스 행성
+        const isJup = obj.id === 'jupiter';
+        const giantMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(visualRadius, 40, 40),
+          new THREE.MeshStandardMaterial({
+            map: isJup ? textures.jupTex : undefined,
+            color: isJup ? undefined : obj.color,
+            roughness: 0.45,
+          }),
+        );
+        group.add(giantMesh);
+        break;
+      }
+
+      case 'sun': {
+        // 불타는 태양 구체 + 코로나 파티클
+        const sunMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(visualRadius, 40, 40),
+          new THREE.MeshStandardMaterial({ map: textures.sunTex, emissive: 0xf59e0b, emissiveIntensity: 0.7 }),
+        );
+        group.add(sunMesh);
+
+        // 코로나 플레어 글로우
+        const corona = new THREE.Mesh(
+          new THREE.SphereGeometry(visualRadius * 1.15, 24, 24),
+          new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.35, side: THREE.BackSide }),
+        );
+        group.add(corona);
+        break;
+      }
+
+      case 'blue_star': {
+        // 시리우스 A 등 청백색 주계열성
+        const blueStar = new THREE.Mesh(
+          new THREE.SphereGeometry(visualRadius, 32, 32),
+          new THREE.MeshBasicMaterial({ color: 0xe0f2fe }),
+        );
+        group.add(blueStar);
+
+        const halo = new THREE.Mesh(
+          new THREE.SphereGeometry(visualRadius * 1.25, 20, 20),
+          new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.4, side: THREE.BackSide }),
+        );
+        group.add(halo);
+        break;
+      }
+
+      case 'orange_giant':
+      case 'red_supergiant':
+      case 'stephenson': {
+        // 베텔게우스 / 스티븐슨 2-18 등 거대/극대거성
+        const giant = new THREE.Mesh(
+          new THREE.SphereGeometry(visualRadius, 36, 36),
+          new THREE.MeshStandardMaterial({ map: textures.giantTex, emissive: 0xd97706, emissiveIntensity: 0.6 }),
+        );
+        group.add(giant);
+
+        const redHalo = new THREE.Mesh(
+          new THREE.SphereGeometry(visualRadius * 1.2, 24, 24),
+          new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.35, side: THREE.BackSide }),
+        );
+        group.add(redHalo);
+        break;
+      }
+
+      case 'black_hole_ton':
+      case 'black_hole_sgr': {
+        // 칠흑의 사건의 지평선 구체
+        const bhCore = new THREE.Mesh(
+          new THREE.SphereGeometry(visualRadius * 0.9, 36, 36),
+          new THREE.MeshBasicMaterial({ color: 0x000000 }),
+        );
+        group.add(bhCore);
+
+        // 광자 링 (Photon Ring)
+        const photonRing = new THREE.Mesh(
+          new THREE.RingGeometry(visualRadius * 0.92, visualRadius * 1.05, 48),
+          new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }),
+        );
+        photonRing.rotation.x = Math.PI / 2;
+        group.add(photonRing);
+
+        // 상대론적 강착원반 (Accretion Disk)
+        const diskGeo = new THREE.RingGeometry(visualRadius * 1.2, visualRadius * 2.8, 64);
+        const diskMat = new THREE.MeshBasicMaterial({
+          color: 0xf59e0b,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.85,
+        });
+        const disk = new THREE.Mesh(diskGeo, diskMat);
+        disk.rotation.x = Math.PI / 2 + 0.2;
+        group.add(disk);
+        break;
+      }
+
+      case 'galaxy_spiral':
+      case 'galaxy_giant_ic': {
+        // 수천 개 나선팔 별빛 파티클
+        const starGeo = new THREE.BufferGeometry();
+        const pCount = obj.meshType === 'galaxy_giant_ic' ? 8000 : 5000;
+        const positions = new Float32Array(pCount * 3);
+        const colors = new Float32Array(pCount * 3);
+
+        for (let i = 0; i < pCount; i++) {
+          const arm = i % (obj.meshType === 'galaxy_giant_ic' ? 4 : 2);
+          const r = Math.pow(Math.random(), 0.6) * visualRadius * 1.5;
+          const theta = arm * Math.PI + Math.log(Math.max(0.5, r)) * 2.8 + (Math.random() - 0.5) * 0.5;
+          const z = (Math.random() - 0.5) * (visualRadius * 0.25);
+
+          positions[i * 3] = Math.cos(theta) * r;
+          positions[i * 3 + 1] = z;
+          positions[i * 3 + 2] = Math.sin(theta) * r;
+
+          const isCore = r < visualRadius * 0.35;
+          colors[i * 3] = isCore ? 1.0 : 0.4;
+          colors[i * 3 + 1] = isCore ? 0.9 : 0.7;
+          colors[i * 3 + 2] = 1.0;
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        starGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const pMat = new THREE.PointsMaterial({ size: 1.5, vertexColors: true, transparent: true, opacity: 0.85 });
+        group.add(new THREE.Points(starGeo, pMat));
+        break;
+      }
+
+      case 'cosmic_web': {
+        // 거대 우주망 파티클 & 필라멘트
+        const webGeo = new THREE.BufferGeometry();
+        const pCount = 6000;
+        const positions = new Float32Array(pCount * 3);
+        for (let i = 0; i < pCount; i++) {
+          const u = Math.random();
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(Math.random() * 2 - 1);
+          const r = Math.pow(u, 0.7) * visualRadius * 1.8;
+          positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+          positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+          positions[i * 3 + 2] = r * Math.cos(phi);
+        }
+        webGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const webMat = new THREE.PointsMaterial({ color: 0x818cf8, size: 1.6, transparent: true, opacity: 0.8 });
+        group.add(new THREE.Points(webGeo, webMat));
+        break;
+      }
+
+      default: {
+        // 표준 구체 (암석, 위성 등)
+        const sphere = new THREE.Mesh(
+          new THREE.SphereGeometry(visualRadius, 32, 32),
+          new THREE.MeshStandardMaterial({ color: obj.color, roughness: 0.7 }),
+        );
+        group.add(sphere);
+        break;
+      }
+    }
+
+    return group;
+  };
+
+  // ==========================================
+  // Three.js 초기 씬 & 렌더러 설정
+  // ==========================================
   useEffect(() => {
     if (!containerRef.current) return;
     const container = containerRef.current;
@@ -143,510 +969,73 @@ export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleView
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x02040b);
-    scene.fog = new THREE.FogExp2(0x02040b, 0.0012);
+    scene.fog = new THREE.FogExp2(0x02040b, 0.001);
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 4000);
-    camera.position.set(0, 14, 22);
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 8000);
+    camera.position.set(0, 16, 36);
     cameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.25;
+    renderer.toneMappingExposure = 1.3;
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
-    controls.maxDistance = 2500;
+    controls.maxDistance = 5000;
     controls.minDistance = 2;
     controlsRef.current = controls;
 
-    // 조명
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
-    scene.add(ambientLight);
+    // 프리미엄 스튜디오 조명 (MetaBallStudios 스타일 바닥 반사 + 림라이트)
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+    const mainLight = new THREE.DirectionalLight(0xfff5ea, 2.5);
+    mainLight.position.set(30, 50, 40);
+    scene.add(mainLight);
 
-    const dirLight = new THREE.DirectionalLight(0xfff8ee, 2.2);
-    dirLight.position.set(40, 60, 40);
-    scene.add(dirLight);
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 1.8);
+    rimLight.position.set(-30, 20, -30);
+    scene.add(rimLight);
 
-    const pointLight = new THREE.PointLight(0x38bdf8, 1.8, 120);
-    pointLight.position.set(0, 10, 0);
-    scene.add(pointLight);
+    // 하이테크 쇼룸 반사 바닥 그리드
+    const grid = new THREE.GridHelper(120, 60, 0x38bdf8, 0x1e293b);
+    grid.position.y = -6;
+    scene.add(grid);
+    floorGridRef.current = grid;
 
-    // 심우주 배경 별빛
+    // 심우주 별빛 파티클
     const starGeo = new THREE.BufferGeometry();
-    const starCount = 3500;
+    const starCount = 2500;
     const starPos = new Float32Array(starCount * 3);
-    const starCols = new Float32Array(starCount * 3);
     for (let i = 0; i < starCount; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(Math.random() * 2 - 1);
-      const r = 900 + Math.random() * 400;
+      const r = 1200 + Math.random() * 800;
       starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       starPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       starPos[i * 3 + 2] = r * Math.cos(phi);
-
-      const colorMix = Math.random();
-      starCols[i * 3] = 0.6 + colorMix * 0.4;
-      starCols[i * 3 + 1] = 0.7 + (1 - colorMix) * 0.3;
-      starCols[i * 3 + 2] = 1.0;
     }
     starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-    starGeo.setAttribute('color', new THREE.BufferAttribute(starCols, 3));
-    const starMat = new THREE.PointsMaterial({
-      size: 1.8,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.75,
-      sizeAttenuation: false,
-    });
-    scene.add(new THREE.Points(starGeo, starMat));
+    scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x94a3b8, size: 1.5, sizeAttenuation: false })));
 
-    const levelGroups: THREE.Group[] = [];
-    const pings: THREE.Mesh[] = [];
+    // 스테이지 메인 그룹
+    const stageGroup = new THREE.Group();
+    scene.add(stageGroup);
+    stageGroupRef.current = stageGroup;
 
-    // ==========================================
-    // 0단계: 서울 도심 (10 km) 3D 구축
-    // ==========================================
-    const g0 = new THREE.Group();
-    // 그리드 대지 (직경 10km 원형 디스크)
-    const diskGeo = new THREE.CylinderGeometry(8, 8, 0.2, 48);
-    const diskMat = new THREE.MeshStandardMaterial({
-      color: 0x091428,
-      roughness: 0.6,
-      metalness: 0.3,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.12,
-    });
-    const disk = new THREE.Mesh(diskGeo, diskMat);
-    disk.position.y = -0.1;
-    g0.add(disk);
-
-    // 원형 네온 테두리 (10km 반경 링)
-    const ringGeo = new THREE.RingGeometry(7.9, 8.1, 64);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.02;
-    g0.add(ring);
-
-    // 한강 (푸른 리본 곡선)
-    const riverPoints = [
-      new THREE.Vector3(-7.5, 0.05, 2.0),
-      new THREE.Vector3(-4.0, 0.05, 0.5),
-      new THREE.Vector3(-1.0, 0.05, 1.8),
-      new THREE.Vector3(2.5, 0.05, 0.8),
-      new THREE.Vector3(5.5, 0.05, -1.2),
-      new THREE.Vector3(7.5, 0.05, -2.5),
-    ];
-    const riverCurve = new THREE.CatmullRomCurve3(riverPoints);
-    const riverGeo = new THREE.TubeGeometry(riverCurve, 40, 0.45, 8, false);
-    const riverMat = new THREE.MeshStandardMaterial({
-      color: 0x06b6d4,
-      emissive: 0x0891b2,
-      emissiveIntensity: 0.5,
-      roughness: 0.2,
-    });
-    g0.add(new THREE.Mesh(riverGeo, riverMat));
-
-    // N서울타워 & 남산
-    const namsanGeo = new THREE.ConeGeometry(2.2, 1.5, 16);
-    const namsanMat = new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.9 });
-    const namsan = new THREE.Mesh(namsanGeo, namsanMat);
-    namsan.position.set(-0.5, 0.75, -0.6);
-    g0.add(namsan);
-
-    // 타워 기둥 및 전망대
-    const towerGeo = new THREE.CylinderGeometry(0.08, 0.14, 2.2, 8);
-    const towerMat = new THREE.MeshStandardMaterial({ color: 0xe0f2fe, metalness: 0.8 });
-    const tower = new THREE.Mesh(towerGeo, towerMat);
-    tower.position.set(-0.5, 2.3, -0.6);
-    g0.add(tower);
-
-    const deckGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.3, 12);
-    const deckMat = new THREE.MeshBasicMaterial({ color: 0xf43f5e });
-    const deck = new THREE.Mesh(deckGeo, deckMat);
-    deck.position.set(-0.5, 2.5, -0.6);
-    g0.add(deck);
-
-    // 도심 빌딩 그리드 블록 (강남, 여의도, 종로)
-    const buildingGeo = new THREE.BoxGeometry(0.35, 1.0, 0.35);
-    const buildingMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.5, roughness: 0.4 });
-    const buildingInst = new THREE.InstancedMesh(buildingGeo, buildingMat, 120);
-    const dummy = new THREE.Object3D();
-    let bIdx = 0;
-    for (let x = -6; x <= 6; x += 1.2) {
-      for (let z = -6; z <= 6; z += 1.2) {
-        if (Math.hypot(x, z) < 6.8 && Math.hypot(x + 0.5, z + 0.6) > 2.0) {
-          const height = 0.5 + Math.random() * 1.6;
-          dummy.position.set(x + (Math.random() - 0.5) * 0.4, height / 2, z + (Math.random() - 0.5) * 0.4);
-          dummy.scale.set(0.8 + Math.random() * 0.6, height, 0.8 + Math.random() * 0.6);
-          dummy.updateMatrix();
-          buildingInst.setMatrixAt(bIdx++, dummy.matrix);
-        }
-      }
-    }
-    buildingInst.instanceMatrix.needsUpdate = true;
-    g0.add(buildingInst);
-
-    levelGroups.push(g0);
-    scene.add(g0);
-
-    // ==========================================
-    // 1단계: 지구 (12,742 km) 3D 구축
-    // ==========================================
-    const g1 = new THREE.Group();
-    // 지구 구체
-    const earthGeo = new THREE.SphereGeometry(6.5, 48, 48);
-    // 절차적 대륙/해양 캔버스 텍스처
-    const earthCanvas = document.createElement('canvas');
-    earthCanvas.width = 512;
-    earthCanvas.height = 256;
-    const eg = earthCanvas.getContext('2d')!;
-    eg.fillStyle = '#1e3a8a'; // 깊은 대양
-    eg.fillRect(0, 0, 512, 256);
-    // 아시아, 한반도, 유라시아 대륙 윤곽
-    eg.fillStyle = '#15803d'; // 녹색 대륙
-    eg.beginPath();
-    eg.ellipse(320, 100, 90, 50, 0, 0, Math.PI * 2);
-    eg.fill();
-    eg.beginPath();
-    eg.ellipse(360, 95, 25, 35, 0.2, 0, Math.PI * 2); // 한반도/동아시아
-    eg.fillStyle = '#22c55e';
-    eg.fill();
-    eg.beginPath();
-    eg.ellipse(140, 110, 60, 45, 0.3, 0, Math.PI * 2); // 아메리카
-    eg.fill();
-    // 구름 층
-    eg.fillStyle = 'rgba(255, 255, 255, 0.35)';
-    for (let c = 0; c < 20; c++) {
-      eg.beginPath();
-      eg.arc(Math.random() * 512, Math.random() * 256, 15 + Math.random() * 30, 0, Math.PI * 2);
-      eg.fill();
-    }
-    const earthTex = new THREE.CanvasTexture(earthCanvas);
-    const earthMat = new THREE.MeshStandardMaterial({
-      map: earthTex,
-      roughness: 0.5,
-      metalness: 0.1,
-    });
-    const earthMesh = new THREE.Mesh(earthGeo, earthMat);
-    earthMesh.rotation.y = 1.1;
-    earthMesh.rotation.z = (23.5 * Math.PI) / 180; // 자전축 기울기
-    g1.add(earthMesh);
-
-    // 대기층 헤일로
-    const atmoGeo = new THREE.SphereGeometry(6.65, 32, 32);
-    const atmoMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.18,
-      side: THREE.BackSide,
-    });
-    g1.add(new THREE.Mesh(atmoGeo, atmoMat));
-
-    // 서울 위치 핑 (Earth 표면 한반도 위 펄스 링)
-    const seoulPingGeo = new THREE.RingGeometry(0.12, 0.28, 24);
-    const seoulPingMat = new THREE.MeshBasicMaterial({ color: 0xff3b30, side: THREE.DoubleSide });
-    const seoulPing = new THREE.Mesh(seoulPingGeo, seoulPingMat);
-    // 한반도 위치 좌표
-    seoulPing.position.set(3.4, 4.3, 3.4);
-    seoulPing.lookAt(0, 0, 0);
-    g1.add(seoulPing);
-    pings.push(seoulPing);
-
-    g1.visible = false;
-    levelGroups.push(g1);
-    scene.add(g1);
-
-    // ==========================================
-    // 2단계: 태양계 전체 (100 AU) 3D 구축
-    // ==========================================
-    const g2 = new THREE.Group();
-    // 중심 태양
-    const sunGeo = new THREE.SphereGeometry(1.6, 32, 32);
-    const sunMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
-    const sunMesh = new THREE.Mesh(sunGeo, sunMat);
-    g2.add(sunMesh);
-
-    // 태양 코로나 글로우
-    const coronaGeo = new THREE.SphereGeometry(2.4, 24, 24);
-    const coronaMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.35 });
-    g2.add(new THREE.Mesh(coronaGeo, coronaMat));
-
-    // 8대 행성 궤도 링 및 행성들
-    const orbits = [
-      { name: '수성', r: 3.2, col: '#94a3b8', size: 0.15 },
-      { name: '금성', r: 4.8, col: '#fde047', size: 0.25 },
-      { name: '지구', r: 6.8, col: '#38bdf8', size: 0.28, isEarth: true },
-      { name: '화성', r: 9.0, col: '#f87171', size: 0.22 },
-      { name: '목성', r: 13.5, col: '#fb923c', size: 0.65 },
-      { name: '토성', r: 18.0, col: '#fcd34d', size: 0.55 },
-      { name: '천왕성', r: 23.0, col: '#67e8f9', size: 0.42 },
-      { name: '해왕성', r: 27.5, col: '#60a5fa', size: 0.4 },
-    ];
-    orbits.forEach((orb) => {
-      const oRingGeo = new THREE.RingGeometry(orb.r - 0.05, orb.r + 0.05, 64);
-      const oRingMat = new THREE.MeshBasicMaterial({
-        color: orb.isEarth ? 0x38bdf8 : 0x475569,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: orb.isEarth ? 0.9 : 0.4,
-      });
-      const oRing = new THREE.Mesh(oRingGeo, oRingMat);
-      oRing.rotation.x = Math.PI / 2;
-      g2.add(oRing);
-
-      // 행성 구체
-      const pGeo = new THREE.SphereGeometry(orb.size, 16, 16);
-      const pMat = new THREE.MeshBasicMaterial({ color: orb.col });
-      const pMesh = new THREE.Mesh(pGeo, pMat);
-      pMesh.position.set(Math.cos(orb.r * 1.3) * orb.r, 0, Math.sin(orb.r * 1.3) * orb.r);
-      g2.add(pMesh);
-
-      if (orb.isEarth) {
-        // 지구 위치 펄스 핑
-        const earthPingGeo = new THREE.RingGeometry(0.4, 0.75, 24);
-        const earthPingMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide });
-        const earthPing = new THREE.Mesh(earthPingGeo, earthPingMat);
-        earthPing.rotation.x = Math.PI / 2;
-        earthPing.position.copy(pMesh.position);
-        g2.add(earthPing);
-        pings.push(earthPing);
-      }
-    });
-
-    // 카이퍼 벨트 (외곽 소행성 헤일로 30~35 단위)
-    const kbGeo = new THREE.RingGeometry(29.0, 36.0, 64);
-    const kbMat = new THREE.MeshBasicMaterial({
-      color: 0x94a3b8,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.15,
-    });
-    const kbMesh = new THREE.Mesh(kbGeo, kbMat);
-    kbMesh.rotation.x = Math.PI / 2;
-    g2.add(kbMesh);
-
-    g2.visible = false;
-    levelGroups.push(g2);
-    scene.add(g2);
-
-    // ==========================================
-    // 3단계: 우리은하 (100,000 광년) 3D 구축
-    // ==========================================
-    const g3 = new THREE.Group();
-    // 중심핵 궁수자리 A* 팽대부
-    const mwCoreGeo = new THREE.SphereGeometry(2.2, 32, 32);
-    const mwCoreMat = new THREE.MeshBasicMaterial({ color: 0xfef3c7 });
-    g3.add(new THREE.Mesh(mwCoreGeo, mwCoreMat));
-
-    // 나선팔 파티클 (수만 개의 별가루)
-    const mwStarGeo = new THREE.BufferGeometry();
-    const mwStarCount = 14000;
-    const mwPos = new Float32Array(mwStarCount * 3);
-    const mwCol = new Float32Array(mwStarCount * 3);
-
-    for (let i = 0; i < mwStarCount; i++) {
-      const arm = i % 2;
-      const distRatio = Math.pow(Math.random(), 0.65);
-      const r = 2.0 + distRatio * 32.0;
-      const theta = arm * Math.PI + Math.log(r / 2.0) * 3.8 + (Math.random() - 0.5) * 0.45;
-      const z = (Math.random() - 0.5) * (1.2 + (r / 32.0) * 1.5);
-
-      mwPos[i * 3] = Math.cos(theta) * r;
-      mwPos[i * 3 + 1] = z;
-      mwPos[i * 3 + 2] = Math.sin(theta) * r;
-
-      if (r < 7.0) {
-        mwCol[i * 3] = 1.0;
-        mwCol[i * 3 + 1] = 0.9;
-        mwCol[i * 3 + 2] = 0.6; // 중심 팽대부 노란빛
-      } else {
-        mwCol[i * 3] = 0.35 + Math.random() * 0.4;
-        mwCol[i * 3 + 1] = 0.7 + Math.random() * 0.3;
-        mwCol[i * 3 + 2] = 1.0; // 나선팔 청백색
-      }
-    }
-    mwStarGeo.setAttribute('position', new THREE.BufferAttribute(mwPos, 3));
-    mwStarGeo.setAttribute('color', new THREE.BufferAttribute(mwCol, 3));
-    const mwStarMat = new THREE.PointsMaterial({
-      size: 1.4,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.85,
-    });
-    g3.add(new THREE.Points(mwStarGeo, mwStarMat));
-
-    // 태양계 위치 펄스 핑 (오리온자리 팔 R=16.5)
-    const solarPingGeo = new THREE.RingGeometry(0.6, 1.2, 24);
-    const solarPingMat = new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide });
-    const solarPing = new THREE.Mesh(solarPingGeo, solarPingMat);
-    solarPing.rotation.x = Math.PI / 2;
-    const solarAngle = 1.2;
-    const solarR = 16.5;
-    solarPing.position.set(Math.cos(solarAngle) * solarR, 0.2, Math.sin(solarAngle) * solarR);
-    g3.add(solarPing);
-    pings.push(solarPing);
-
-    g3.visible = false;
-    levelGroups.push(g3);
-    scene.add(g3);
-
-    // ==========================================
-    // 4단계: 국부은하군 (1,000만 광년) 3D 구축
-    // ==========================================
-    const g4 = new THREE.Group();
-    // 1) 우리은하 (미니어처 나선)
-    const mwMini = new THREE.Mesh(
-      new THREE.CylinderGeometry(4.0, 4.0, 0.4, 24),
-      new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true }),
-    );
-    mwMini.position.set(-8, 0, 0);
-    g4.add(mwMini);
-
-    // 2) 안드로메다 은하 (M31) - 더 거대한 나선
-    const androMini = new THREE.Mesh(
-      new THREE.CylinderGeometry(5.2, 5.2, 0.5, 24),
-      new THREE.MeshBasicMaterial({ color: 0xc084fc, wireframe: true }),
-    );
-    androMini.position.set(16, 4, -6);
-    androMini.rotation.z = 0.4;
-    g4.add(androMini);
-
-    // 3) 삼각형자리 은하 (M33)
-    const triMini = new THREE.Mesh(
-      new THREE.CylinderGeometry(2.2, 2.2, 0.3, 16),
-      new THREE.MeshBasicMaterial({ color: 0x2dd4bf, wireframe: true }),
-    );
-    triMini.position.set(10, -8, 8);
-    g4.add(triMini);
-
-    // 4) 마젤란 은하들
-    const lmc = new THREE.Mesh(new THREE.SphereGeometry(1.0, 12, 12), new THREE.MeshBasicMaterial({ color: 0xfbbf24 }));
-    lmc.position.set(-11, -2, 2);
-    g4.add(lmc);
-
-    // 은하 간 조석 필라멘트 선
-    const filamentGeo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-8, 0, 0),
-      new THREE.Vector3(16, 4, -6),
-      new THREE.Vector3(10, -8, 8),
-      new THREE.Vector3(-8, 0, 0),
-    ]);
-    const filamentMat = new THREE.LineBasicMaterial({ color: 0x818cf8, transparent: true, opacity: 0.3 });
-    g4.add(new THREE.Line(filamentGeo, filamentMat));
-
-    // 우리은하 위치 핑
-    const mwGroupPing = new THREE.RingGeometry(1.2, 2.0, 24);
-    const mwGroupPingMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide });
-    const mwGPing = new THREE.Mesh(mwGroupPing, mwGroupPingMat);
-    mwGPing.rotation.x = Math.PI / 2;
-    mwGPing.position.set(-8, 0.5, 0);
-    g4.add(mwGPing);
-    pings.push(mwGPing);
-
-    g4.visible = false;
-    levelGroups.push(g4);
-    scene.add(g4);
-
-    // ==========================================
-    // 5단계: 관측 가능한 전체 우주 (930억 광년) 3D 구축
-    // ==========================================
-    const g5 = new THREE.Group();
-    // 거대 우주망 (Cosmic Web 파티클 및 필라멘트)
-    const webGeo = new THREE.BufferGeometry();
-    const webCount = 18000;
-    const webPos = new Float32Array(webCount * 3);
-    const webCol = new Float32Array(webCount * 3);
-
-    for (let i = 0; i < webCount; i++) {
-      const u = Math.random();
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(Math.random() * 2 - 1);
-      const r = Math.pow(u, 0.7) * 45;
-
-      webPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      webPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      webPos[i * 3 + 2] = r * Math.cos(phi);
-
-      const clusterMix = Math.random();
-      webCol[i * 3] = 0.5 + clusterMix * 0.5;
-      webCol[i * 3 + 1] = 0.6 + (1 - clusterMix) * 0.4;
-      webCol[i * 3 + 2] = 1.0;
-    }
-    webGeo.setAttribute('position', new THREE.BufferAttribute(webPos, 3));
-    webGeo.setAttribute('color', new THREE.BufferAttribute(webCol, 3));
-    const webMat = new THREE.PointsMaterial({
-      size: 1.6,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.75,
-    });
-    g5.add(new THREE.Points(webGeo, webMat));
-
-    // CMB 우주 배경 복사 외곽 구체 (930억 광년 지평선)
-    const cmbGeo = new THREE.SphereGeometry(48, 36, 36);
-    const cmbMat = new THREE.MeshBasicMaterial({
-      color: 0x4338ca,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.18,
-    });
-    g5.add(new THREE.Mesh(cmbGeo, cmbMat));
-
-    // 중심부 국부은하군 위치 핑
-    const univPing = new THREE.Mesh(
-      new THREE.RingGeometry(1.0, 1.8, 24),
-      new THREE.MeshBasicMaterial({ color: 0xec4899, side: THREE.DoubleSide }),
-    );
-    univPing.rotation.x = Math.PI / 2;
-    univPing.position.set(0, 0, 0);
-    g5.add(univPing);
-    pings.push(univPing);
-
-    g5.visible = false;
-    levelGroups.push(g5);
-    scene.add(g5);
-
-    levelGroupsRef.current = levelGroups;
-    pingMeshesRef.current = pings;
-
-    // 렌더 애니메이션 루프
     let animId: number;
     let clock = new THREE.Clock();
-
     const animate = () => {
       animId = requestAnimationFrame(animate);
       const delta = clock.getDelta();
-      const elapsed = clock.getElapsedTime();
 
-      // 자전 및 애니메이션
-      if (g0.visible) g0.rotation.y += 0.08 * delta;
-      if (g1.visible) earthMesh.rotation.y += 0.15 * delta;
-      if (g2.visible) g2.rotation.y += 0.05 * delta;
-      if (g3.visible) g3.rotation.y += 0.06 * delta;
-      if (g4.visible) g4.rotation.y += 0.04 * delta;
-      if (g5.visible) g5.rotation.y += 0.02 * delta;
-
-      // 펄스 핑 스케일 펄스
-      pings.forEach((p, idx) => {
-        const pulse = 1.0 + Math.sin(elapsed * 4 + idx) * 0.25;
-        p.scale.set(pulse, pulse, pulse);
-      });
-
-      // 카메라 거리 부드러운 보간 (Lerp)
-      const curDist = currentCamDistRef.current;
-      const targetDist = targetCamDistRef.current;
-      if (Math.abs(curDist - targetDist) > 0.05) {
-        currentCamDistRef.current += (targetDist - curDist) * 0.08;
-        const dir = camera.position.clone().normalize();
-        camera.position.copy(dir.multiplyScalar(currentCamDistRef.current));
-      }
+      // 오브젝트 자전
+      if (meshARef.current) meshARef.current.rotation.y += 0.25 * delta;
+      if (meshBRef.current) meshBRef.current.rotation.y += 0.25 * delta;
 
       controls.update();
       renderer.render(scene, camera);
@@ -669,174 +1058,323 @@ export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleView
       renderer.dispose();
       container.innerHTML = '';
     };
-  }, []);
+  }, [textures]);
 
-  // 레벨 전환 함수
-  const switchLevel = (lvl: number) => {
-    const clamped = Math.max(0, Math.min(5, lvl));
-    setCurrentLevel(clamped);
-    setSliderVal(clamped);
+  // ==========================================
+  // 모드별 3D 오브젝트 배치 및 렌더링 갱신
+  // ==========================================
+  useEffect(() => {
+    if (!stageGroupRef.current || !cameraRef.current || !controlsRef.current) return;
+    const stage = stageGroupRef.current;
+    // 기존 메시 청소
+    while (stage.children.length > 0) {
+      stage.remove(stage.children[0]);
+    }
 
-    levelGroupsRef.current.forEach((grp, idx) => {
-      grp.visible = idx === clamped;
-    });
+    if (viewMode === 'arena') {
+      // ----------------------------------------------------
+      // [모드 1]: 1:1 실시간 나란히 비교 무대 (Side-by-Side Arena)
+      // ----------------------------------------------------
+      const ratio = targetB.diameterMeters / Math.max(1e-10, targetA.diameterMeters);
 
-    // 각 레벨별 최적 카메라 뷰 거리 설정
-    const distMap = [18, 22, 45, 55, 60, 95];
-    targetCamDistRef.current = distMap[clamped];
-  };
+      // 시각적 크기 매핑 (너무 극단적인 배율일 경우 1~12 반경으로 적응형 스케일링)
+      let radiusA = 4.0;
+      let radiusB = 4.0 * Math.min(15.0, Math.max(0.08, ratio));
+      if (ratio > 100) {
+        radiusA = 0.6;
+        radiusB = 9.0;
+      } else if (ratio < 0.01) {
+        radiusA = 9.0;
+        radiusB = 0.6;
+      }
 
-  // 슬라이더 연속 드래그 처리
-  const handleSliderChange = (val: number) => {
-    setSliderVal(val);
-    const intLvl = Math.round(val);
-    if (intLvl !== currentLevel) {
-      switchLevel(intLvl);
+      // 좌측 천체 A 생성
+      const meshA = buildObjectMesh(targetA, radiusA);
+      meshA.position.set(-radiusB * 0.9 - radiusA * 1.1, 0, 0);
+      stage.add(meshA);
+      meshARef.current = meshA;
+
+      // 우측 천체 B 생성
+      const meshB = buildObjectMesh(targetB, radiusB);
+      meshB.position.set(radiusA * 0.9 + radiusB * 0.9, 0, 0);
+      stage.add(meshB);
+      meshBRef.current = meshB;
+
+      // 두 천체 간 거리 측정선 및 높이 가이드
+      const caliperGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-radiusB * 0.9 - radiusA * 1.1, -radiusA * 1.2, 0),
+        new THREE.Vector3(radiusA * 0.9 + radiusB * 0.9, -radiusA * 1.2, 0),
+      ]);
+      const caliperMat = new THREE.LineBasicMaterial({ color: 0x38bdf8 });
+      stage.add(new THREE.Line(caliperGeo, caliperMat));
+
+      // 카메라 거리 자동 피팅
+      const maxDim = Math.max(radiusA, radiusB, 5);
+      const camDist = maxDim * 3.8 + 10;
+      cameraRef.current.position.set(0, maxDim * 0.7, camDist);
+      controlsRef.current.target.set(0, 0, 0);
+
+    } else if (viewMode === 'marble') {
+      // ----------------------------------------------------
+      // [모드 2]: 지구 1.2cm 구슬 축소 체감 모드 (MBS 영상 컨셉)
+      // ----------------------------------------------------
+      // 기준: 지구 = 반경 1.5단위 (1.2cm 유리구슬)
+      const marbleEarthRadius = 1.5;
+      const marbleMesh = buildObjectMesh(COSMIC_CATALOG[9], marbleEarthRadius); // Earth
+      marbleMesh.position.set(-6, 0, 0);
+      stage.add(marbleMesh);
+      meshARef.current = marbleMesh;
+
+      // 선택된 대상 B를 구슬 스케일 대비 축소 렌더링
+      const earthMeters = 1.2742e7;
+      const bRatio = targetB.diameterMeters / earthMeters;
+      // 구슬 대비 스케일 계산
+      const bScaledRadius = Math.max(0.15, Math.min(18.0, marbleEarthRadius * Math.pow(bRatio, 0.45)));
+
+      const bMesh = buildObjectMesh(targetB, bScaledRadius);
+      bMesh.position.set(bScaledRadius + 4, 0, 0);
+      stage.add(bMesh);
+      meshBRef.current = bMesh;
+
+      cameraRef.current.position.set(0, 8, bScaledRadius * 2.8 + 18);
+      controlsRef.current.target.set(0, 0, 0);
+
+    } else if (viewMode === 'tour') {
+      // ----------------------------------------------------
+      // [모드 3]: 연속 줌 투어 모드 (Powers of Ten Flythrough)
+      // ----------------------------------------------------
+      const currentObj = COSMIC_CATALOG[tourIndex];
+      const singleMesh = buildObjectMesh(currentObj, 6.0);
+      stage.add(singleMesh);
+      meshARef.current = singleMesh;
+      meshBRef.current = null;
+
+      cameraRef.current.position.set(0, 5, 20);
+      controlsRef.current.target.set(0, 0, 0);
+    }
+  }, [viewMode, targetAIndex, targetBIndex, tourIndex]);
+
+  // 투어 자동 재생 타이머
+  useEffect(() => {
+    if (!isAutoTouring || viewMode !== 'tour') return;
+    const interval = setInterval(() => {
+      setTourIndex((prev) => (prev + 1) % COSMIC_CATALOG.length);
+    }, 3800);
+    return () => clearInterval(interval);
+  }, [isAutoTouring, viewMode]);
+
+  // 다음 천체로 원클릭 비교 (MetaBallStudios 스타일 연속 크기 증폭)
+  const handleNextStep = () => {
+    if (targetBIndex < COSMIC_CATALOG.length - 1) {
+      setTargetAIndex(targetBIndex);
+      setTargetBIndex(targetBIndex + 1);
+    } else {
+      setTargetAIndex(0);
+      setTargetBIndex(1);
     }
   };
 
-  // 자동 줌 투어 타이머
-  useEffect(() => {
-    if (!isAutoPlaying) return;
-
-    const interval = setInterval(() => {
-      setCurrentLevel((prev) => {
-        let next = prev;
-        if (autoDirection === 'zoomOut') {
-          if (prev < 5) {
-            next = prev + 1;
-          } else {
-            setAutoDirection('zoomIn');
-            next = 4;
-          }
-        } else {
-          if (prev > 0) {
-            next = prev - 1;
-          } else {
-            setAutoDirection('zoomOut');
-            next = 1;
-          }
-        }
-        switchLevel(next);
-        return next;
-      });
-    }, 4500);
-
-    return () => clearInterval(interval);
-  }, [isAutoPlaying, autoDirection]);
-
-  const currentInfo = SCALE_LEVELS[currentLevel];
+  const handlePrevStep = () => {
+    if (targetAIndex > 0) {
+      setTargetBIndex(targetAIndex);
+      setTargetAIndex(Math.max(0, targetAIndex - 1));
+    }
+  };
 
   return (
     <div className="cosmic-scale-root">
-      {/* 3D WebGL 캔버스 */}
+      {/* Three.js 3D 캔버스 */}
       <div ref={containerRef} className="cosmic-scale-canvas" />
 
-      {/* 상단 헤더 & 모드 복귀 버튼 */}
+      {/* 상단 통합 헤더 */}
       <header className="cosmic-scale-header">
         <div className="scale-header-left">
           <button className="btn btn-back-galaxy" onClick={onBackToGalaxyLab} title="은하 충돌 시뮬레이터로 복귀">
             <span>🌌</span>
-            <strong>은하 연구소로 돌아가기</strong>
+            <strong>은하 연구소로 복귀</strong>
           </button>
           <div className="scale-title-group">
             <h1 className="scale-main-title">
               <span className="scale-title-icon">📐</span>
-              우주 크기 비교 시뮬레이터 (Powers of Ten)
+              우주 크기 비교 시뮬레이터 (Cosmic Size Comparison)
             </h1>
-            <span className="scale-badge">지구 서울 10km ➔ 관측 가능한 전체 우주 930억 광년</span>
+            <span className="scale-badge">인간(1.8m) ➔ 지구(1.2만km) ➔ 스티븐슨 2-18 ➔ TON 618 ➔ 전 우주(930억ly)</span>
           </div>
         </div>
 
-        {/* 자동 투어 재생 컨트롤 */}
-        <div className="scale-tour-controls">
+        {/* 3대 모드 셀렉터 (Arena / Marble / Tour) */}
+        <div className="scale-viewmode-toggle-pill">
           <button
-            className={`btn-tour-play ${isAutoPlaying ? 'active' : ''}`}
-            onClick={() => setIsAutoPlaying(!isAutoPlaying)}
-            title="서울에서 전 우주까지 자동으로 줌아웃/줌인하며 크기를 비교하는 시네마틱 투어"
+            className={`btn-mode-tab ${viewMode === 'arena' ? 'active' : ''}`}
+            onClick={() => { setViewMode('arena'); setIsAutoTouring(false); }}
+            title="MetaBallStudios 스타일: 2개 천체를 1:1 3D 무대에 올려 나란히 직접 비교"
           >
-            <span>{isAutoPlaying ? '⏸️ 자동 투어 일시정지' : '▶️ 10의 거듭제곱 연속 줌 투어'}</span>
+            <span>🪐 1:1 나란히 3D 비교</span>
+          </button>
+          <button
+            className={`btn-mode-tab highlight-marble ${viewMode === 'marble' ? 'active' : ''}`}
+            onClick={() => { setViewMode('marble'); setIsAutoTouring(false); }}
+            title="영상 컨셉: 지구가 1.2cm 구슬(Marble)이라면 다른 천체는 얼마나 거대할까?"
+          >
+            <span>🔮 지구 구슬(1.2cm) 축소 체감</span>
+          </button>
+          <button
+            className={`btn-mode-tab ${viewMode === 'tour' ? 'active' : ''}`}
+            onClick={() => { setViewMode('tour'); setIsAutoTouring(true); }}
+            title="작은 인간에서 거대 우주 끝까지 연속적으로 비행하며 감상하는 시네마틱 투어"
+          >
+            <span>🚀 10의 거듭제곱 연속 투어</span>
           </button>
         </div>
       </header>
 
-      {/* 중앙 하단: 6단계 스텝 버튼 바 */}
-      <div className="scale-steps-bar">
-        {SCALE_LEVELS.map((lvl) => (
-          <button
-            key={lvl.id}
-            className={`scale-step-btn ${currentLevel === lvl.id ? 'active' : ''}`}
-            onClick={() => {
-              setIsAutoPlaying(false);
-              switchLevel(lvl.id);
-            }}
-            style={{
-              borderColor: currentLevel === lvl.id ? lvl.color : undefined,
-              boxShadow: currentLevel === lvl.id ? `0 0 16px ${lvl.color}66` : undefined,
-            }}
-          >
-            <span className="step-emoji">{lvl.emoji}</span>
-            <span className="step-label">{lvl.name}</span>
-          </button>
-        ))}
+      {/* 카테고리 필터 탭 바 */}
+      <div className="scale-category-bar">
+        <button className={`cat-btn ${selectedCategory === 'all' ? 'active' : ''}`} onClick={() => setSelectedCategory('all')}>전체 (36)</button>
+        <button className={`cat-btn ${selectedCategory === 'human_earth' ? 'active' : ''}`} onClick={() => setSelectedCategory('human_earth')}>🧍 인간 & 서울</button>
+        <button className={`cat-btn ${selectedCategory === 'planets_moons' ? 'active' : ''}`} onClick={() => setSelectedCategory('planets_moons')}>🌍 행성 & 위성</button>
+        <button className={`cat-btn ${selectedCategory === 'stars_giants' ? 'active' : ''}`} onClick={() => setSelectedCategory('stars_giants')}>☀️ 항성 & 초거대성</button>
+        <button className={`cat-btn ${selectedCategory === 'black_holes' ? 'active' : ''}`} onClick={() => setSelectedCategory('black_holes')}>🕳️ 괴물 블랙홀</button>
+        <button className={`cat-btn ${selectedCategory === 'galaxies_universe' ? 'active' : ''}`} onClick={() => setSelectedCategory('galaxies_universe')}>🌌 은하 & 전 우주</button>
       </div>
 
-      {/* 하단 연속 슬라이더 바 */}
-      <div className="scale-slider-container">
-        <div className="scale-slider-labels">
-          <span>🏙️ 서울 (10⁴ m)</span>
-          <span>🌍 지구 (10⁷ m)</span>
-          <span>☀️ 태양계 (10¹³ m)</span>
-          <span>🌌 우리은하 (10²¹ m)</span>
-          <span>🌀 국부은하군 (10²³ m)</span>
-          <span>🕸️ 전체 우주 (10²⁶ m)</span>
-        </div>
-        <input
-          type="range"
-          min={0}
-          max={5}
-          step={0.1}
-          value={sliderVal}
-          onChange={(e) => handleSliderChange(parseFloat(e.target.value))}
-          className="scale-range-slider"
-        />
-      </div>
-
-      {/* 좌측 상세 인포그래픽 카드 */}
+      {/* 좌측 상세 인포그래픽 비교 카드 */}
       <div className="scale-info-card">
-        <div className="info-header" style={{ borderLeftColor: currentInfo.color }}>
-          <span className="info-badge" style={{ backgroundColor: `${currentInfo.color}22`, color: currentInfo.color }}>
-            {currentInfo.emoji} {currentInfo.name}
-          </span>
-          <h2 className="info-title">{currentInfo.subtitle}</h2>
+        {viewMode === 'arena' && (
+          <>
+            <div className="arena-compare-header">
+              <div className="object-tag tag-a" style={{ borderLeftColor: targetA.color }}>
+                <span className="tag-label">기준 천체 [A]</span>
+                <span className="tag-name">{targetA.emoji} {targetA.name}</span>
+                <span className="tag-size">{targetA.diameterDisplay}</span>
+              </div>
+              <div className="compare-vs">VS</div>
+              <div className="object-tag tag-b" style={{ borderLeftColor: targetB.color }}>
+                <span className="tag-label">비교 천체 [B]</span>
+                <span className="tag-name">{targetB.emoji} {targetB.name}</span>
+                <span className="tag-size">{targetB.diameterDisplay}</span>
+              </div>
+            </div>
+
+            {/* 핵심 비교 수치 박스 */}
+            <div className="ratio-highlight-card">
+              <div className="ratio-title">⚡ 직경 및 부피 비교 배율</div>
+              <div className="ratio-stat">
+                [{targetB.name}]은(는) [{targetA.name}]의{' '}
+                <strong className="text-highlight">
+                  {ratioBoverA >= 1
+                    ? `${ratioBoverA.toLocaleString(undefined, { maximumFractionDigits: 1 })}배`
+                    : `1 / ${(1 / ratioBoverA).toLocaleString(undefined, { maximumFractionDigits: 1 })}배`}
+                </strong>{' '}
+                크기입니다!
+              </div>
+              <div className="ratio-sub">
+                구체 부피 기준: 약{' '}
+                <strong>
+                  {volumeRatio >= 1
+                    ? `${volumeRatio.toExponential(2)}배 (${volumeRatio >= 1e6 ? `${(volumeRatio / 1e6).toFixed(1)}백만` : volumeRatio.toFixed(0)}배)`
+                    : `1 / ${(1 / volumeRatio).toExponential(2)}`}
+                </strong>{' '}
+                더 거대합니다.
+              </div>
+            </div>
+
+            {/* 퀵 내비게이션 컨트롤 */}
+            <div className="step-nav-row">
+              <button className="btn-step-nav" onClick={handlePrevStep} title="이전 단계 천체 조합으로 이동">
+                ⬅️ 이전 천체 비교
+              </button>
+              <button className="btn-step-nav highlight" onClick={handleNextStep} title="다음 거대 천체로 순차 확장">
+                다음 천체로 크기 확장 ➡️
+              </button>
+            </div>
+          </>
+        )}
+
+        {viewMode === 'marble' && (
+          <div className="marble-mode-card">
+            <div className="marble-header">
+              <span className="marble-icon">🔮</span>
+              <div>
+                <h3 className="marble-title">만약 지구가 1.2cm 구슬이라면?</h3>
+                <span className="marble-sub">MetaBallStudios 우주 크기 체감 컨셉</span>
+              </div>
+            </div>
+            <div className="marble-comparison-box">
+              <div className="marble-target-name">{targetB.emoji} {targetB.name}</div>
+              <div className="marble-result">
+                구슬 스케일 체감 크기:<br />
+                <strong className="text-highlight-gold">{targetB.marbleEquivalent}</strong>
+              </div>
+            </div>
+            <p className="marble-trivia">{targetB.trivia}</p>
+          </div>
+        )}
+
+        {viewMode === 'tour' && (
+          <div className="tour-mode-card">
+            <div className="tour-header">
+              <span className="tour-badge">현재 천체 ({tourIndex + 1} / {COSMIC_CATALOG.length})</span>
+              <button className="btn-tour-toggle" onClick={() => setIsAutoTouring(!isAutoTouring)}>
+                {isAutoTouring ? '⏸️ 일시정지' : '▶️ 투어 재생'}
+              </button>
+            </div>
+            <h2 className="tour-obj-title">{COSMIC_CATALOG[tourIndex].emoji} {COSMIC_CATALOG[tourIndex].name}</h2>
+            <div className="tour-size-badge">{COSMIC_CATALOG[tourIndex].diameterDisplay}</div>
+            <p className="tour-desc">{COSMIC_CATALOG[tourIndex].description}</p>
+            <div className="tour-trivia-box">💡 {COSMIC_CATALOG[tourIndex].trivia}</div>
+          </div>
+        )}
+
+        {/* 선택된 대상 B의 상세 정보 */}
+        <div className="info-detail-box">
+          <div className="detail-row">
+            <span>빛의 속도 횡단 시간:</span>
+            <strong>{targetB.lightCrossTime}</strong>
+          </div>
+          <div className="detail-row">
+            <span>지구(12,742km) 대비 배율:</span>
+            <strong>{targetB.ratioFromEarth >= 1 ? `${targetB.ratioFromEarth.toLocaleString(undefined, { maximumFractionDigits: 1 })}배` : `1/${(1 / targetB.ratioFromEarth).toFixed(1)}`}</strong>
+          </div>
+          <p className="detail-desc">{targetB.description}</p>
         </div>
+      </div>
 
-        <p className="info-desc">{currentInfo.description}</p>
-
-        <div className="info-metrics-grid">
-          <div className="metric-box">
-            <span className="metric-label">실제 물리적 직경</span>
-            <span className="metric-val" style={{ color: currentInfo.color }}>{currentInfo.realSize}</span>
-          </div>
-          <div className="metric-box">
-            <span className="metric-label">직전 단계 대비 배율</span>
-            <span className="metric-val text-amber">{currentInfo.ratioFromPrev}</span>
-          </div>
-          <div className="metric-box">
-            <span className="metric-label">빛의 속도 횡단 시간</span>
-            <span className="metric-val text-cyan">{currentInfo.lightTime}</span>
-          </div>
-          <div className="metric-box">
-            <span className="metric-label">서울(10 km) 대비 누적 배율</span>
-            <span className="metric-val text-rose">{currentInfo.ratioFromSeoul}</span>
-          </div>
+      {/* 하단 인터랙티브 천체 선택 슬라이더 덱 */}
+      <div className="scale-catalog-deck">
+        <div className="deck-instruction">
+          <span>👇 비교하고 싶은 천체를 클릭하여 선택하세요:</span>
         </div>
-
-        <div className="info-analogy-box">
-          <span className="analogy-icon">💡</span>
-          <div className="analogy-text">
-            <strong>직관적 비유:</strong> {currentInfo.analogy}
-          </div>
+        <div className="deck-scroll-container">
+          {filteredCatalog.map((item) => {
+            const isA = COSMIC_CATALOG.indexOf(item) === targetAIndex;
+            const isB = COSMIC_CATALOG.indexOf(item) === targetBIndex;
+            return (
+              <button
+                key={item.id}
+                className={`deck-item-chip ${isA ? 'is-target-a' : ''} ${isB ? 'is-target-b' : ''}`}
+                onClick={() => {
+                  const idx = COSMIC_CATALOG.indexOf(item);
+                  if (viewMode === 'tour') {
+                    setTourIndex(idx);
+                  } else {
+                    setTargetBIndex(idx);
+                  }
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setTargetAIndex(COSMIC_CATALOG.indexOf(item));
+                }}
+                title="좌클릭: 비교 대상[B]로 지정 | 우클릭: 기준 천체[A]로 지정"
+              >
+                <span className="chip-emoji">{item.emoji}</span>
+                <span className="chip-name">{item.name}</span>
+                <span className="chip-size">{item.diameterDisplay}</span>
+                {isA && <span className="chip-badge-a">[기준 A]</span>}
+                {isB && <span className="chip-badge-b">[비교 B]</span>}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
