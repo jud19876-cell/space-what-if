@@ -2,7 +2,19 @@
 // 여기서는 물리 상태를 읽기만 하고 바꾸지 않는다. (시간 진행 advance() 만 호출)
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { AU_PER_DAY_TO_KM_S, G, length, SUN_MASS, calculateCircularSpeed, isBlackHoleBody, type Body, type Vec3, type AbsorptionEvent, type CollisionEvent } from './physics.ts';
+import {
+  AU_PER_DAY_TO_KM_S,
+  G,
+  length,
+  SUN_MASS,
+  calculateCircularSpeed,
+  getBlackHoleCaptureRadius,
+  isBlackHoleBody,
+  type Body,
+  type Vec3,
+  type AbsorptionEvent,
+  type CollisionEvent,
+} from './physics.ts';
 import { advance, findHost, type SimState } from './simulation.ts';
 import { BODY_INFO, ORBIT_RADII, type BodyId } from './solarSystem.ts';
 import { createPlanetTexture, createNormalMap, createRingTexture, createRoughnessMap, createCloudTexture } from './planetTextures.ts';
@@ -45,6 +57,16 @@ export function unmapPoint(worldVec: THREE.Vector3): Vec3 {
   const px = (worldVec.x / R) * rAU;
   const py = (-worldVec.z / R) * rAU;
   return [px, py, 0];
+}
+
+/**
+ * 블랙홀 사건의 지평선(=천체를 삼키는 반경)의 화면 크기.
+ * 거리 압축(제곱근) 때문에 그 위치에서 1 AU 가 화면 몇 단위인지(미분값)를 곱해 준다.
+ */
+function blackHoleScreenRadius(b: Body): number {
+  const r = length(b.position);
+  const perAU = DIST_K / (2 * Math.sqrt(r + DIST_R0));
+  return Math.min(9, Math.max(0.5, getBlackHoleCaptureRadius(b) * perAU));
 }
 
 // 위성(달)은 실제 거리로는 행성 안에 묻혀 버리므로, 행성 기준 오프셋을 크게 늘려서 그린다.
@@ -135,6 +157,12 @@ export interface SpaceScene {
   resetCamera(): void;
   /** 다른 시뮬레이션 화면이 위에 떠 있는 동안 계산·렌더링을 멈춘다 */
   setActive(active: boolean): void;
+  /** 중력장(시공간 격자) + 중력 영향권 표시 */
+  setGravityField(show: boolean): void;
+  /** 행성 공전 궤도선 표시 */
+  setOrbitsVisible(show: boolean): void;
+  /** 지나간 자취(꼬리선) 표시 */
+  setTrailsVisible(show: boolean): void;
   dispose(): void;
 }
 
@@ -262,6 +290,10 @@ export function createSpaceScene(
   const bloom = createBloomPipeline(renderer, scene, camera, { strength: 0.7, radius: 0.42, threshold: 0.88 });
 
   // 원래 궤도 (흐린 기준선) — 궤도에서 벗어나는 게 잘 보이도록
+  const orbitGuides = new THREE.Group();
+  scene.add(orbitGuides);
+  let orbitsVisible = true;
+  let trailsVisible = true;
   for (const o of ORBIT_RADII) {
     const r = mapRadius(o.a);
     const pts: THREE.Vector3[] = [];
@@ -273,7 +305,134 @@ export function createSpaceScene(
       new THREE.BufferGeometry().setFromPoints(pts),
       new THREE.LineBasicMaterial({ color: 0x6f86ff, transparent: true, opacity: 0.18 }),
     );
-    scene.add(ring);
+    orbitGuides.add(ring);
+  }
+
+  // ---------- 중력장: 시공간 격자 ----------
+  // 각 격자점을 실제 AU 좌표로 되돌려 Σ(질량/거리) (= 중력 퍼텐셜의 깊이)만큼 아래로 움푹 꺼지게 그린다.
+  // 무거운 천체일수록, 가까울수록 깊은 '중력 우물'이 생긴다.
+  const FIELD_N = 96;
+  const FIELD_HALF = 72;
+  const fieldCount = (FIELD_N + 1) * (FIELD_N + 1);
+  const fieldPos = new Float32Array(fieldCount * 3);
+  const fieldCol = new Float32Array(fieldCount * 3);
+  const fieldAU = new Float32Array(fieldCount * 2);
+  {
+    const tmpV = new THREE.Vector3();
+    for (let j = 0; j <= FIELD_N; j++) {
+      for (let i = 0; i <= FIELD_N; i++) {
+        const k = j * (FIELD_N + 1) + i;
+        const x = -FIELD_HALF + (i / FIELD_N) * FIELD_HALF * 2;
+        const z = -FIELD_HALF + (j / FIELD_N) * FIELD_HALF * 2;
+        fieldPos[k * 3] = x;
+        fieldPos[k * 3 + 2] = z;
+        const au = unmapPoint(tmpV.set(x, 0, z));
+        fieldAU[k * 2] = au[0];
+        fieldAU[k * 2 + 1] = au[1];
+      }
+    }
+  }
+  const fieldIdx: number[] = [];
+  for (let j = 0; j <= FIELD_N; j++) {
+    for (let i = 0; i <= FIELD_N; i++) {
+      const k = j * (FIELD_N + 1) + i;
+      if (i < FIELD_N) fieldIdx.push(k, k + 1);
+      if (j < FIELD_N) fieldIdx.push(k, k + FIELD_N + 1);
+    }
+  }
+  const fieldGeo = new THREE.BufferGeometry();
+  fieldGeo.setAttribute('position', new THREE.BufferAttribute(fieldPos, 3));
+  fieldGeo.setAttribute('color', new THREE.BufferAttribute(fieldCol, 3));
+  fieldGeo.setIndex(fieldIdx);
+  const fieldMesh = new THREE.LineSegments(
+    fieldGeo,
+    new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending, depthWrite: false }),
+  );
+  fieldMesh.frustumCulled = false;
+  fieldMesh.visible = false;
+  scene.add(fieldMesh);
+
+  // 중력 영향권 (힐 반경): 이 원 안에서는 태양보다 그 천체의 중력이 더 세다
+  const influenceGroup = new THREE.Group();
+  influenceGroup.visible = false;
+  scene.add(influenceGroup);
+  const influenceRings = new Map<string, THREE.LineLoop>();
+  const INFL_SEG = 72;
+
+  function updateGravityField(bodies: Body[]) {
+    const ms: number[] = [];
+    const xs: number[] = [];
+    const ys: number[] = [];
+    for (const b of bodies) {
+      const m = b.mass / SUN_MASS;
+      if (m < 1e-9) continue;
+      ms.push(m);
+      xs.push(b.position[0]);
+      ys.push(b.position[1]);
+    }
+    const eps2 = 0.08 * 0.08;
+    const c = new THREE.Color();
+    for (let k = 0; k < fieldCount; k++) {
+      const ax = fieldAU[k * 2];
+      const ay = fieldAU[k * 2 + 1];
+      let w = 0;
+      for (let n = 0; n < ms.length; n++) {
+        const dx = ax - xs[n];
+        const dy = ay - ys[n];
+        w += ms[n] / Math.sqrt(dx * dx + dy * dy + eps2);
+      }
+      const depth = Math.min(30, 4.2 * Math.pow(w, 0.55));
+      fieldPos[k * 3 + 1] = -0.6 - depth;
+      // 얕은 곳은 푸른색, 깊은 우물일수록 보라 → 주황 → 노랑
+      const t = Math.min(1, depth / 18);
+      c.setHSL(0.62 - t * 0.55, 0.85, 0.2 + t * 0.4);
+      fieldCol[k * 3] = c.r;
+      fieldCol[k * 3 + 1] = c.g;
+      fieldCol[k * 3 + 2] = c.b;
+    }
+    fieldGeo.attributes.position.needsUpdate = true;
+    fieldGeo.attributes.color.needsUpdate = true;
+
+    // 영향권 원 갱신 (태양 기준 힐 반경 r_H = a·(m / 3M_태양)^(1/3))
+    const sun = bodies.find((b) => b.id === 'sun' || b.id === 'black_hole' || b.id === 'giant_black_hole');
+    const alive = new Set<string>();
+    const p = new THREE.Vector3();
+    for (const b of bodies) {
+      if (!sun || b === sun || b.mass < 1e20 || b.id.includes('asteroid') || b.id.includes('fragment') || b.id === 'moon') continue;
+      const rel: Vec3 = [b.position[0] - sun.position[0], b.position[1] - sun.position[1], b.position[2] - sun.position[2]];
+      const a = length(rel);
+      if (a < 1e-3) continue;
+      const rH = a * Math.cbrt(b.mass / (3 * sun.mass));
+      alive.add(b.id);
+      let ring = influenceRings.get(b.id);
+      if (!ring) {
+        const bh = isBlackHoleBody(b);
+        ring = new THREE.LineLoop(
+          new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(INFL_SEG * 3), 3)),
+          new THREE.LineBasicMaterial({ color: bh ? 0xff5cf0 : 0x7dd3fc, transparent: true, opacity: bh ? 0.95 : 0.5, depthWrite: false }),
+        );
+        ring.frustumCulled = false;
+        influenceRings.set(b.id, ring);
+        influenceGroup.add(ring);
+      }
+      (ring.material as THREE.LineBasicMaterial).color.setHex(isBlackHoleBody(b) ? 0xff5cf0 : 0x7dd3fc);
+      const arr = ring.geometry.attributes.position.array as Float32Array;
+      for (let i = 0; i < INFL_SEG; i++) {
+        const t = (i / INFL_SEG) * Math.PI * 2;
+        mapPoint([b.position[0] + Math.cos(t) * rH, b.position[1] + Math.sin(t) * rH, 0], p);
+        arr[i * 3] = p.x;
+        arr[i * 3 + 1] = 0.05;
+        arr[i * 3 + 2] = p.z;
+      }
+      ring.geometry.attributes.position.needsUpdate = true;
+    }
+    for (const [id, ring] of influenceRings) {
+      if (!alive.has(id)) {
+        influenceGroup.remove(ring);
+        ring.geometry.dispose();
+        influenceRings.delete(id);
+      }
+    }
   }
 
   // 천체 메시 관리
@@ -316,7 +475,8 @@ export function createSpaceScene(
 
       const isSupermassive = id === 'supermassive_black_hole';
       // 난류 플라스마 강착원반 (가까이 다가오는 쪽이 더 밝은 도플러 효과)
-      accretionDisk = createAccretionDisk(1.5, isSupermassive ? 5.6 : 4.2, { intensity: 0.75 });
+      // 원반 바깥 끝 ≈ 나선 낙하 구역 (지평선의 약 3배) — 이보다 크면 원반을 그냥 통과하는 것처럼 보임
+      accretionDisk = createAccretionDisk(1.4, isSupermassive ? 4.0 : 3.0, { intensity: 0.8 });
       accretionDisk.rotation.x = -Math.PI / 2 + 0.32;
       accretionDisk.rotation.y = 0.12;
       body.add(accretionDisk);
@@ -746,7 +906,7 @@ export function createSpaceScene(
     for (const [id, v] of visuals) {
       const isAlive = alive.has(id);
       v.group.visible = isAlive;
-      v.trail.visible = isAlive;
+      v.trail.visible = isAlive && trailsVisible;
       if (!isAlive && v.trailCount > 0) {
         v.trailCount = 0;
         v.trail.geometry.setDrawRange(0, 0);
@@ -772,7 +932,9 @@ export function createSpaceScene(
     for (const b of bodies) {
       const v = visuals.get(b.id)!;
       v.group.position.copy(v.vis);
-      v.body.scale.setScalar(b.visualRadius);
+      // 블랙홀은 '실제로 천체를 삼키는 반경'과 화면 크기를 맞춘다.
+      // (예전엔 행성 크기 공식을 그대로 써서 원반이 수 AU를 덮었고, 행성이 원반을 그냥 통과해 중력이 안 듣는 것처럼 보였음)
+      v.body.scale.setScalar(isBlackHoleBody(b) ? blackHoleScreenRadius(b) : b.visualRadius);
       v.hit.scale.setScalar(Math.max(b.visualRadius * 1.6, 1.1));
       v.spin.rotation.y += v.spinSpeed * dt;
       if (v.clouds) v.clouds.rotation.y += 0.05 * dt;
@@ -802,7 +964,7 @@ export function createSpaceScene(
           posArr[i * 3 + 2] = center.z + Math.sin(th) * r;
         }
         v.orbitLine.geometry.attributes.position.needsUpdate = true;
-        v.orbitLine.visible = v.group.visible;
+        v.orbitLine.visible = v.group.visible && orbitsVisible;
       }
 
       pushTrail(v, b.id === 'moon' ? 0.04 : 0.12);
@@ -832,6 +994,7 @@ export function createSpaceScene(
 
   let active = true;
   let elapsed = 0;
+  let fieldTick = 0;
   const shakeOffset = new THREE.Vector3();
 
   function frame() {
@@ -872,6 +1035,7 @@ export function createSpaceScene(
     );
 
     updateVisuals(state.bodies, dt, elapsed);
+    if (fieldMesh.visible && fieldTick++ % 2 === 0) updateGravityField(state.bodies);
     updateShockwaves(dt);
     updateSparks(dt);
     starfield.update(elapsed);
@@ -889,7 +1053,7 @@ export function createSpaceScene(
     selRing.visible = !!activeSel && visuals.has(activeSel.id);
     if (activeSel && selRing.visible) {
       selRing.position.copy(visuals.get(activeSel.id)!.vis);
-      selRing.scale.setScalar(Math.max(activeSel.visualRadius * 1.5, 0.6));
+      selRing.scale.setScalar(Math.max((isBlackHoleBody(activeSel) ? blackHoleScreenRadius(activeSel) * 2.2 : activeSel.visualRadius) * 1.5, 0.6));
       selRing.quaternion.copy(camera.quaternion);
       selRing.rotation.z += 0.04;
     }
@@ -1285,6 +1449,18 @@ export function createSpaceScene(
       focusedBodyId = null;
       controls.target.set(0, 0, 0);
       camera.position.set(0, 48, 62);
+    },
+    setGravityField(show) {
+      fieldMesh.visible = show;
+      influenceGroup.visible = show;
+      if (show) updateGravityField(getState().bodies);
+    },
+    setOrbitsVisible(show) {
+      orbitsVisible = show;
+      orbitGuides.visible = show;
+    },
+    setTrailsVisible(show) {
+      trailsVisible = show;
     },
     setActive(next) {
       active = next;

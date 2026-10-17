@@ -162,8 +162,8 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
               </strong>
               <small className="bh-card-desc">
                 {isBlackHole
-                  ? '강력한 시공간 왜곡으로 접근하는 모든 천체를 소용돌이치며 빨아들여 삼킵니다!'
-                  : '질량이 초거대 임계치에 도달하거나 붕괴를 일으키면 모든 것을 빨아들이는 블랙홀로 변신합니다'}
+                  ? '중력은 질량만큼! 지평선 가까이 온 천체는 나선을 그리며 삼켜요. 더 멀리까지 당기려면 질량을 키워 보세요.'
+                  : '질량이 지구의 1,500배를 넘거나 붕괴 버튼을 누르면 블랙홀이 돼요. (중력의 세기는 질량이 정해요)'}
               </small>
             </div>
           </div>

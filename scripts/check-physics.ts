@@ -1,5 +1,17 @@
 // 핵심 물리 시나리오 자동 테스트.  실행: npm run test:physics  (Node 22.6+ / 24)
-import { dist2, length, totalEnergy, calculateCircularSpeed, AU_PER_DAY_TO_KM_S, SUN_MASS, type Body, type Vec3 } from '../src/physics.ts';
+import { dist2, length, totalEnergy, calculateCircularSpeed, isBlackHoleBody, AU_PER_DAY_TO_KM_S, SUN_MASS, type Body, type Vec3 } from '../src/physics.ts';
+import {
+  CRITICAL_IMPACT,
+  infallRate,
+  schwarzschildRadius,
+  STAR_MASS_KG,
+  STAR_RADIUS_M,
+  SUN_KG,
+  tidalDisruptionRadius,
+  tidalReport,
+  timeDilationFactor,
+  traceLightRay,
+} from '../src/blackholePhysics.ts';
 import { createInitialState, executeCommand, findBody, advance, DAYS_PER_SECOND, type SimState } from '../src/simulation.ts';
 import { createSolarSystem } from '../src/solarSystem.ts';
 import { createGalaxyScenario, stepGalaxySystem } from '../src/galaxyCollisionPhysics.ts';
@@ -387,6 +399,46 @@ const r0 = (b: Body) => length(b.position);
 
   check('새 행성 마우스 배치: 300일 공전 후에도 태양 거리 보존 (<1.5% 오차)', radiusError < 0.015, `초기 ${targetR.toFixed(3)} AU → 300일 후 ${finalR.toFixed(3)} AU (오차 ${(radiusError * 100).toFixed(2)}%)`);
   check('새 행성 마우스 배치: 속도 발산(초광속 우주 탈출) 결함 원천 차단 (<0.02 AU/day)', !!afterSpawn && length(afterSpawn.velocity) < 0.02, `현재 속도: ${(afterSpawn ? length(afterSpawn.velocity) * AU_PER_DAY_TO_KM_S : 0).toFixed(1)} km/s`);
+}
+
+// ---------- 블랙홀 시뮬레이션 물리 (조석력 · 빛의 휨 · 시간 지연) ----------
+{
+  const rs10 = schwarzschildRadius(10 * SUN_KG);
+  check('슈바르츠실트 반지름: 태양 10배 블랙홀 ≈ 29.5 km', Math.abs(rs10 / 1000 - 29.5) < 0.3, `${(rs10 / 1000).toFixed(2)} km`);
+
+  const stellarFar = tidalReport(10, 300, 'astronaut');
+  const stellarNear = tidalReport(10, 20, 'astronaut');
+  check('항성 블랙홀: 300rₛ 에서는 아직 편안 (1단계)', stellarFar.stage === 1, `조석력 ${stellarFar.tidalG.toFixed(2)} g`);
+  check('항성 블랙홀: 지평선 훨씬 밖(20rₛ)에서 이미 스파게티화', stellarNear.stage >= 3 && stellarNear.stretch > 3, `조석력 ${stellarNear.tidalG.toExponential(1)} g, 늘어남 ${stellarNear.stretch.toFixed(1)}배`);
+
+  const sgrHorizon = tidalReport(4.3e6, 1.01, 'astronaut');
+  check('궁수자리 A*: 지평선에서도 조석력이 아주 약해 몸이 멀쩡함', sgrHorizon.q < 0.001 && sgrHorizon.stretch === 1, `조석력 ${sgrHorizon.tidalG.toExponential(1)} g`);
+
+  const rt = tidalDisruptionRadius(4.3e6 * SUN_KG, STAR_RADIUS_M, STAR_MASS_KG) / schwarzschildRadius(4.3e6 * SUN_KG);
+  check('조석 파괴: 태양 같은 별은 궁수자리 A*의 지평선 밖(약 9rₛ)에서 찢어짐', rt > 5 && rt < 15, `조석 파괴 반지름 ${rt.toFixed(1)} rₛ`);
+
+  const inner = traceLightRay(CRITICAL_IMPACT - 0.02);
+  const outer = traceLightRay(CRITICAL_IMPACT + 0.02);
+  const far = traceLightRay(10);
+  const [ax, ay] = far.points[far.points.length - 3];
+  const [bx, by] = far.points[far.points.length - 1];
+  const deflectDeg = Math.abs((Math.atan2(by - ay, bx - ax) * 180) / Math.PI);
+  check('빛의 휨: 임계 충돌거리(2.598rₛ)보다 안쪽 빛은 삼켜지고 바깥 빛은 빠져나감', inner.captured && !outer.captured, `b=${CRITICAL_IMPACT.toFixed(3)}rₛ`);
+  check('빛의 휨: 10rₛ 를 지나는 빛은 약 12~15° 휘어짐 (약한 장 근사 2rₛ/b ≈ 11.5° + 고차항)', deflectDeg > 11 && deflectDeg < 16, `${deflectDeg.toFixed(1)}°`);
+
+  check('시간 지연: 2rₛ 에서 시계는 멀리서 볼 때 약 71% 빠르기', Math.abs(timeDilationFactor(2) - Math.SQRT1_2) < 1e-9, `${(timeDilationFactor(2) * 100).toFixed(1)}%`);
+  check('멀리서 본 낙하: 지평선에서 속도 0 (영원히 닿지 않음) / 본인 시점은 계속 떨어짐', infallRate(1, 'far') === 0 && infallRate(1, 'self') > 0, `far=${infallRate(1, 'far')}, self=${infallRate(1, 'self').toFixed(2)}`);
+}
+
+// ---------- 질량을 키워 만든 블랙홀도 질량만큼 중력이 작동 ----------
+{
+  const s = createInitialState();
+  executeCommand(s, { action: 'change_mass', target: 'earth', multiplier: 5000 });
+  const earthBh = get(s, 'earth');
+  check('지구 질량 5000배 → 블랙홀로 붕괴', isBlackHoleBody(earthBh), `질량 ${(earthBh.mass / SUN_MASS).toFixed(4)} M☉`);
+  run(s, 365 * 2);
+  const swallowed = s.swallowedList.map((x) => x.id);
+  check('지구 블랙홀이 가까운 달·금성을 중력으로 끌어와 삼킴', swallowed.includes('moon') && swallowed.includes('venus'), `삼킨 천체: ${swallowed.join(', ') || '없음'}`);
 }
 
 console.log(failed ? `\n${failed}개 실패` : '\n모든 테스트 통과');

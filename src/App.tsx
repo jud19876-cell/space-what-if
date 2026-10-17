@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import BlackHoleSpaghettiSim from './BlackHoleSpaghettiSim.tsx';
+import BlackHoleSim from './BlackHoleSim.tsx';
 import ConstellationSim from './ConstellationSim.tsx';
 import GalaxyCollisionSim from './GalaxyCollisionSim.tsx';
 import type { GalaxyScenarioType } from './galaxyCollisionPhysics.ts';
@@ -29,7 +29,7 @@ export default function App() {
   const stateRef = useRef<SimState>(createInitialState());
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SpaceScene | null>(null);
-  const [simMode, setSimMode] = useState<'solar' | 'spaghetti' | 'constellation' | 'galaxy'>('solar');
+  const [simMode, setSimMode] = useState<'solar' | 'blackhole' | 'constellation' | 'galaxy'>('solar');
   const [galaxyScenario, setGalaxyScenario] = useState<GalaxyScenarioType>('local_group');
   const [constellationStart, setConstellationStart] = useState<string | undefined>(undefined);
   const [selected, setSelected] = useState<string | null>(null);
@@ -44,6 +44,10 @@ export default function App() {
   const [placementHover, setPlacementHover] = useState<PlacementInfo | null>(null);
   const [dockOpen, setDockOpen] = useState(false);
   const [dockTab, setDockTab] = useState<'extremes' | 'scenarios'>('scenarios');
+  // 보기 옵션: 중력장 / 공전 궤도선 / 지나간 자취
+  const [showField, setShowField] = useState(false);
+  const [showOrbits, setShowOrbits] = useState(true);
+  const [showTrails, setShowTrails] = useState(true);
   const [, setTick] = useState(0);
 
   /** 모든 상태 변경은 여기서 Simulation Command 로만 한다. */
@@ -57,7 +61,7 @@ export default function App() {
         setToast({
           key: Date.now(),
           emoji: '💥🕳️',
-          text: `초신성 대폭발! [${body?.name ?? '천체'}]이(가) 엄청난 중력 붕괴를 일으키며 거대 블랙홀로 각성했습니다! 주변 모든 천체를 빨아들입니다!`,
+          text: `[${body?.name ?? '천체'}]이(가) 블랙홀로 붕괴했어요! 블랙홀도 자기 질량만큼만 끌어당겨요. 가까이 온 천체는 지평선에 삼켜지고, 질량을 더 키우면 중력이 세져요. 🕸️ 중력장을 켜서 중력 우물을 확인해 보세요!`,
           type: 'explosion',
         });
       }
@@ -284,11 +288,11 @@ export default function App() {
 
   const runScenario = (sc: Scenario) => {
     if (sc.id === 'astronaut-spaghetti') {
-      setSimMode('spaghetti');
+      setSimMode('blackhole');
       setToast({
         key: Date.now(),
         emoji: '🧑‍🚀🍝',
-        text: '우주비행사 블랙홀 낙하 & 스파게티화 실험실로 이동합니다!',
+        text: '블랙홀 시뮬레이션으로 이동합니다! 가까이 가면 무슨 일이 생길까요?',
         type: 'normal',
       });
       return;
@@ -475,11 +479,11 @@ export default function App() {
               <button
                 id="btn-astronaut-spaghetti"
                 className="btn astronaut-spaghetti-btn"
-                onClick={() => setSimMode('spaghetti')}
-                title="우주비행사가 블랙홀에 빠질 때 일어나는 스파게티 현상 관찰하기"
+                onClick={() => setSimMode('blackhole')}
+                title="블랙홀에 가까이 가면 무슨 일이 생길까? (조석력 · 시간 지연 · 빛의 휨)"
               >
-                <span>🧑‍🚀</span>
-                <span className="btn-text">스파게티</span>
+                <span>🕳️</span>
+                <span className="btn-text">블랙홀 시뮬레이션</span>
               </button>
             </div>
 
@@ -638,6 +642,61 @@ export default function App() {
               🚀 실시간 조준 속도: <strong>{aimInfo.speedKmS.toFixed(1)} km/s</strong> (놓으면 발사!)
             </div>
           )}
+        </div>
+      )}
+
+      {/* 왼쪽 보기 옵션: 중력장 · 궤도선 · 자취 */}
+      <div className="view-toggles" role="group" aria-label="보기 옵션">
+        <button
+          className={`view-toggle ${showField ? 'on' : ''}`}
+          onClick={() => {
+            const next = !showField;
+            setShowField(next);
+            sceneRef.current?.setGravityField(next);
+          }}
+          title="질량이 공간을 얼마나 움푹 휘게 하는지(중력 우물)와 각 천체의 중력 영향권을 보여줘요"
+        >
+          <span>🕸️</span>
+          <span>중력장</span>
+        </button>
+        <button
+          className={`view-toggle ${showOrbits ? 'on' : ''}`}
+          onClick={() => {
+            const next = !showOrbits;
+            setShowOrbits(next);
+            sceneRef.current?.setOrbitsVisible(next);
+          }}
+          title="행성들이 태양을 도는 궤도선 켜기/끄기"
+        >
+          <span>⭕</span>
+          <span>공전 궤도</span>
+        </button>
+        <button
+          className={`view-toggle ${showTrails ? 'on' : ''}`}
+          onClick={() => {
+            const next = !showTrails;
+            setShowTrails(next);
+            sceneRef.current?.setTrailsVisible(next);
+          }}
+          title="천체가 지나간 자취(꼬리선) 켜기/끄기"
+        >
+          <span>〰️</span>
+          <span>지나간 자취</span>
+        </button>
+      </div>
+
+      {showField && (
+        <div className="field-legend">
+          <strong>🕸️ 중력장 보는 법</strong>
+          <p>
+            격자가 <b>움푹 꺼진 깊이</b> = 그곳의 중력 세기(질량 ÷ 거리). 무겁고 가까울수록 깊은 <b>중력 우물</b>이 생겨요.
+          </p>
+          <p>
+            <span className="legend-ring blue" /> 행성의 <b>중력 영향권</b>: 이 원 안에서는 태양보다 그 천체의 중력이 더 세요.
+          </p>
+          <p>
+            <span className="legend-ring pink" /> 블랙홀의 영향권. 블랙홀도 <b>질량만큼만</b> 당겨요. 질량을 키우면 우물이 깊어지고 원이 커져요!
+          </p>
         </div>
       )}
 
@@ -993,9 +1052,9 @@ export default function App() {
         }}
       />
 
-      {/* 우주비행사 블랙홀 낙하 & 스파게티화 전용 시뮬레이션 모드 */}
-      {simMode === 'spaghetti' && (
-        <BlackHoleSpaghettiSim onBackToSolar={() => setSimMode('solar')} />
+      {/* 블랙홀 시뮬레이션 (가까이 가면 무슨 일이 생길까?) */}
+      {simMode === 'blackhole' && (
+        <BlackHoleSim onBackToSolar={() => setSimMode('solar')} />
       )}
 
       {/* 3D 입체 별자리 탐험 전용 시뮬레이션 모드 */}
