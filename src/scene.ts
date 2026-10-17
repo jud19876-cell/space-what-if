@@ -680,9 +680,9 @@ export function createSpaceScene(
   let focusedBodyId: string | null = null;
 
   // ---------- 충격파 & 폭발 파편 & 카메라 진동 시스템 ----------
-  const shockwaves: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; time: number; maxTime: number; scaleMult: number }[] = [];
+  const shockwaves: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; time: number; maxTime: number; scaleMult: number; peak: number }[] = [];
 
-  function triggerShockwave(pos: THREE.Vector3, color = 0xff33cc, scaleMult = 1.0) {
+  function triggerShockwave(pos: THREE.Vector3, color = 0xff33cc, scaleMult = 1.0, peak = 0.95) {
     const geo = new THREE.RingGeometry(0.5, 1.8, 64);
     const mat = new THREE.MeshBasicMaterial({
       color,
@@ -696,7 +696,7 @@ export function createSpaceScene(
     mesh.position.copy(pos);
     mesh.rotation.x = -Math.PI / 2;
     scene.add(mesh);
-    shockwaves.push({ mesh, mat, time: 0, maxTime: 0.85, scaleMult });
+    shockwaves.push({ mesh, mat, time: 0, maxTime: 0.85, scaleMult, peak });
   }
 
   function updateShockwaves(dt: number) {
@@ -712,7 +712,7 @@ export function createSpaceScene(
       } else {
         const s = (1 + progress * 6.5) * sw.scaleMult;
         sw.mesh.scale.set(s, s, s);
-        sw.mat.opacity = 0.95 * (1 - progress);
+        sw.mat.opacity = sw.peak * (1 - progress);
       }
     }
   }
@@ -918,7 +918,7 @@ export function createSpaceScene(
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const mat = softenPoints(
-      new THREE.PointsMaterial({ size: Math.max(0.12, r0 * 0.09), vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+      new THREE.PointsMaterial({ size: Math.max(0.16, r0 * 0.1), vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
       1.8,
     );
     const points = new THREE.Points(geo, mat);
@@ -1045,8 +1045,9 @@ export function createSpaceScene(
       const heat = smooth01(0.2, 2.2, t);
       const m = cl.ghost.sphere.material as THREE.MeshStandardMaterial | THREE.ShaderMaterial;
       if ('emissive' in m && m.emissive) {
-        m.emissive.setRGB(1, 0.55 + heat * 0.35, 0.3 + heat * 0.6);
-        m.emissiveIntensity = heat * 2.2;
+        // 압축될수록 붉게 → 주황 → 흰색으로 서서히 달아오름 (처음부터 하얗게 번지면 표면이 벗겨지는 모습이 안 보임)
+        m.emissive.setRGB(1, 0.25 + heat * heat * 0.7, 0.08 + heat * heat * 0.85);
+        m.emissiveIntensity = heat * heat * 0.9;
       } else if ('uniforms' in m && m.uniforms.uIntensity) {
         m.uniforms.uIntensity.value = 1.45 + heat * 2.5;
       }
@@ -1106,7 +1107,7 @@ export function createSpaceScene(
         // 압축될수록 뜨거워져 청백색으로
         const heatP = cl.mode[i] === 0 ? heat * 0.4 : 1 - Math.min(1, rr / cl.r0);
         c.setRGB(cl.baseCol[i * 3], cl.baseCol[i * 3 + 1], cl.baseCol[i * 3 + 2]).lerp(hot, heatP * 0.8);
-        const bright = (cl.mode[i] === 0 ? 0.25 : 1.1 + heatP * 1.4) * fade;
+        const bright = (cl.mode[i] === 0 ? 0.3 : 0.55 + heatP * 0.8) * fade;
         col[i * 3] = c.r * bright;
         col[i * 3 + 1] = c.g * bright;
         col[i * 3 + 2] = c.b * bright;
@@ -1117,18 +1118,19 @@ export function createSpaceScene(
       // 3) 중심핵 빛 → 한 점 섬광
       cl.core.position.copy(center);
       if (t < 2.2) {
-        cl.core.material.opacity = heat * heat * 0.55;
+        cl.core.material.opacity = heat * heat * 0.3;
         cl.core.scale.setScalar(cl.r0 * (1.1 - 0.7 * heat) + 0.05);
       } else {
         const f = (t - 2.2) / 0.9;
-        cl.core.material.opacity = Math.max(0, 1 - f) * 0.8;
-        cl.core.scale.setScalar(cl.r0 * (0.6 + f * 3.2));
+        cl.core.material.opacity = Math.max(0, 1 - f) * 0.45;
+        cl.core.scale.setScalar(cl.r0 * (0.6 + f * 1.4));
         cl.core.material.color.setRGB(0.85 + 0.15 * (1 - f), 0.8, 1);
       }
       if (!cl.flashed && t >= 2.25) {
         cl.flashed = true;
-        triggerShockwave(center, 0xb38bff, Math.max(0.6, cl.r0 * 0.38));
-        triggerShockwave(center, 0x7dd3fc, Math.max(0.35, cl.r0 * 0.2));
+        // 충격파는 천체 크기 기준 (카메라가 바짝 붙어 있어서 고정 크기면 화면을 덮음)
+        triggerShockwave(center, 0xb38bff, cl.r0 * 0.13);
+        triggerShockwave(center, 0x7dd3fc, cl.r0 * 0.07);
         startCameraShake(0.9);
         playExplosionSound();
       }
@@ -1152,10 +1154,11 @@ export function createSpaceScene(
 
       // 6) 카메라를 붕괴하는 천체 쪽으로 부드럽게 다가가게
       // 작은 행성은 바짝, 큰 태양은 조금 떨어져서 (표면이 벗겨지는 입자가 보이도록)
-      const want = Math.min(32, Math.max(3.2, cl.r0 * 6.5));
+      // 붕괴가 끝나면 천천히 뒤로 빠져 블랙홀과 원반 전체가 보이게
+      const want = t < 4.4 ? Math.min(32, Math.max(3.2, cl.r0 * 6.5)) : Math.max(hs * 7, cl.r0 * 8);
       const distNow = camera.position.distanceTo(controls.target);
-      if (distNow > want * 1.08 && t < 4.4) {
-        tmpV.copy(camera.position).sub(controls.target).setLength(THREE.MathUtils.lerp(distNow, want, 1 - Math.pow(0.35, dt)));
+      if ((t < 4.4 && distNow > want * 1.08) || (t >= 4.4 && distNow < want * 0.95)) {
+        tmpV.copy(camera.position).sub(controls.target).setLength(THREE.MathUtils.lerp(distNow, want, 1 - Math.pow(t < 4.4 ? 0.04 : 0.3, dt)));
         camera.position.copy(controls.target).add(tmpV);
       }
 
@@ -1382,7 +1385,9 @@ export function createSpaceScene(
       (ev) => {
         const bhVis = visuals.get(ev.blackHoleId);
         if (bhVis) {
-          triggerShockwave(bhVis.vis, 0xff33cc, 1.2);
+          // 흡수 충격파는 블랙홀 화면 크기에 비례 (고정 크기면 작은 블랙홀을 가까이서 볼 때 화면을 덮음)
+          const bhBody = state.bodies.find((b) => b.id === ev.blackHoleId);
+          triggerShockwave(bhVis.vis, 0xff33cc, bhBody ? Math.max(0.06, blackHoleScreenRadius(bhBody) * 0.1) : 0.5, 0.4);
         }
         onAbsorb?.(ev);
       },

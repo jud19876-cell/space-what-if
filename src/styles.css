@@ -6552,7 +6552,7 @@ body,
 .growth-banner,
 .collapse-banner {
   position: absolute;
-  top: 74px;
+  top: 196px; /* 위쪽 알림(토스트)과 겹치지 않게 */
   left: 50%;
   transform: translateX(-50%);
   width: min(640px, calc(100vw - 32px));

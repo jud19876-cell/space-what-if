@@ -679,7 +679,7 @@ export default function App() {
         <div className={`collapse-banner stage-${collapse.stage}`}>
           <div className="collapse-steps">
             {['물질이 무너져요', '한 점으로 압축', '사건의 지평선 탄생', '블랙홀 완성'].map((label, i) => (
-              <span key={label} className={collapse.stage > i ? 'done' : collapse.stage === i + 1 ? 'now' : ''}>
+              <span key={label} className={collapse.stage > i + 1 || collapse.stage === 4 ? 'done' : collapse.stage === i + 1 ? 'now' : ''}>
                 {i + 1}. {label}
               </span>
             ))}
