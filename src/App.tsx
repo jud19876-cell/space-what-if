@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import BlackHoleSim from './BlackHoleSim.tsx';
+import EarthSpinSim from './EarthSpinSim.tsx';
 import ConstellationSim from './ConstellationSim.tsx';
 import GalaxyCollisionSim from './GalaxyCollisionSim.tsx';
 import type { GalaxyScenarioType } from './galaxyCollisionPhysics.ts';
@@ -29,7 +30,7 @@ export default function App() {
   const stateRef = useRef<SimState>(createInitialState());
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SpaceScene | null>(null);
-  const [simMode, setSimMode] = useState<'solar' | 'blackhole' | 'constellation' | 'galaxy'>('solar');
+  const [simMode, setSimMode] = useState<'solar' | 'blackhole' | 'constellation' | 'galaxy' | 'earthspin'>('solar');
   const [galaxyScenario, setGalaxyScenario] = useState<GalaxyScenarioType>('local_group');
   const [constellationStart, setConstellationStart] = useState<string | undefined>(undefined);
   const [selected, setSelected] = useState<string | null>(null);
@@ -295,6 +296,16 @@ export default function App() {
   }, [toast]);
 
   const runScenario = (sc: Scenario) => {
+    if (sc.id === 'earth-spin-lab') {
+      setSimMode('earthspin');
+      setToast({
+        key: Date.now(),
+        emoji: '🌍🌀',
+        text: '지구 자전 실험실로 이동합니다! 지구가 빨리 돌거나 멈추면 어떻게 될까요?',
+        type: 'normal',
+      });
+      return;
+    }
     if (sc.id === 'astronaut-spaghetti') {
       setSimMode('blackhole');
       setToast({
@@ -492,6 +503,16 @@ export default function App() {
               >
                 <span>🕳️</span>
                 <span className="btn-text">블랙홀 시뮬레이션</span>
+              </button>
+
+              <button
+                id="btn-earth-spin"
+                className="btn astronaut-spaghetti-btn"
+                onClick={() => setSimMode('earthspin')}
+                title="지구가 빨리 돌거나 멈추면 사람·건물·바다는 어떻게 될까?"
+              >
+                <span>🌍</span>
+                <span className="btn-text">지구 자전 실험</span>
               </button>
             </div>
 
@@ -1106,6 +1127,9 @@ export default function App() {
           });
         }}
       />
+
+      {/* 지구 자전 실험실 (빨리 돌거나 멈추면?) */}
+      {simMode === 'earthspin' && <EarthSpinSim onBackToSolar={() => setSimMode('solar')} />}
 
       {/* 블랙홀 시뮬레이션 (가까이 가면 무슨 일이 생길까?) */}
       {simMode === 'blackhole' && (

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { createAtmosphereMaterial, setRadialRingUVs, softenPoints } from './fx.ts';
+import { createAtmosphereMaterial, setRadialRingUVs, setupFreeCamera, softenPoints } from './fx.ts';
 import { createCloudTexture, createPlanetTexture, createRingTexture, createRoughnessMap } from './planetTextures.ts';
 
 export type CosmicCategory = 'all' | 'human_earth' | 'planets_moons' | 'stars_giants' | 'black_holes' | 'galaxies_universe';
@@ -952,6 +952,7 @@ export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleView
     controls.maxDistance = 5000;
     controls.minDistance = 2;
     controlsRef.current = controls;
+    const freeCam = setupFreeCamera(controls, renderer.domElement);
 
     // 프리미엄 스튜디오 조명 (MetaBallStudios 스타일 바닥 반사 + 림라이트)
     scene.add(new THREE.AmbientLight(0xffffff, 0.9));
@@ -1015,6 +1016,7 @@ export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleView
     window.addEventListener('resize', handleResize);
 
     return () => {
+      freeCam.dispose();
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animId);
       renderer.dispose();

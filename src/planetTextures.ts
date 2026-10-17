@@ -200,6 +200,7 @@ function generatePlanetMaps(id: string, width: number, height: number): PlanetMa
 
       let rgb: RGB = [200, 200, 200];
       let rough = 255;
+      let heightByte = 0;
 
       switch (id) {
         case 'sun': {
@@ -213,6 +214,8 @@ function generatePlanetMaps(id: string, width: number, height: number): PlanetMa
           const wx = fbm(nx * 1.6 + 3.1, ny * 1.6, nz * 1.6, 2) - 0.5;
           const wy = fbm(nx * 1.6, ny * 1.6 + 7.7, nz * 1.6, 2) - 0.5;
           const h = fbm(nx * 1.9 + wx * 1.4 + 10, ny * 1.9 + wy * 1.4 + 10, nz * 1.9 + 10, 6);
+          // 고도: 거칠기 맵의 빨강 채널에 저장 (three.js 는 거칠기를 초록 채널에서만 읽음). 0.2~0.8 → 0~255
+          heightByte = Math.max(0, Math.min(255, ((h - 0.2) / 0.6) * 255));
           const sea = 0.5;
           if (h < sea) {
             const depth = (sea - h) / sea;
@@ -387,7 +390,8 @@ function generatePlanetMaps(id: string, width: number, height: number): PlanetMa
       data[idx + 2] = rgb[2] < 0 ? 0 : rgb[2] > 255 ? 255 : rgb[2];
       data[idx + 3] = 255;
       if (roughImg) {
-        roughImg.data[idx] = roughImg.data[idx + 1] = roughImg.data[idx + 2] = rough;
+        roughImg.data[idx] = heightByte;
+        roughImg.data[idx + 1] = roughImg.data[idx + 2] = rough;
         roughImg.data[idx + 3] = 255;
       }
     }
@@ -423,7 +427,10 @@ export function createPlanetTexture(id: string, width = defaultWidth(id), height
   return getMaps(id, width, height).diffuse;
 }
 
-/** 표면 거칠기 맵 (지구: 바다는 매끈해서 햇빛이 반짝, 육지는 거침). 없으면 undefined */
+/**
+ * 표면 거칠기 맵 (지구: 바다는 매끈해서 햇빛이 반짝, 육지는 거침). 없으면 undefined.
+ * 지구는 빨강 채널에 고도도 들어 있다: h = r·0.6 + 0.2, 해수면 h = 0.5
+ */
 export function createRoughnessMap(id: string, width = defaultWidth(id), height = width / 2): THREE.CanvasTexture | undefined {
   return getMaps(id, width, height).roughness;
 }

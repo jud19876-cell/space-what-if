@@ -232,6 +232,58 @@ export function createSkyDome(radius = 2600, intensity = 1): THREE.Mesh {
   return mesh;
 }
 
+// ---------- 자유 카메라: 왼쪽 드래그 회전 · 오른쪽(가운데) 드래그 이동 · 휠은 커서 쪽으로 확대 ----------
+export interface FreeCamera {
+  /** 사용자가 직접 화면을 옮겼거나 커서 쪽으로 확대했으면 true → 자동 추적을 멈춘다 */
+  manual: boolean;
+  /** 자동 추적으로 돌아가기 (행성 선택, 전체 조망 버튼 등) */
+  release(): void;
+  dispose(): void;
+}
+
+interface OrbitLike {
+  enablePan: boolean;
+  screenSpacePanning: boolean;
+  zoomToCursor: boolean;
+  mouseButtons: { LEFT?: THREE.MOUSE | null; MIDDLE?: THREE.MOUSE | null; RIGHT?: THREE.MOUSE | null };
+}
+
+export function setupFreeCamera(
+  controls: OrbitLike,
+  dom: HTMLElement,
+  opts: { isFollowing?: () => boolean } = {},
+): FreeCamera {
+  controls.enablePan = true;
+  controls.screenSpacePanning = true;
+  controls.zoomToCursor = true;
+  controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN };
+  const state: FreeCamera = {
+    manual: false,
+    release() {
+      state.manual = false;
+    },
+    dispose() {
+      dom.removeEventListener('pointerdown', onDown);
+      dom.removeEventListener('wheel', onWheel);
+      dom.removeEventListener('contextmenu', onMenu);
+    },
+  };
+  const onDown = (e: PointerEvent) => {
+    if (e.button === 1 || e.button === 2) state.manual = true;
+  };
+  // 무언가를 따라가는 중이면 그 천체를 중심으로 확대 (커서 쪽 확대는 따라가기와 충돌)
+  const onWheel = () => {
+    const following = opts.isFollowing?.() ?? false;
+    controls.zoomToCursor = !following;
+    if (!following) state.manual = true;
+  };
+  const onMenu = (e: Event) => e.preventDefault();
+  dom.addEventListener('pointerdown', onDown);
+  dom.addEventListener('wheel', onWheel, { passive: true, capture: true });
+  dom.addEventListener('contextmenu', onMenu);
+  return state;
+}
+
 // ---------- 블룸(빛 번짐) 후처리 ----------
 export interface BloomPipeline {
   render(): void;

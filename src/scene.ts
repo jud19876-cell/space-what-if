@@ -28,6 +28,7 @@ import {
   createStarfield,
   createSunMaterial,
   setRadialRingUVs,
+  setupFreeCamera,
   softenPoints,
 } from './fx.ts';
 
@@ -283,7 +284,8 @@ export function createSpaceScene(
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.enablePan = false;
+  // 왼쪽 드래그 회전 · 오른쪽 드래그 이동 · 휠은 커서 쪽 확대 (선택한 천체를 따라갈 때는 그 천체 중심)
+  const freeCam = setupFreeCamera(controls, renderer.domElement, { isFollowing: () => !!(focusedBodyId ?? selectedId) });
   controls.minDistance = 4;
   controls.maxDistance = 1400;
 
@@ -995,6 +997,7 @@ export function createSpaceScene(
       isSun,
     });
     focusedBodyId = b.id;
+    freeCam.release();
     reportCollapse(collapses[collapses.length - 1]);
   }
 
@@ -1418,9 +1421,12 @@ export function createSpaceScene(
     const targetId = focusedBodyId ?? selectedId;
     const sel = targetId ? state.bodies.find((b) => b.id === targetId) : undefined;
     const goal = sel && visuals.has(sel.id) ? visuals.get(sel.id)!.vis : tmp.set(0, 0, 0);
-    prevTarget.copy(controls.target);
-    controls.target.lerp(goal, 0.08);
-    camera.position.add(prevTarget.sub(controls.target).negate());
+    // 사용자가 직접 화면을 옮겼으면(우클릭 드래그/커서 쪽 확대) 자동으로 중심을 되돌리지 않는다
+    if (!freeCam.manual) {
+      prevTarget.copy(controls.target);
+      controls.target.lerp(goal, 0.08);
+      camera.position.add(prevTarget.sub(controls.target).negate());
+    }
 
     // 타깃 선택 네온 링 애니메이션
     const activeSel = selectedId ? state.bodies.find((b) => b.id === selectedId) : undefined;
@@ -1784,6 +1790,7 @@ export function createSpaceScene(
       sparkSystems.length = 0;
     },
     setSelected(id) {
+      if (id && id !== selectedId) freeCam.release();
       selectedId = id;
     },
     setCannonMode(active, massType = 'normal') {
@@ -1817,12 +1824,14 @@ export function createSpaceScene(
       }
     },
     focusBody(id) {
+      freeCam.release();
       focusedBodyId = id;
       if (id && visuals.has(id)) {
         controls.target.copy(visuals.get(id)!.vis);
       }
     },
     resetCamera() {
+      freeCam.release();
       focusedBodyId = null;
       controls.target.set(0, 0, 0);
       camera.position.set(0, 48, 62);
@@ -1846,6 +1855,7 @@ export function createSpaceScene(
     },
     dispose() {
       cancelAnimationFrame(raf);
+      freeCam.dispose();
       bloom.dispose();
       ro.disconnect();
       window.removeEventListener('resize', updateSize);

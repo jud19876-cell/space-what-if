@@ -74,6 +74,14 @@ export const SCENARIOS: Scenario[] = [
     commands: [{ action: 'clear_asteroids' }],
   },
 
+  {
+    id: 'earth-spin-lab',
+    emoji: '🌍🌀',
+    label: '지구 자전이 멈추면?',
+    category: 'solar',
+    message: '지구 자전 실험실: 빨리 돌거나 멈추면 사람·건물·바다는 어떻게 될까요?',
+    commands: [],
+  },
   // --- 블랙홀 시뮬레이션 실험 (흡수 소멸 & 나선 낙하) ---
   {
     id: 'astronaut-spaghetti',

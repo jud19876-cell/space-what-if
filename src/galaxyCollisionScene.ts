@@ -5,7 +5,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { createBloomPipeline, softenPoints } from './fx.ts';
+import { createBloomPipeline, setupFreeCamera, softenPoints } from './fx.ts';
 import {
   createGalaxyScenario,
   stepGalaxySystem,
@@ -470,6 +470,7 @@ export function createGalaxyScene(
   controls.dampingFactor = 0.05;
   controls.minDistance = 8;
   controls.maxDistance = 7500;
+  const freeCam = setupFreeCamera(controls, renderer.domElement);
 
   // 은하 중심핵·퀘이사 제트처럼 밝은 부분만 은은하게 번지도록
   const bloom = createBloomPipeline(renderer, scene, camera, { strength: 0.55, radius: 0.5, threshold: 0.9 });
@@ -1050,7 +1051,8 @@ export function createGalaxyScene(
       }
     }
 
-    controls.target.lerp(targetLerp, 0.06);
+    // 사용자가 우클릭 드래그/커서 쪽 확대로 직접 옮겼으면 시점 자동 이동을 멈춘다 (시점 버튼을 누르면 다시)
+    if (!freeCam.manual) controls.target.lerp(targetLerp, 0.06);
     controls.update();
 
     bloom.render();
@@ -1075,6 +1077,7 @@ export function createGalaxyScene(
 
   return {
     setScenario(scenario) {
+      freeCam.release();
       simState = createGalaxyScenario(scenario);
       buildCoreVisuals(simState.cores);
       buildParticleVisuals(simState);
@@ -1086,6 +1089,7 @@ export function createGalaxyScene(
       simState.paused = !playing;
     },
     setViewMode(mode) {
+      freeCam.release();
       activeView = mode;
       if (mode === 'universe') {
         camera.position.set(0, 1600, 2900);
@@ -1149,6 +1153,7 @@ export function createGalaxyScene(
       }
     },
     reset() {
+      freeCam.release();
       simState = createGalaxyScenario(simState.scenario);
       buildCoreVisuals(simState.cores);
       buildParticleVisuals(simState);
@@ -1157,6 +1162,7 @@ export function createGalaxyScene(
     },
     dispose() {
       cancelAnimationFrame(rafId);
+      freeCam.dispose();
       ro.disconnect();
       window.removeEventListener('resize', handleResize);
       controls.dispose();

@@ -8,7 +8,7 @@ import {
   type ZodiacMonthInfo,
 } from './constellationsData.ts';
 import { generateGhostCanvas } from './constellationGhostArt.ts';
-import { createStarfield, createSunMaterial, getSoftDotTexture } from './fx.ts';
+import { createStarfield, createSunMaterial, getSoftDotTexture, setupFreeCamera } from './fx.ts';
 import { createCloudTexture, createPlanetTexture, createRoughnessMap } from './planetTextures.ts';
 
 export type ConstellationViewMode = 'earth' | 'space3d' | 'top' | 'season_orbit' | 'zodiac_wheel';
@@ -138,8 +138,8 @@ export function createConstellation3DScene(
   controls.target.set(0, 0, 16); // 별자리 중간 깊이를 중심축으로 회전
   controls.minDistance = 4;
   controls.maxDistance = 280;
-  controls.enablePan = true;
-  controls.screenSpacePanning = true;
+  // 왼쪽 드래그 회전 · 오른쪽 드래그 이동 · 휠은 커서 쪽 확대
+  const freeCam = setupFreeCamera(controls, renderer.domElement);
 
   let isAnimatingCamera = false;
   controls.addEventListener('start', () => {
@@ -1204,6 +1204,7 @@ export function createConstellation3DScene(
     },
     dispose() {
       cancelAnimationFrame(animId);
+      freeCam.dispose();
       window.removeEventListener('resize', onResize);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       if (ghostMesh) {

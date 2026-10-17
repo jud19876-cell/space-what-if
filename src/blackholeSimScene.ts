@@ -20,6 +20,7 @@ import {
   createSkyDome,
   createStarfield,
   getSoftDotTexture,
+  setupFreeCamera,
 } from './fx.ts';
 import { createPlanetTexture } from './planetTextures.ts';
 
@@ -301,6 +302,7 @@ export function createBlackHoleSimScene(container: HTMLDivElement, onUpdate: (s:
   controls.dampingFactor = 0.08;
   controls.minDistance = 3;
   controls.maxDistance = 1500;
+  const freeCam = setupFreeCamera(controls, renderer.domElement);
 
   scene.add(new THREE.AmbientLight(0x8890b0, 0.25));
   // 강착원반이 내뿜는 빛 (실험체를 주황빛으로 비춤)
@@ -779,6 +781,7 @@ export function createBlackHoleSimScene(container: HTMLDivElement, onUpdate: (s:
     },
     dispose() {
       cancelAnimationFrame(raf);
+      freeCam.dispose();
       ro.disconnect();
       controls.dispose();
       bloom.dispose();

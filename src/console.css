@@ -767,3 +767,433 @@
     bottom: 250px;
   }
 }
+
+/* ==========================================================================
+   지구 자전 실험실
+   ========================================================================== */
+.es-root {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #02030b;
+  color: var(--star);
+  overflow: hidden;
+  font-family: var(--font-ui);
+}
+
+.es-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.es-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: linear-gradient(180deg, #161c33, var(--hull-deep));
+  border-bottom: 1px solid var(--hull-lift);
+}
+
+.es-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.es-title-icon {
+  font-size: 26px;
+}
+
+.es-title h1 {
+  margin: 0;
+  font-family: var(--font-label);
+  font-weight: 400;
+  font-size: 22px;
+  white-space: nowrap;
+}
+
+.es-title span {
+  font-size: 12px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.es-loc,
+.es-chips {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--hull-deep);
+  border: 1px solid var(--hull-edge);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.es-loc button,
+.es-chips button {
+  font-family: var(--font-label);
+  font-size: 14px;
+  color: var(--dim);
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.es-loc button:hover,
+.es-chips button:hover {
+  color: var(--star);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.es-loc button.active,
+.es-chips button.active {
+  background: var(--amber);
+  color: var(--amber-ink);
+  box-shadow: 0 2px 0 #7a4c00;
+}
+
+.es-hud {
+  position: absolute;
+  top: 74px;
+  left: 16px;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 4;
+}
+
+.es-card {
+  padding: 11px 13px;
+  background: rgba(16, 21, 42, 0.92);
+  border: 1px solid var(--hull-edge);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.es-card-title {
+  font-family: var(--font-label);
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.es-big {
+  font-family: var(--font-label);
+  font-size: 30px;
+  color: var(--cyan);
+  font-variant-numeric: tabular-nums;
+}
+
+.es-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--dim);
+  padding: 2px 0;
+}
+
+.es-row strong {
+  color: var(--cyan);
+  font-family: var(--font-label);
+  font-weight: 400;
+  font-size: 15px;
+  text-align: right;
+}
+
+.es-row strong.warn {
+  color: var(--amber);
+}
+
+.es-row strong.danger {
+  color: var(--danger);
+}
+
+.es-meter {
+  height: 7px;
+  margin: 4px 0 6px;
+  border-radius: 4px;
+  background: #0a0e1d;
+  border: 1px solid var(--hull-lift);
+  overflow: hidden;
+}
+
+.es-meter div {
+  height: 100%;
+  background: linear-gradient(90deg, var(--danger), var(--amber) 40%, var(--cyan));
+  transition: width 0.2s linear;
+}
+
+.es-banner {
+  position: absolute;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 640px));
+  min-width: 300px;
+  padding: 11px 16px;
+  background: rgba(16, 21, 42, 0.94);
+  border: 1px solid var(--hull-edge);
+  border-left: 4px solid var(--cyan);
+  border-radius: 10px;
+  z-index: 4;
+}
+
+.es-banner.tone-warn {
+  border-left-color: var(--amber);
+}
+
+.es-banner.tone-danger {
+  border-left-color: var(--danger);
+}
+
+.es-banner h2 {
+  margin: 0 0 4px;
+  font-family: var(--font-label);
+  font-weight: 400;
+  font-size: 19px;
+}
+
+.es-banner p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #cbd5e1;
+}
+
+.es-scenarios {
+  position: absolute;
+  top: 74px;
+  right: 16px;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 4;
+}
+
+.es-scenarios.closed {
+  width: auto;
+  align-items: flex-end;
+}
+
+.es-panel-toggle {
+  align-self: flex-end;
+  font-family: var(--font-label);
+  font-size: 14px;
+  color: var(--star);
+  background: var(--hull-deep);
+  border: 1px solid var(--hull-edge);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.es-scenario {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  font-family: var(--font-label);
+  font-size: 15px;
+  color: var(--star);
+  background: linear-gradient(180deg, #2a3454, #1f2843);
+  border: 1px solid var(--hull-edge);
+  border-radius: 9px;
+  padding: 7px 12px;
+  box-shadow: var(--key-depth);
+  cursor: pointer;
+}
+
+.es-scenario:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #070a16;
+}
+
+.es-scenario.active {
+  border-color: var(--amber);
+  box-shadow: var(--key-depth), inset 4px 0 0 var(--amber);
+}
+
+.es-scenario-emoji {
+  font-size: 19px;
+}
+
+.es-explain {
+  padding: 11px 13px;
+  background: rgba(16, 21, 42, 0.94);
+  border: 1px solid var(--hull-edge);
+  border-left: 4px solid var(--amber);
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.es-explain strong {
+  font-family: var(--font-label);
+  font-weight: 400;
+  font-size: 14px;
+}
+
+.es-explain p {
+  margin: 5px 0 0;
+  color: #cbd5e1;
+}
+
+/* 지상 카메라 창: 3D 는 캔버스에 이 사각형만큼 그려지고, 여기엔 테두리와 이름표만 */
+.es-inset {
+  position: absolute;
+  right: 16px;
+  bottom: 128px;
+  width: min(44vw, 600px);
+  height: min(31vh, 270px);
+  border: 2px solid var(--hull-edge);
+  border-radius: 12px;
+  box-shadow: 0 0 0 4px rgba(16, 21, 42, 0.9), 0 12px 30px rgba(2, 4, 12, 0.6);
+  z-index: 3;
+  pointer-events: none;
+  transition: width 0.25s ease, height 0.25s ease;
+}
+
+.es-inset.big {
+  width: calc(100vw - 32px);
+  height: calc(100vh - 200px);
+  bottom: 132px;
+}
+
+.es-inset-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: rgba(10, 14, 29, 0.82);
+  border-bottom: 1px solid var(--hull-lift);
+  border-radius: 10px 10px 0 0;
+  font-family: var(--font-label);
+  font-size: 13px;
+  pointer-events: auto;
+}
+
+.es-inset-bar span:nth-child(2) {
+  margin-left: auto;
+  color: var(--amber);
+}
+
+.es-inset-bar button {
+  font-family: var(--font-label);
+  font-size: 12px;
+  color: var(--star);
+  background: var(--hull);
+  border: 1px solid var(--hull-edge);
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.es-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: min(1100px, calc(100vw - 28px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, #171d34, var(--hull-deep));
+  border: 1px solid var(--hull-lift);
+  border-radius: 14px;
+  box-shadow: 0 -4px 22px rgba(2, 4, 12, 0.6);
+  z-index: 5;
+}
+
+.es-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.es-slider {
+  flex: 1 1 280px;
+  min-width: 220px;
+}
+
+.es-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--dim);
+  margin-bottom: 3px;
+}
+
+.es-slider input[type='range'] {
+  width: 100%;
+  accent-color: var(--amber);
+}
+
+.btn.es-apply {
+  background: linear-gradient(180deg, #ffc35e, var(--amber));
+  border-color: #ffd28a;
+  color: var(--amber-ink);
+  box-shadow: 0 3px 0 #7a4c00;
+  padding: 9px 16px;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.btn.es-reset {
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+@media (max-width: 1100px) {
+  .es-hud {
+    width: 220px;
+  }
+
+  .es-scenarios {
+    width: 230px;
+  }
+
+  .es-banner {
+    width: min(560px, calc(100vw - 32px));
+    top: auto;
+    bottom: calc(128px + min(31vh, 270px) + 12px);
+  }
+
+  .es-title span {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .es-hud {
+    display: none;
+  }
+
+  .es-inset {
+    width: calc(100vw - 32px);
+    height: 30vh;
+  }
+
+  .es-loc button {
+    padding: 5px 7px;
+    font-size: 12px;
+  }
+}

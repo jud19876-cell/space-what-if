@@ -12,6 +12,7 @@ import {
   timeDilationFactor,
   traceLightRay,
 } from '../src/blackholePhysics.ts';
+import { assessSudden, spinReport, suddenChangeVelocity } from '../src/earthSpinPhysics.ts';
 import { createInitialState, executeCommand, findBody, advance, DAYS_PER_SECOND, type SimState } from '../src/simulation.ts';
 import { createSolarSystem } from '../src/solarSystem.ts';
 import { createGalaxyScenario, stepGalaxySystem } from '../src/galaxyCollisionPhysics.ts';
@@ -439,6 +440,24 @@ const r0 = (b: Body) => length(b.position);
   run(s, 365 * 4);
   const swallowed = s.swallowedList.map((x) => x.id);
   check('지구 블랙홀이 4년 안에 가까운 달·금성을 중력으로 끌어와 삼킴', swallowed.includes('moon') && swallowed.includes('venus'), `삼킨 천체: ${swallowed.join(', ') || '없음'}`);
+}
+
+// ---------- 지구 자전 실험 ----------
+{
+  const now = spinReport(1, 0);
+  check('자전: 적도 지표 속도 ≈ 465 m/s (시속 약 1,670km)', Math.abs(now.surfaceSpeed - 465) < 3, `${now.surfaceSpeed.toFixed(1)} m/s`);
+  check('자전: 적도 원심 가속도 ≈ 0.034 m/s² (몸무게 0.3% 가벼워짐)', Math.abs(now.centrifugal - 0.0339) < 0.001, `${now.centrifugal.toFixed(4)} m/s²`);
+  check('자전: 적도에서 약 17배 빨라지면 몸무게 0 (둥둥 뜸)', Math.abs(now.floatRatio - 17.0) < 0.2, `${now.floatRatio.toFixed(2)}배 (하루 ${(23.934 / now.floatRatio).toFixed(2)}시간)`);
+  const seoul = spinReport(1, 37.5);
+  check('자전: 서울은 적도보다 더 빨리 돌아야 뜸 (약 21배)', seoul.floatRatio > 20 && seoul.floatRatio < 23, `${seoul.floatRatio.toFixed(1)}배`);
+  const stop = spinReport(0, 0);
+  check('자전 정지: 적도 바다가 수 km 빠지고 극지방에 쌓임', stop.seaEquator < -3000 && stop.seaPole > 6000, `적도 ${(stop.seaEquator / 1000).toFixed(1)} km, 극 +${(stop.seaPole / 1000).toFixed(1)} km`);
+  const fast = spinReport(2, 0);
+  check('자전 2배: 바다가 적도로 몰려 해수면 상승', fast.seaEquator > 5000, `적도 +${(fast.seaEquator / 1000).toFixed(1)} km`);
+  const dv = suddenChangeVelocity(1, 0, 37.5);
+  check('갑자기 멈춤: 서울의 사람·공기는 시속 약 1,330km 로 동쪽으로 (소리보다 빠름)', dv > 343 && Math.abs(dv * 3.6 - 1330) < 30, `${(dv * 3.6).toFixed(0)} km/h`);
+  check('갑자기 멈춤의 충격 단계 = 최고(4)', assessSudden(dv).level === 4, assessSudden(dv).title);
+  check('편평도: 지금 자전 속도에서 약 0.004 (거의 공)', Math.abs(now.flattening - 0.0043) < 0.0005, now.flattening.toFixed(4));
 }
 
 console.log(failed ? `\n${failed}개 실패` : '\n모든 테스트 통과');
