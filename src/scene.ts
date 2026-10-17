@@ -8,7 +8,7 @@ import {
   length,
   SUN_MASS,
   calculateCircularSpeed,
-  getBlackHoleCaptureRadius,
+  getFullBlackHoleCaptureRadius,
   isBlackHoleBody,
   type Body,
   type Vec3,
@@ -66,7 +66,7 @@ export function unmapPoint(worldVec: THREE.Vector3): Vec3 {
 function blackHoleScreenRadius(b: Body): number {
   const r = length(b.position);
   const perAU = DIST_K / (2 * Math.sqrt(r + DIST_R0));
-  return Math.min(9, Math.max(0.5, getBlackHoleCaptureRadius(b) * perAU));
+  return Math.min(9, Math.max(0.5, getFullBlackHoleCaptureRadius(b) * perAU));
 }
 
 // 위성(달)은 실제 거리로는 행성 안에 묻혀 버리므로, 행성 기준 오프셋을 크게 늘려서 그린다.
@@ -95,6 +95,16 @@ interface Visual {
   lensingRing?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   sunMaterial?: THREE.ShaderMaterial;
   orbitLine?: THREE.LineLoop;
+  /** 막 생기는 블랙홀의 등장 정도 (0 → 1). 없으면 1 */
+  appear?: number;
+}
+
+export interface CollapseInfo {
+  bodyId: string;
+  name: string;
+  /** 1 물질이 무너짐 · 2 한 점으로 압축 · 3 사건의 지평선 탄생 · 4 완료 */
+  stage: 1 | 2 | 3 | 4;
+  progress: number;
 }
 
 // 실제 자전축 기울기 (라디안)
@@ -257,6 +267,7 @@ export function createSpaceScene(
   onLaunchAsteroid?: (pos: Vec3, vel: Vec3, massType: 'normal' | 'giant') => void,
   onAimInfo?: (info: AimInfo | null) => void,
   onFireAsteroid?: (asteroidId: string, targetPos: Vec3) => void,
+  onCollapse?: (info: CollapseInfo) => void,
 ): SpaceScene {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -797,6 +808,361 @@ export function createSpaceScene(
     }
   }
 
+  // ---------- 중력 붕괴 → 블랙홀 탄생 연출 ----------
+  // 0.0~2.2초 표면이 벗겨져 회전하며 중심으로 떨어지고 본체는 압축·가열
+  // 2.2~2.6초 한 점으로 압축 → 섬광 + 충격파
+  // 2.4~4.2초 사건의 지평선이 자라고 남은 물질이 강착원반으로
+  // 그동안 시뮬레이션 시간은 0.2배 슬로모션 (physics 의 지평선 성장도 여기에 맞춰져 있음)
+  const COLLAPSE_END = 6.2;
+  interface Collapse {
+    id: string;
+    name: string;
+    ghost: Visual;
+    ghostBaseScale: number;
+    bh: Visual;
+    t: number;
+    r0: number;
+    n: number;
+    dir: Float32Array;
+    delay: Float32Array;
+    fallDur: Float32Array;
+    phi: Float32Array;
+    rho: Float32Array;
+    rhoStart: Float32Array;
+    mode: Uint8Array; // 0 표면, 1 낙하, 2 핵에 흡수(숨김), 3 원반
+    baseCol: Float32Array;
+    points: THREE.Points;
+    geo: THREE.BufferGeometry;
+    mat: THREE.PointsMaterial;
+    core: THREE.Sprite;
+    funnel: THREE.LineSegments;
+    funnelGeo: THREE.BufferGeometry;
+    funnelR: Float32Array;
+    funnelAng: Float32Array;
+    flashed: boolean;
+    stage: number;
+    isSun: boolean;
+  }
+  const collapses: Collapse[] = [];
+  const textureColorCache = new Map<string, { data: Uint8ClampedArray; w: number; h: number }>();
+
+  function sampleSurfaceColor(key: string, d: THREE.Vector3, out: THREE.Color, fallback: THREE.Color) {
+    let entry = textureColorCache.get(key);
+    if (!entry) {
+      try {
+        const canvas = createPlanetTexture(key).image as HTMLCanvasElement;
+        const ctx = canvas.getContext('2d')!;
+        entry = { data: ctx.getImageData(0, 0, canvas.width, canvas.height).data, w: canvas.width, h: canvas.height };
+        textureColorCache.set(key, entry);
+      } catch {
+        out.copy(fallback);
+        return;
+      }
+    }
+    // three.js 구 UV: x = -cos(φ)sinθ, z = sin(φ)sinθ, y = cosθ
+    let u = Math.atan2(d.z, -d.x) / (Math.PI * 2);
+    if (u < 0) u += 1;
+    const theta = Math.acos(Math.max(-1, Math.min(1, d.y)));
+    const px = Math.min(entry.w - 1, Math.floor(u * entry.w));
+    const py = Math.min(entry.h - 1, Math.floor((theta / Math.PI) * entry.h));
+    const i = (py * entry.w + px) * 4;
+    out.setRGB(entry.data[i] / 255, entry.data[i + 1] / 255, entry.data[i + 2] / 255, THREE.SRGBColorSpace);
+  }
+
+  function startCollapse(b: Body, old: Visual) {
+    // 기존 모습은 '유령'으로 남겨서 쪼그라드는 연출에 쓰고, 목록에서는 새 블랙홀 비주얼로 교체
+    scene.remove(old.trail);
+    if (old.orbitLine) scene.remove(old.orbitLine);
+    const hitIdx = hitMeshes.indexOf(old.hit);
+    if (hitIdx >= 0) hitMeshes.splice(hitIdx, 1);
+    old.hit.visible = false;
+    visuals.delete(b.id);
+    const bh = createVisualForBody(b);
+    bh.appear = 0;
+    bh.vis.copy(old.vis);
+    bh.group.position.copy(old.vis);
+
+    const r0 = Math.max(0.35, old.body.scale.x);
+    const isSun = b.id === 'sun' || b.typeId === 'sun';
+    const key = isSun ? 'sun' : ['mercury', 'venus', 'earth', 'moon', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'].includes(b.typeId ?? b.id) ? (b.typeId ?? b.id) : b.id;
+    const info = BODY_INFO[(b.typeId ?? b.id) as BodyId];
+    const fallback = new THREE.Color(info?.color ?? '#cccccc');
+
+    const n = isSun ? 2600 : 1800;
+    const dir = new Float32Array(n * 3);
+    const delay = new Float32Array(n);
+    const fallDur = new Float32Array(n);
+    const phi = new Float32Array(n);
+    const rho = new Float32Array(n);
+    const rhoStart = new Float32Array(n);
+    const mode = new Uint8Array(n);
+    const baseCol = new Float32Array(n * 3);
+    const pos = new Float32Array(n * 3);
+    const col = new Float32Array(n * 3);
+    const d = new THREE.Vector3();
+    const c = new THREE.Color();
+    for (let i = 0; i < n; i++) {
+      const u = Math.random() * 2 - 1;
+      const t = Math.random() * Math.PI * 2;
+      const s = Math.sqrt(1 - u * u);
+      d.set(s * Math.cos(t), u, s * Math.sin(t));
+      dir.set([d.x, d.y, d.z], i * 3);
+      // 바깥 껍질부터 차례로 무너지되, 일부는 지평선이 생긴 뒤에 떨어져 원반이 된다
+      delay[i] = Math.pow(Math.random(), 0.8) * 2.9;
+      fallDur[i] = 0.55 + Math.random() * 0.9;
+      rho[i] = r0;
+      sampleSurfaceColor(key, d, c, fallback);
+      baseCol.set([c.r, c.g, c.b], i * 3);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const mat = softenPoints(
+      new THREE.PointsMaterial({ size: Math.max(0.12, r0 * 0.09), vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+      1.8,
+    );
+    const points = new THREE.Points(geo, mat);
+    points.frustumCulled = false;
+    scene.add(points);
+
+    const core = createCoronaSprite(0xe8eeff, r0);
+    core.material.opacity = 0;
+    scene.add(core);
+
+    // 시공간 깔때기: 질량이 한 점에 모일수록 공간이 깊게 꺼진다
+    const RINGS = 16;
+    const SEG = 72;
+    const SPOKES = 24;
+    const funnelR = new Float32Array((RINGS + 1) * SEG + SPOKES * (RINGS + 1));
+    const funnelAng = new Float32Array(funnelR.length);
+    const Rf = Math.max(7, r0 * 7);
+    let vi = 0;
+    const idx: number[] = [];
+    for (let k = 0; k <= RINGS; k++) {
+      const rk = Rf * Math.pow((k + 0.5) / (RINGS + 0.5), 1.7);
+      for (let sgm = 0; sgm < SEG; sgm++) {
+        funnelR[vi] = rk;
+        funnelAng[vi] = (sgm / SEG) * Math.PI * 2;
+        idx.push(vi, k * SEG + ((sgm + 1) % SEG));
+        vi++;
+      }
+    }
+    for (let sp = 0; sp < SPOKES; sp++) {
+      for (let k = 0; k <= RINGS; k++) {
+        funnelR[vi] = Rf * Math.pow((k + 0.5) / (RINGS + 0.5), 1.7);
+        funnelAng[vi] = (sp / SPOKES) * Math.PI * 2;
+        if (k < RINGS) idx.push(vi, vi + 1);
+        vi++;
+      }
+    }
+    const funnelGeo = new THREE.BufferGeometry();
+    funnelGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(funnelR.length * 3), 3));
+    funnelGeo.setIndex(idx);
+    const funnel = new THREE.LineSegments(
+      funnelGeo,
+      new THREE.LineBasicMaterial({ color: 0x9b7bff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }),
+    );
+    funnel.frustumCulled = false;
+    scene.add(funnel);
+
+    collapses.push({
+      id: b.id,
+      name: b.name.replace(' 블랙홀', ''),
+      ghost: old,
+      ghostBaseScale: old.body.scale.x,
+      bh,
+      t: 0,
+      r0,
+      n,
+      dir,
+      delay,
+      fallDur,
+      phi,
+      rho,
+      rhoStart,
+      mode,
+      baseCol,
+      points,
+      geo,
+      mat,
+      core,
+      funnel,
+      funnelGeo,
+      funnelR,
+      funnelAng,
+      flashed: false,
+      stage: 0,
+      isSun,
+    });
+    focusedBodyId = b.id;
+    reportCollapse(collapses[collapses.length - 1]);
+  }
+
+  function reportCollapse(cl: Collapse) {
+    const stage = cl.t < 1.2 ? 1 : cl.t < 2.3 ? 2 : cl.t < 4.4 ? 3 : 4;
+    if (stage === cl.stage) return;
+    cl.stage = stage;
+    onCollapse?.({ bodyId: cl.id, name: cl.name, stage: stage as CollapseInfo['stage'], progress: Math.min(1, cl.t / 4.4) });
+  }
+
+  function endCollapse(cl: Collapse) {
+    scene.remove(cl.ghost.group, cl.points, cl.core, cl.funnel);
+    cl.geo.dispose();
+    cl.mat.dispose();
+    cl.funnelGeo.dispose();
+    (cl.funnel.material as THREE.Material).dispose();
+    cl.bh.appear = 1;
+    if (cl.isSun) sunLight.intensity = 3.6;
+  }
+
+  const smooth01 = (e0: number, e1: number, x: number) => {
+    const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+    return t * t * (3 - 2 * t);
+  };
+
+  function updateCollapses(dt: number, bodies: Body[]) {
+    const tmpV = new THREE.Vector3();
+    const hot = new THREE.Color(0.8, 0.88, 1.0);
+    const c = new THREE.Color();
+    for (let k = collapses.length - 1; k >= 0; k--) {
+      const cl = collapses[k];
+      cl.t += dt;
+      const t = cl.t;
+      const alive = bodies.some((b) => b.id === cl.id);
+      if (!alive || t >= COLLAPSE_END) {
+        endCollapse(cl);
+        collapses.splice(k, 1);
+        if (alive) reportCollapse(cl);
+        continue;
+      }
+      const center = cl.bh.vis;
+
+      // 1) 본체: 점점 압축되며 뜨겁게 달아오름
+      const g = t < 2.2 ? 1 - 0.88 * Math.pow(t / 2.2, 3) : Math.max(0, 0.12 * (1 - (t - 2.2) / 0.35));
+      cl.ghost.group.position.copy(center);
+      cl.ghost.body.scale.setScalar(Math.max(1e-4, cl.ghostBaseScale * g));
+      cl.ghost.group.visible = g > 0.002;
+      const heat = smooth01(0.2, 2.2, t);
+      const m = cl.ghost.sphere.material as THREE.MeshStandardMaterial | THREE.ShaderMaterial;
+      if ('emissive' in m && m.emissive) {
+        m.emissive.setRGB(1, 0.55 + heat * 0.35, 0.3 + heat * 0.6);
+        m.emissiveIntensity = heat * 2.2;
+      } else if ('uniforms' in m && m.uniforms.uIntensity) {
+        m.uniforms.uIntensity.value = 1.45 + heat * 2.5;
+      }
+      if (cl.isSun) sunLight.intensity = 3.6 * Math.max(0, Math.min(1, g * 1.2));
+
+      // 2) 표면 입자: 벗겨져 회전하며 낙하 (각운동량 보존 → 작아질수록 빨리 돎), 지평선이 생긴 뒤엔 원반으로
+      const hs = blackHoleScreenRadius(bodies.find((b) => b.id === cl.id)!);
+      const pos = cl.geo.attributes.position.array as Float32Array;
+      const col = cl.geo.attributes.color.array as Float32Array;
+      for (let i = 0; i < cl.n; i++) {
+        let r: number;
+        let flat = 1;
+        let fade = 1;
+        if (cl.mode[i] === 0) {
+          r = cl.r0 * g;
+          if (t >= cl.delay[i]) {
+            cl.mode[i] = 1;
+            cl.rhoStart[i] = Math.max(cl.r0 * 0.15, r);
+          }
+        }
+        if (cl.mode[i] === 1) {
+          const tau = Math.min(1, (t - cl.delay[i]) / cl.fallDur[i]);
+          r = cl.rhoStart[i] * (1 - tau * tau);
+          flat = Math.sqrt(Math.max(0.05, r / cl.rhoStart[i]));
+          if (tau >= 1) {
+            if (t > 2.4) {
+              cl.mode[i] = 3;
+              cl.rho[i] = hs * (1.5 + Math.random() * 1.5);
+            } else {
+              cl.mode[i] = 2;
+            }
+          }
+        }
+        if (cl.mode[i] === 2) {
+          col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = 0;
+          continue;
+        }
+        if (cl.mode[i] === 3) {
+          r = cl.rho[i];
+          flat = 0.04;
+          fade = 0.6 * (1 - smooth01(4.2, COLLAPSE_END - 0.6, t));
+        }
+        const rr = Math.max(r!, 1e-3);
+        if (cl.mode[i] === 1) cl.rho[i] = rr;
+        const omega = cl.mode[i] === 3 ? 2.6 / Math.pow(rr / hs, 1.5) : 0.35 * Math.min(30, Math.pow(cl.r0 / Math.max(rr, cl.r0 * 0.08), 2));
+        cl.phi[i] += omega * dt;
+        tmpV.set(cl.dir[i * 3], cl.dir[i * 3 + 1] * flat, cl.dir[i * 3 + 2]);
+        if (cl.mode[i] === 3) tmpV.setY(0).normalize();
+        else tmpV.normalize();
+        const cp = Math.cos(cl.phi[i]);
+        const sp = Math.sin(cl.phi[i]);
+        const x = tmpV.x * cp - tmpV.z * sp;
+        const z = tmpV.x * sp + tmpV.z * cp;
+        pos[i * 3] = center.x + x * rr;
+        pos[i * 3 + 1] = center.y + tmpV.y * rr;
+        pos[i * 3 + 2] = center.z + z * rr;
+        // 압축될수록 뜨거워져 청백색으로
+        const heatP = cl.mode[i] === 0 ? heat * 0.4 : 1 - Math.min(1, rr / cl.r0);
+        c.setRGB(cl.baseCol[i * 3], cl.baseCol[i * 3 + 1], cl.baseCol[i * 3 + 2]).lerp(hot, heatP * 0.8);
+        const bright = (cl.mode[i] === 0 ? 0.25 : 1.1 + heatP * 1.4) * fade;
+        col[i * 3] = c.r * bright;
+        col[i * 3 + 1] = c.g * bright;
+        col[i * 3 + 2] = c.b * bright;
+      }
+      cl.geo.attributes.position.needsUpdate = true;
+      cl.geo.attributes.color.needsUpdate = true;
+
+      // 3) 중심핵 빛 → 한 점 섬광
+      cl.core.position.copy(center);
+      if (t < 2.2) {
+        cl.core.material.opacity = heat * heat * 0.55;
+        cl.core.scale.setScalar(cl.r0 * (1.1 - 0.7 * heat) + 0.05);
+      } else {
+        const f = (t - 2.2) / 0.9;
+        cl.core.material.opacity = Math.max(0, 1 - f) * 0.8;
+        cl.core.scale.setScalar(cl.r0 * (0.6 + f * 3.2));
+        cl.core.material.color.setRGB(0.85 + 0.15 * (1 - f), 0.8, 1);
+      }
+      if (!cl.flashed && t >= 2.25) {
+        cl.flashed = true;
+        triggerShockwave(center, 0xb38bff, Math.max(0.6, cl.r0 * 0.38));
+        triggerShockwave(center, 0x7dd3fc, Math.max(0.35, cl.r0 * 0.2));
+        startCameraShake(0.9);
+        playExplosionSound();
+      }
+
+      // 4) 사건의 지평선 등장
+      cl.bh.appear = smooth01(2.4, 4.2, t);
+
+      // 5) 시공간 깔때기 (질량이 좁은 곳에 모일수록 깊고 가팔라짐)
+      const p = smooth01(0, 2.8, t);
+      const a = Math.max(hs * 0.5, cl.r0 * (1 - 0.85 * p));
+      const D = p * (5 + cl.r0 * 2.5);
+      const fpos = cl.funnelGeo.attributes.position.array as Float32Array;
+      for (let j = 0; j < cl.funnelR.length; j++) {
+        const rj = cl.funnelR[j];
+        fpos[j * 3] = center.x + Math.cos(cl.funnelAng[j]) * rj;
+        fpos[j * 3 + 1] = center.y - 0.4 - (D * a) / Math.sqrt(rj * rj + a * a);
+        fpos[j * 3 + 2] = center.z + Math.sin(cl.funnelAng[j]) * rj;
+      }
+      cl.funnelGeo.attributes.position.needsUpdate = true;
+      (cl.funnel.material as THREE.LineBasicMaterial).opacity = 0.75 * smooth01(0, 0.6, t) * (1 - smooth01(4.8, COLLAPSE_END, t)) * (fieldMesh.visible ? 0.4 : 1);
+
+      // 6) 카메라를 붕괴하는 천체 쪽으로 부드럽게 다가가게
+      // 작은 행성은 바짝, 큰 태양은 조금 떨어져서 (표면이 벗겨지는 입자가 보이도록)
+      const want = Math.min(32, Math.max(3.2, cl.r0 * 6.5));
+      const distNow = camera.position.distanceTo(controls.target);
+      if (distNow > want * 1.08 && t < 4.4) {
+        tmpV.copy(camera.position).sub(controls.target).setLength(THREE.MathUtils.lerp(distNow, want, 1 - Math.pow(0.35, dt)));
+        camera.position.copy(controls.target).add(tmpV);
+      }
+
+      reportCollapse(cl);
+    }
+  }
+
   let shakeIntensity = 0;
   let shakeTime = 0;
   function startCameraShake(intensity: number) {
@@ -882,7 +1248,10 @@ export function createSpaceScene(
       const isBh = isBlackHoleBody(b);
       if (v) {
         const hasDisk = !!v.accretionDisk;
-        if (isBh !== hasDisk) {
+        if (isBh && !hasDisk) {
+          // 일반 천체 → 블랙홀: 한순간에 바꾸지 않고 '중력 붕괴' 과정을 몇 초에 걸쳐 보여준다
+          startCollapse(b, v);
+        } else if (!isBh && hasDisk) {
           scene.remove(v.group);
           scene.remove(v.trail);
           if (v.orbitLine) scene.remove(v.orbitLine);
@@ -890,12 +1259,6 @@ export function createSpaceScene(
           const hitIdx = hitMeshes.indexOf(v.hit);
           if (hitIdx >= 0) hitMeshes.splice(hitIdx, 1);
           v = createVisualForBody(b);
-          if (isBh) {
-            triggerShockwave(v.vis, 0xcc33ff, 2.6);
-            triggerExplosionSparks(v.vis, true);
-            startCameraShake(1.2);
-            playExplosionSound();
-          }
         }
       } else {
         createVisualForBody(b);
@@ -934,7 +1297,9 @@ export function createSpaceScene(
       v.group.position.copy(v.vis);
       // 블랙홀은 '실제로 천체를 삼키는 반경'과 화면 크기를 맞춘다.
       // (예전엔 행성 크기 공식을 그대로 써서 원반이 수 AU를 덮었고, 행성이 원반을 그냥 통과해 중력이 안 듣는 것처럼 보였음)
-      v.body.scale.setScalar(isBlackHoleBody(b) ? blackHoleScreenRadius(b) : b.visualRadius);
+      v.body.scale.setScalar(isBlackHoleBody(b) ? blackHoleScreenRadius(b) * Math.max(1e-3, v.appear ?? 1) : b.visualRadius);
+      if (v.accretionDisk) v.accretionDisk.material.uniforms.uIntensity.value = 0.8 * (v.appear ?? 1);
+      if (v.lensingRing) v.lensingRing.material.uniforms.uIntensity.value = 0.7 * (v.appear ?? 1);
       v.hit.scale.setScalar(Math.max(b.visualRadius * 1.6, 1.1));
       v.spin.rotation.y += v.spinSpeed * dt;
       if (v.clouds) v.clouds.rotation.y += 0.05 * dt;
@@ -970,7 +1335,8 @@ export function createSpaceScene(
       pushTrail(v, b.id === 'moon' ? 0.04 : 0.12);
     }
     const sun = bodies.find((b) => b.id === 'sun');
-    sunLight.visible = !!sun;
+    // 태양이 블랙홀로 붕괴하면 빛이 꺼진다 (붕괴 중에는 updateCollapses 가 점점 어둡게)
+    sunLight.visible = !!sun && (!isBlackHoleBody(sun) || collapses.some((c) => c.isSun));
     if (sun) sunLight.position.copy(visuals.get('sun')!.vis);
   }
 
@@ -1008,9 +1374,11 @@ export function createSpaceScene(
     camera.position.sub(shakeOffset);
     shakeOffset.set(0, 0, 0);
 
+    // 블랙홀이 생기는 동안은 0.2배 슬로모션으로 지켜볼 수 있게
+    const timeScale = collapses.some((c) => c.t < 4.4) ? 0.2 : 1;
     advance(
       state,
-      dt,
+      dt * timeScale,
       (ev) => {
         const bhVis = visuals.get(ev.blackHoleId);
         if (bhVis) {
@@ -1035,6 +1403,7 @@ export function createSpaceScene(
     );
 
     updateVisuals(state.bodies, dt, elapsed);
+    if (collapses.length) updateCollapses(dt, state.bodies);
     if (fieldMesh.visible && fieldTick++ % 2 === 0) updateGravityField(state.bodies);
     updateShockwaves(dt);
     updateSparks(dt);
@@ -1389,6 +1758,9 @@ export function createSpaceScene(
 
   return {
     clearTrails() {
+      for (const cl of collapses) endCollapse(cl);
+      collapses.length = 0;
+      sunLight.intensity = 3.6;
       for (const v of visuals.values()) {
         v.trailCount = 0;
         v.trail.geometry.setDrawRange(0, 0);

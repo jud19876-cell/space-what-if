@@ -15,9 +15,9 @@ export interface Scenario {
 export const SCENARIOS: Scenario[] = [
   // --- 태양계 기본 실험 ---
   { id: 'remove-sun', emoji: '☀️❌', label: '태양 없애기', category: 'solar', message: '태양이 사라졌어! 행성들이 어디로 갈까?', commands: [{ action: 'remove_body', target: 'sun' }] },
-  { id: 'sun-x2', emoji: '☀️✌️', label: '태양 2배 무겁게', category: 'solar', message: '태양이 2배 무거워졌어!', commands: [{ action: 'change_mass', target: 'sun', multiplier: 2 }] },
-  { id: 'sun-x10', emoji: '☀️💪', label: '태양 10배 무겁게', category: 'solar', message: '태양이 10배 무거워졌어!', commands: [{ action: 'change_mass', target: 'sun', multiplier: 10 }] },
-  { id: 'earth-x10', emoji: '🌍💪', label: '지구 10배 무겁게', category: 'solar', message: '지구가 10배 무거워졌어! 달은 어떻게 될까?', commands: [{ action: 'change_mass', target: 'earth', multiplier: 10 }] },
+  { id: 'sun-x2', emoji: '☀️✌️', label: '태양 2배 무겁게', category: 'solar', message: '태양이 점점 2배로 무거워져요! 행성 궤도가 절반으로 줄어드는 걸 지켜봐요.', commands: [{ action: 'grow_mass', target: 'sun', multiplier: 2 }] },
+  { id: 'sun-x10', emoji: '☀️💪', label: '태양 10배 무겁게', category: 'solar', message: '태양이 점점 10배로 무거워져요! 중력이 세지며 행성들이 안쪽으로 모여들어요. (한 번 더 누르면 블랙홀로 붕괴!)', commands: [{ action: 'grow_mass', target: 'sun', multiplier: 10 }] },
+  { id: 'earth-x10', emoji: '🌍💪', label: '지구 10배 무겁게', category: 'solar', message: '지구가 점점 10배로 무거워져요! 달이 지구 쪽으로 다가오는 걸 봐요. (계속 누르면 블랙홀로 붕괴!)', commands: [{ action: 'grow_mass', target: 'earth', multiplier: 10 }] },
   { id: 'earth-fast', emoji: '🌍💨', label: '지구 2배 빠르게', category: 'solar', message: '지구가 엄청 빨라졌어!', commands: [{ action: 'change_velocity', target: 'earth', multiplier: 2 }] },
   { id: 'earth-stop', emoji: '🌍✋', label: '지구 멈추기', category: 'solar', message: '지구가 멈췄어! 무슨 일이 생길까?', commands: [{ action: 'change_velocity', target: 'earth', multiplier: 0 }] },
   { id: 'remove-moon', emoji: '🌙❌', label: '달 없애기', category: 'solar', message: '달이 사라졌어!', commands: [{ action: 'remove_body', target: 'moon' }] },

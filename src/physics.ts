@@ -15,6 +15,11 @@ export interface Body {
   isBlackHole?: boolean;
   typeId?: string;
   hasRings?: boolean;
+  /**
+   * 막 붕괴한 블랙홀의 사건의 지평선 성장 정도 (0 → 1). 음수면 아직 지평선이 생기기 전(붕괴 진행 중).
+   * 없으면 다 자란 것으로 본다.
+   */
+  horizonScale?: number;
 }
 
 export interface AbsorptionEvent {
@@ -95,8 +100,15 @@ function softening2(a: Body, b: Body): number {
 const BASE_DT = 0.05; // 기본 스텝 (일). 달 공전(27일)도 충분히 안정적.
 const ETA = 0.02; // 가까이 접근하면 스텝을 자동으로 줄이는 비율
 
-/** 블랙홀 사건의 지평선 및 흡수 포획 반경 (AU) */
+/** 블랙홀 사건의 지평선 및 흡수 포획 반경 (AU). 붕괴 중이면 지평선이 자란 만큼만 */
 export function getBlackHoleCaptureRadius(bh: Body): number {
+  const full = getFullBlackHoleCaptureRadius(bh);
+  if (bh.horizonScale === undefined) return full;
+  return full * Math.max(0, Math.min(1, bh.horizonScale));
+}
+
+/** 다 자란 사건의 지평선 반경 (AU) — 화면 크기 계산용 */
+export function getFullBlackHoleCaptureRadius(bh: Body): number {
   const isMini = bh.id.includes('mini');
   if (isMini) return 0.003; // 약 45만 km
   const isSupermassive = bh.id.includes('supermassive') || bh.mass >= SUN_MASS * 80;
@@ -113,6 +125,15 @@ export function getBlackHoleCaptureRadius(bh: Body): number {
 export function getBlackHoleInspiralRadius(bh: Body): number {
   const isSupermassive = bh.id.includes('supermassive') || bh.mass >= SUN_MASS * 80;
   return getBlackHoleCaptureRadius(bh) * (isSupermassive ? 4.2 : 3.4);
+}
+
+/** 붕괴 직후 사건의 지평선을 서서히 키운다 (scaledSeconds: 화면 시간, 붕괴 중 슬로모션이면 작아짐) */
+export function growHorizons(bodies: Body[], scaledSeconds: number): void {
+  for (const b of bodies) {
+    if (b.horizonScale === undefined) continue;
+    b.horizonScale += scaledSeconds / 0.36;
+    if (b.horizonScale >= 1) delete b.horizonScale;
+  }
 }
 
 /** 천체 충돌 유효 감지 반경 (AU) */

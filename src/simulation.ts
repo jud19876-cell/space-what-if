@@ -11,6 +11,7 @@ import {
   setDarkMatterHalo,
   setSolarWind,
   calculateCircularSpeed,
+  growHorizons,
   type Body,
   type Vec3,
   type AbsorptionEvent,
@@ -52,6 +53,8 @@ export function createDefaultConditions(): StackableConditions {
 export type SimCommand =
   | { action: 'remove_body'; target: string }
   | { action: 'change_mass'; target: string; multiplier: number }
+  /** 질량을 한순간이 아니라 서서히 늘린다 (궤도가 각운동량을 지키며 점점 줄어드는 모습) */
+  | { action: 'grow_mass'; target: string; multiplier: number; durationDays?: number }
   | { action: 'set_mass'; target: string; massKg: number }
   | { action: 'set_mass_earth_ratio'; target: string; ratio: number }
   | { action: 'change_velocity'; target: string; multiplier: number }
@@ -90,6 +93,21 @@ export interface SwallowedRecord {
   time: number;
 }
 
+/** 진행 중인 점진적 질량 증가 */
+export interface MassRamp {
+  target: string;
+  name: string;
+  multiplier: number;
+  fromMass: number;
+  toMass: number;
+  fromVisual: number;
+  toVisual: number;
+  startDay: number;
+  durationDays: number;
+  /** 질량 증가가 끝나면 되돌릴 원래 배속 (자동 빨리감기 했을 때) */
+  restoreSpeed?: number;
+}
+
 export interface SimState {
   bodies: Body[];
   time: number; // 경과 시간 (일)
@@ -98,6 +116,46 @@ export interface SimState {
   swallowedList: SwallowedRecord[];
   collisions: CollisionEvent[];
   conditions?: StackableConditions;
+  massRamps?: MassRamp[];
+}
+
+/** 행성이 블랙홀로 붕괴하는 질량 (지구의 1,500배) */
+export const PLANET_COLLAPSE_MASS = EARTH_MASS * 1500;
+/** 태양(항성)이 블랙홀로 붕괴하는 질량 (태양의 20배: 이보다 무거운 별은 생의 마지막에 블랙홀이 된다) */
+export const STAR_COLLAPSE_MASS = SUN_MASS * 20;
+
+/** 질량이 붕괴 임계치를 넘었으면 블랙홀로 표시한다. 붕괴했으면 true */
+export function collapseIfCritical(body: Body): boolean {
+  if (body.isBlackHole || body.id.includes('core') || body.id.includes('black_hole')) return false;
+  const limit = body.id === 'sun' || body.typeId === 'sun' ? STAR_COLLAPSE_MASS : PLANET_COLLAPSE_MASS;
+  if (body.mass < limit) return false;
+  body.isBlackHole = true;
+  // 화면의 붕괴 연출(약 2.4초 뒤 지평선 생성, 슬로모션 0.2배)과 맞춰 지평선이 0에서부터 자란다
+  body.horizonScale = HORIZON_START;
+  if (!body.name.includes('블랙홀')) body.name = `${body.name} 블랙홀`;
+  return true;
+}
+
+export const HORIZON_START = -1.33;
+
+/** 진행 중인 질량 증가를 시뮬레이션 시간에 맞춰 적용 (지수 보간: 매 순간 같은 비율로 늘어남) */
+function applyMassRamps(state: SimState): void {
+  const ramps = state.massRamps;
+  if (!ramps || ramps.length === 0) return;
+  for (let i = ramps.length - 1; i >= 0; i--) {
+    const r = ramps[i];
+    const body = findBody(state, r.target);
+    const p = Math.max(0, Math.min(1, (state.time - r.startDay) / r.durationDays));
+    if (body) {
+      body.mass = r.fromMass * Math.pow(r.toMass / r.fromMass, p);
+      body.visualRadius = r.fromVisual * Math.pow(r.toVisual / r.fromVisual, p);
+      collapseIfCritical(body);
+    }
+    if (!body || p >= 1) {
+      if (r.restoreSpeed !== undefined) state.speed = r.restoreSpeed;
+      ramps.splice(i, 1);
+    }
+  }
 }
 
 /** 1x 에서 화면 1초 = 시뮬레이션 5일 (지구 1년 ≈ 73초) */
@@ -115,6 +173,8 @@ export function advance(
   onCollision?: (ev: CollisionEvent) => void,
 ): void {
   if (state.paused) return;
+  applyMassRamps(state);
+  growHorizons(state.bodies, realSeconds);
   const days = realSeconds * state.speed * DAYS_PER_SECOND;
   state.time += stepBodies(
     state.bodies,
@@ -241,6 +301,11 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
     case 'reset':
       state.bodies = createSolarSystem();
       state.time = 0;
+      if (state.massRamps?.length) {
+        const restore = state.massRamps.find((r) => r.restoreSpeed !== undefined)?.restoreSpeed;
+        if (restore !== undefined) state.speed = restore;
+      }
+      state.massRamps = [];
       state.swallowedList = [];
       state.collisions = [];
       state.conditions = createDefaultConditions();
@@ -651,9 +716,39 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
   const body = findBody(state, cmd.target);
   if (!body) return false;
 
-  const BLACK_HOLE_COLLAPSE_THRESHOLD = EARTH_MASS * 1500;
-
   switch (cmd.action) {
+    case 'grow_mass': {
+      if (!(cmd.multiplier > 0)) return false;
+      state.massRamps ??= [];
+      const prev = state.massRamps.find((r) => r.target === body.id);
+      const isStar = body.id === 'sun' || body.typeId === 'sun';
+      // 안쪽 행성(또는 위성)이 여러 바퀴 도는 동안 천천히 늘려야 궤도가 부드럽게 줄어든다
+      const durationDays = cmd.durationDays ?? (isStar ? 2400 : 600);
+      const baseMass = prev ? prev.toMass : body.mass;
+      const baseVisual = prev ? prev.toVisual : body.visualRadius;
+      const ramp: MassRamp = {
+        target: body.id,
+        name: body.name,
+        multiplier: (prev?.multiplier ?? 1) * cmd.multiplier,
+        fromMass: body.mass,
+        toMass: baseMass * cmd.multiplier,
+        fromVisual: body.visualRadius,
+        toVisual: Math.max(0.08, Math.min(60, baseVisual * Math.pow(cmd.multiplier, 0.18))),
+        startDay: state.time,
+        durationDays,
+        restoreSpeed: prev?.restoreSpeed,
+      };
+      // 태양처럼 바깥 행성까지 영향을 주는 경우, 보기 좋게 자동 빨리감기 (끝나면 원래 배속으로)
+      if (isStar && state.speed < 60) {
+        ramp.restoreSpeed ??= state.speed;
+        state.speed = 60;
+      }
+      if (prev) state.massRamps.splice(state.massRamps.indexOf(prev), 1);
+      state.massRamps.push(ramp);
+      body.physicalRadius = Math.min(1500000, Math.round(body.physicalRadius * Math.cbrt(cmd.multiplier)));
+      return true;
+    }
+
     case 'remove_body':
       state.bodies = state.bodies.filter((b) => b !== body);
       return true;
@@ -664,13 +759,8 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
         return true;
       }
       body.mass *= cmd.multiplier;
-      // 질량이 임계치(지구 1500배) 이상에 도달하면 찬드라세카르/TOV 한계 돌파로 블랙홀 자동 각성
-      if (body.id !== 'sun' && !body.id.includes('core') && body.mass >= BLACK_HOLE_COLLAPSE_THRESHOLD && !body.isBlackHole) {
-        body.isBlackHole = true;
-        if (!body.name.includes('블랙홀')) {
-          body.name = `${body.name} 블랙홀`;
-        }
-      }
+      // 질량이 임계치(행성: 지구 1500배, 별: 태양 20배)를 넘으면 블랙홀로 붕괴
+      collapseIfCritical(body);
       body.visualRadius = Math.max(0.08, Math.min(60.0, body.visualRadius * Math.pow(cmd.multiplier, 0.18)));
       body.physicalRadius = Math.min(1500000, Math.round(body.physicalRadius * Math.cbrt(cmd.multiplier)));
       return true;
@@ -680,12 +770,7 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       const targetMass = Math.max(1e18, cmd.massKg);
       const ratio = targetMass / body.mass;
       body.mass = targetMass;
-      if (body.id !== 'sun' && !body.id.includes('core') && body.mass >= BLACK_HOLE_COLLAPSE_THRESHOLD && !body.isBlackHole) {
-        body.isBlackHole = true;
-        if (!body.name.includes('블랙홀')) {
-          body.name = `${body.name} 블랙홀`;
-        }
-      }
+      collapseIfCritical(body);
       body.visualRadius = Math.max(0.08, Math.min(60.0, body.visualRadius * Math.pow(ratio, 0.18)));
       body.physicalRadius = Math.min(1500000, Math.round(body.physicalRadius * Math.cbrt(ratio)));
       return true;
@@ -695,18 +780,14 @@ export function executeCommand(state: SimState, cmd: SimCommand): boolean {
       const targetMass = Math.max(1e18, EARTH_MASS * cmd.ratio);
       const ratio = targetMass / body.mass;
       body.mass = targetMass;
-      if (body.id !== 'sun' && !body.id.includes('core') && body.mass >= BLACK_HOLE_COLLAPSE_THRESHOLD && !body.isBlackHole) {
-        body.isBlackHole = true;
-        if (!body.name.includes('블랙홀')) {
-          body.name = `${body.name} 블랙홀`;
-        }
-      }
+      collapseIfCritical(body);
       body.visualRadius = Math.max(0.08, Math.min(60.0, body.visualRadius * Math.pow(ratio, 0.18)));
       body.physicalRadius = Math.min(1500000, Math.round(body.physicalRadius * Math.cbrt(ratio)));
       return true;
     }
 
     case 'collapse_to_black_hole': {
+      if (!body.isBlackHole) body.horizonScale = HORIZON_START;
       body.isBlackHole = true;
       if (!body.name.includes('블랙홀')) {
         body.name = `${body.name} 블랙홀`;

@@ -277,14 +277,14 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
           </div>
 
           <div className="multiplier-row">
-            <span className="multiplier-sublabel">🚀 누를 때마다 질량 배수 계속 증폭 (누적 곱셈):</span>
+            <span className="multiplier-sublabel">🚀 누를 때마다 질량이 그 배수만큼 <b>서서히</b> 늘어나요 (주변 궤도가 점점 줄어드는 모습):</span>
             <div className="btn-group-row">
               {[2, 5, 10, 50, 500, 5000].map((m) => (
                 <button
                   key={m}
                   className={`ctrl-chip-btn multiply-btn ${m >= 500 ? 'danger-glow' : ''}`}
-                  onClick={() => onRunCommands([{ action: 'change_mass', target: body.id, multiplier: m }])}
-                  title={`현재 질량에 ${m}배를 누적 곱합니다 (중력이 기하급수적으로 폭증)`}
+                  onClick={() => onRunCommands([{ action: 'grow_mass', target: body.id, multiplier: m }])}
+                  title={`질량을 ${m}배까지 서서히 늘립니다. 임계치를 넘으면 블랙홀로 붕괴하는 과정을 볼 수 있어요`}
                 >
                   ×{m.toLocaleString()}배
                 </button>
@@ -334,7 +334,7 @@ export const PlanetInspector: React.FC<PlanetInspectorProps> = ({
               onClick={() => {
                 const val = Number(customMassInput);
                 if (!isNaN(val) && val > 0) {
-                  onRunCommands([{ action: 'change_mass', target: body.id, multiplier: val }]);
+                  onRunCommands([{ action: 'grow_mass', target: body.id, multiplier: val }]);
                   setCustomMassInput('');
                 }
               }}

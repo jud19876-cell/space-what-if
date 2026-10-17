@@ -5,7 +5,7 @@ import GalaxyCollisionSim from './GalaxyCollisionSim.tsx';
 import type { GalaxyScenarioType } from './galaxyCollisionPhysics.ts';
 import { AU_PER_DAY_TO_KM_S, length, type Vec3 } from './physics.ts';
 import { PlanetInspector } from './PlanetInspector.tsx';
-import { createSpaceScene, type AimInfo, type PlacementConfig, type PlacementInfo, type SpaceScene } from './scene.ts';
+import { createSpaceScene, type AimInfo, type CollapseInfo, type PlacementConfig, type PlacementInfo, type SpaceScene } from './scene.ts';
 import { SCENARIOS, type Scenario, type ScenarioCategory } from './scenarios.ts';
 import { createInitialState, executeCommand, findBody, type SimCommand, type SimState, type StackableConditions } from './simulation.ts';
 import { BODY_INFO, EARTH_MASS, type BodyId } from './solarSystem.ts';
@@ -48,6 +48,13 @@ export default function App() {
   const [showField, setShowField] = useState(false);
   const [showOrbits, setShowOrbits] = useState(true);
   const [showTrails, setShowTrails] = useState(true);
+  // 블랙홀이 되어 가는 과정 안내 (중력 붕괴 단계)
+  const [collapse, setCollapse] = useState<CollapseInfo | null>(null);
+  useEffect(() => {
+    if (collapse?.stage !== 4) return;
+    const t = setTimeout(() => setCollapse(null), 4500);
+    return () => clearTimeout(t);
+  }, [collapse]);
   const [, setTick] = useState(0);
 
   /** 모든 상태 변경은 여기서 Simulation Command 로만 한다. */
@@ -253,6 +260,7 @@ export default function App() {
       handleLaunchAsteroid,
       (info) => setAimInfo(info),
       handleFireAsteroid,
+      (info) => setCollapse(info),
     );
     sceneRef.current = sc;
     const iv = setInterval(() => setTick((t) => t + 1), 250);
@@ -642,6 +650,53 @@ export default function App() {
               🚀 실시간 조준 속도: <strong>{aimInfo.speedKmS.toFixed(1)} km/s</strong> (놓으면 발사!)
             </div>
           )}
+        </div>
+      )}
+
+      {/* 질량이 서서히 늘어나는 중 */}
+      {!collapse &&
+        (state.massRamps ?? []).map((r) => {
+          const p = Math.max(0, Math.min(1, (state.time - r.startDay) / r.durationDays));
+          const now = r.fromMass * Math.pow(r.toMass / r.fromMass, p);
+          return (
+            <div className="growth-banner" key={r.target}>
+              <div className="growth-title">
+                ⚖️ <strong>{r.name}</strong> 질량이 서서히 늘어나는 중 · 지금 원래의 {(now / (r.toMass / r.multiplier)).toFixed(1)}배 / 목표 {r.multiplier.toLocaleString('ko-KR')}배
+              </div>
+              <div className="growth-bar">
+                <div style={{ width: `${p * 100}%` }} />
+              </div>
+              <p>
+                중력이 세지면 주변 천체는 <b>각운동량을 지키며</b> 점점 안쪽 궤도로 모여요. (한순간에 무거워지면 길쭉한 궤도로 빠르게 돌기만 해요)
+                {r.restoreSpeed !== undefined && ' · 잘 보이도록 잠시 60배속으로 빨리 감는 중'}
+              </p>
+            </div>
+          );
+        })}
+
+      {/* 중력 붕괴 → 블랙홀 탄생 과정 */}
+      {collapse && (
+        <div className={`collapse-banner stage-${collapse.stage}`}>
+          <div className="collapse-steps">
+            {['물질이 무너져요', '한 점으로 압축', '사건의 지평선 탄생', '블랙홀 완성'].map((label, i) => (
+              <span key={label} className={collapse.stage > i ? 'done' : collapse.stage === i + 1 ? 'now' : ''}>
+                {i + 1}. {label}
+              </span>
+            ))}
+          </div>
+          <h3>
+            {collapse.stage === 1 && `🌀 ${collapse.name}: 자기 무게를 버티지 못하고 무너져요`}
+            {collapse.stage === 2 && '💥 모든 질량이 한 점으로 짓눌려요'}
+            {collapse.stage === 3 && '🕳️ 공간이 깊게 꺼지며 사건의 지평선이 생겨요'}
+            {collapse.stage === 4 && `✨ ${collapse.name} 블랙홀 탄생!`}
+          </h3>
+          <p>
+            {collapse.stage === 1 && '중력이 물질을 받치는 압력보다 세져서, 바깥 껍질부터 소용돌이치며 중심으로 떨어져요. (작아질수록 피겨 선수처럼 빨리 돌아요)'}
+            {collapse.stage === 2 && '원자 사이의 빈 공간까지 짓눌려 밀도가 끝없이 커져요. 바깥으로 충격파가 퍼져 나가요.'}
+            {collapse.stage === 3 && '질량이 한 점에 모이자 그 주변 시공간이 깔때기처럼 꺼지고, 빛조차 빠져나올 수 없는 경계(지평선)가 자라요. 남은 물질은 원반이 되어 돌아요.'}
+            {collapse.stage === 4 && '질량은 붕괴 전과 똑같아서 멀리서 느끼는 중력도 그대로예요. 대신 아주 가까이 오면 지평선에 삼켜져요. (시뮬레이션은 다시 원래 속도로)'}
+          </p>
+          {collapse.stage < 4 && <span className="collapse-slowmo">🐢 슬로모션 0.2배</span>}
         </div>
       )}
 

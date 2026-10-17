@@ -6545,3 +6545,109 @@ body,
     display: none;
   }
 }
+
+/* ==========================================================================
+   점진적 질량 증가 / 중력 붕괴(블랙홀 탄생) 안내 배너
+   ========================================================================== */
+.growth-banner,
+.collapse-banner {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(640px, calc(100vw - 32px));
+  padding: 12px 18px;
+  border-radius: 18px;
+  background: rgba(8, 10, 30, 0.86);
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: #e2e8f0;
+  z-index: 22;
+  pointer-events: none;
+}
+
+.growth-title {
+  font-size: 14px;
+  color: #fde68a;
+}
+
+.growth-title strong {
+  color: #fff;
+}
+
+.growth-bar {
+  height: 7px;
+  margin: 8px 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.growth-bar div {
+  height: 100%;
+  background: linear-gradient(90deg, #facc15, #fb923c, #ef4444);
+  transition: width 0.25s linear;
+}
+
+.growth-banner p,
+.collapse-banner p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #cbd5e1;
+}
+
+.growth-banner b {
+  color: #fff;
+}
+
+.collapse-banner {
+  border-color: rgba(167, 139, 250, 0.75);
+  box-shadow: 0 0 34px rgba(139, 92, 246, 0.35), 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.collapse-banner h3 {
+  margin: 8px 0 4px;
+  font-size: 18px;
+  color: #fff;
+}
+
+.collapse-steps {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.collapse-steps span {
+  font-size: 11.5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.collapse-steps span.done {
+  background: rgba(139, 92, 246, 0.25);
+  color: #ddd6fe;
+}
+
+.collapse-steps span.now {
+  background: linear-gradient(135deg, #8b5cf6, #ec4899);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(236, 72, 153, 0.5);
+}
+
+.collapse-banner.stage-4 {
+  border-color: rgba(52, 211, 153, 0.7);
+}
+
+.collapse-slowmo {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-size: 11px;
+  color: #a5f3fc;
+}

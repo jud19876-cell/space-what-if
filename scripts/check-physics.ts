@@ -436,9 +436,9 @@ const r0 = (b: Body) => length(b.position);
   executeCommand(s, { action: 'change_mass', target: 'earth', multiplier: 5000 });
   const earthBh = get(s, 'earth');
   check('지구 질량 5000배 → 블랙홀로 붕괴', isBlackHoleBody(earthBh), `질량 ${(earthBh.mass / SUN_MASS).toFixed(4)} M☉`);
-  run(s, 365 * 2);
+  run(s, 365 * 4);
   const swallowed = s.swallowedList.map((x) => x.id);
-  check('지구 블랙홀이 가까운 달·금성을 중력으로 끌어와 삼킴', swallowed.includes('moon') && swallowed.includes('venus'), `삼킨 천체: ${swallowed.join(', ') || '없음'}`);
+  check('지구 블랙홀이 4년 안에 가까운 달·금성을 중력으로 끌어와 삼킴', swallowed.includes('moon') && swallowed.includes('venus'), `삼킨 천체: ${swallowed.join(', ') || '없음'}`);
 }
 
 console.log(failed ? `\n${failed}개 실패` : '\n모든 테스트 통과');
