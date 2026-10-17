@@ -397,7 +397,7 @@ export default function App() {
             <span className="title-icon">🚀</span> 우주 실험실
           </h1>
           <div className="clock" title="지구 시간">
-            📅 {years < 1 ? `${Math.floor(state.time)}일` : `${years.toFixed(1)}년`}
+            {years < 1 ? `${Math.floor(state.time)}일` : `${years.toFixed(1)}년`}
           </div>
 
           {/* 시뮬레이션 제어 (일시정지 / 리셋) — 예전엔 오른쪽 끝 스크롤 영역에 있어 화면 밖으로 밀려 안 보였음 */}
@@ -409,7 +409,7 @@ export default function App() {
               aria-label={state.paused ? '다시 움직이기' : '멈추기'}
               title={state.paused ? '시뮬레이션 재생' : '시뮬레이션 일시정지'}
             >
-              {state.paused ? '▶️' : '⏸️'}
+              {state.paused ? '▶' : '❚❚'}
             </button>
 
             <button
@@ -419,7 +419,7 @@ export default function App() {
               aria-label="처음으로"
               title="태양계 초기 상태로 리셋"
             >
-              🔄
+              ↺
             </button>
           </div>
         </div>

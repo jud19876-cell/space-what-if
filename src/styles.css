@@ -4649,19 +4649,6 @@ body,
 /* ==========================================================================
    🌌 은하 대충돌 & 심우주 모드 (Galaxy Scale Simulation) 스타일
    ========================================================================== */
-.galaxy-nav-btn {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.45), rgba(37, 99, 235, 0.45)) !important;
-  border-color: rgba(192, 132, 252, 0.6) !important;
-  box-shadow: 0 0 16px rgba(147, 51, 234, 0.35);
-}
-
-.galaxy-nav-btn:hover {
-  background: linear-gradient(135deg, rgba(147, 51, 234, 0.75), rgba(59, 130, 246, 0.75)) !important;
-  border-color: #c084fc !important;
-  box-shadow: 0 0 24px rgba(192, 132, 252, 0.6);
-  transform: translateY(-1px);
-}
-
 .galaxy-sim-root {
   position: fixed;
   inset: 0;

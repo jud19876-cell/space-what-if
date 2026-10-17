@@ -1,0 +1,769 @@
+/* ==========================================================================
+   디자인 시스템: 탐사선 조종 콘솔
+   3D 우주 화면 = 탐사선 앞유리, UI = 그 둘레의 조종 콘솔 하드웨어.
+   - 버튼은 눌리는 깊이가 있는 키캡, 켜진 기능은 작은 LED 로 표시
+   - 색은 역할을 하나씩만: 호박색 = 켜짐/주요 동작, 청록 = 숫자 계기, 빨강 = 위험
+   - 반짝임·떠다님 애니메이션 없음. 움직임은 누름(키 깊이)과 서랍 열림뿐
+   ========================================================================== */
+:root {
+  --hull: #1b2236;
+  --hull-deep: #10152a;
+  --hull-edge: #3a4566;
+  --hull-lift: #2a3352;
+  --amber: #ffb238;
+  --amber-ink: #2b1a00;
+  --cyan: #7fe3f0;
+  --danger: #ff5a4e;
+  --star: #e9edf8;
+  --dim: #9aa5c4;
+  --font-ui: 'IBM Plex Sans KR', 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;
+  --font-label: 'Do Hyeon', 'IBM Plex Sans KR', 'Malgun Gothic', sans-serif;
+  --key-depth: 0 3px 0 #070a16, inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  font-family: var(--font-ui);
+  color: var(--star);
+}
+
+/* ---------- 키캡 버튼 (모든 .btn 의 기본) ---------- */
+.btn {
+  font-family: var(--font-label);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  color: var(--star);
+  background: linear-gradient(180deg, #2c3657, #212a46);
+  border: 1px solid var(--hull-edge);
+  border-radius: 9px;
+  box-shadow: var(--key-depth);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn:hover {
+  transform: none;
+  background: linear-gradient(180deg, #344068, #27315a);
+  border-color: #4d5a84;
+  box-shadow: var(--key-depth);
+}
+
+.btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #070a16, inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.btn:focus-visible,
+.view-toggle:focus-visible,
+.dock-quick-btn:focus-visible,
+.dock-cat-pill:focus-visible,
+.ctrl-chip-btn:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+/* ---------- 상단 콘솔 띠 ---------- */
+.topbar {
+  background: linear-gradient(180deg, #161c33, var(--hull-deep));
+  border-bottom: 1px solid var(--hull-lift);
+  box-shadow: 0 6px 18px rgba(2, 4, 12, 0.55);
+  padding: 8px 18px;
+  pointer-events: auto;
+}
+
+.title {
+  font-family: var(--font-label);
+  font-size: 25px;
+  color: var(--star);
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  letter-spacing: 0;
+}
+
+.title-icon {
+  animation: none;
+}
+
+/* 계기창: 움푹 들어간 검은 창에 청록 숫자 */
+.clock,
+.speed-controller-panel {
+  font-family: var(--font-label);
+  background: #0a0e1d;
+  border: 1px solid var(--hull-lift);
+  border-radius: 6px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.clock {
+  color: var(--cyan);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  padding: 5px 12px;
+}
+
+.speed-controller-panel {
+  cursor: ns-resize;
+}
+
+.speed-controller-panel:hover {
+  border-color: var(--hull-edge);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+.speed-badge {
+  color: var(--cyan);
+  text-shadow: none;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.speed-scroll-hint {
+  color: var(--dim);
+}
+
+/* 스로틀 레버 트랙 */
+.speed-range-slider {
+  background: linear-gradient(90deg, var(--hull-edge), var(--amber));
+  height: 6px;
+}
+
+.speed-range-slider::-webkit-slider-thumb {
+  width: 12px;
+  height: 20px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #f3f5fb, #b8c0d8);
+  box-shadow: 0 2px 0 #070a16;
+}
+
+.speed-preset-chip {
+  font-family: var(--font-label);
+  font-size: 12px;
+  background: var(--hull);
+  border: 1px solid var(--hull-edge);
+  border-radius: 4px;
+  color: var(--dim);
+}
+
+.speed-preset-chip.on {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: var(--amber-ink);
+}
+
+/* 재생/리셋: 정사각 키캡, 멈춰 있으면 재생 키에 불이 들어옴 */
+.btn.round {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  color: var(--star);
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  font-size: 17px;
+  padding: 0;
+}
+
+.btn.round.play {
+  background: linear-gradient(180deg, #ffc35e, var(--amber));
+  border-color: #ffd28a;
+  color: var(--amber-ink);
+}
+
+/* 모드·도구 키: 버튼마다 달랐던 색 그라데이션·빛남·애니메이션을 하나의 키캡으로 */
+.btn.galaxy-nav-btn,
+.btn.constellation-nav-btn,
+.btn.astronaut-spaghetti-btn,
+.btn.spawn-planet-nav-btn,
+.btn.cannon-toggle-btn,
+.btn.spawn-asteroid-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  font-size: 15px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #2c3657, #212a46);
+  border: 1px solid var(--hull-edge);
+  box-shadow: var(--key-depth);
+  animation: none;
+  color: var(--star);
+}
+
+.btn.galaxy-nav-btn:hover,
+.btn.constellation-nav-btn:hover,
+.btn.astronaut-spaghetti-btn:hover,
+.btn.spawn-planet-nav-btn:hover,
+.btn.cannon-toggle-btn:hover,
+.btn.spawn-asteroid-btn:hover {
+  background: linear-gradient(180deg, #344068, #27315a);
+  box-shadow: var(--key-depth);
+}
+
+/* 켜진 키: 호박색 LED + 글자 */
+.btn.cannon-toggle-btn.cannon-on {
+  color: var(--amber);
+  border-color: var(--amber);
+  box-shadow: var(--key-depth), 0 0 0 1px rgba(255, 178, 56, 0.25);
+}
+
+.control-divider {
+  background: var(--hull-lift);
+  height: 26px;
+}
+
+/* ---------- 왼쪽 보기 스위치: LED 가 달린 토글 ---------- */
+.view-toggle {
+  position: relative;
+  font-family: var(--font-label);
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--dim);
+  background: var(--hull);
+  border: 1px solid var(--hull-edge);
+  border-radius: 8px;
+  padding: 9px 14px 9px 30px;
+  box-shadow: var(--key-depth);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.view-toggle::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: #0a0e1d;
+  border: 1px solid var(--hull-edge);
+}
+
+.view-toggle:hover {
+  color: var(--star);
+  border-color: #4d5a84;
+}
+
+.view-toggle.on {
+  color: var(--star);
+  background: var(--hull);
+  border-color: var(--hull-edge);
+  box-shadow: var(--key-depth);
+}
+
+.view-toggle.on::before {
+  background: var(--amber);
+  border-color: #ffd28a;
+  box-shadow: 0 0 8px rgba(255, 178, 56, 0.85);
+}
+
+.field-legend {
+  background: rgba(16, 21, 42, 0.94);
+  border: 1px solid var(--hull-edge);
+  border-radius: 10px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  font-family: var(--font-ui);
+}
+
+.field-legend strong {
+  font-family: var(--font-label);
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--star);
+}
+
+/* ---------- 알림 (상태 표시창) ---------- */
+.toast {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--star);
+  background: rgba(16, 21, 42, 0.96);
+  border: 1px solid var(--hull-edge);
+  border-left: 4px solid var(--cyan);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(2, 4, 12, 0.6);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.toast-impact {
+  border-left-color: var(--amber);
+  background: rgba(16, 21, 42, 0.96);
+}
+
+.toast-explosion {
+  border-left-color: var(--danger);
+  background: rgba(16, 21, 42, 0.96);
+}
+
+.hint {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  background: rgba(16, 21, 42, 0.88);
+  border: 1px solid var(--hull-edge);
+  border-radius: 8px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: none;
+}
+
+/* ---------- 하단 실험 트레이 ---------- */
+.dock-collapsed-bar,
+.dock-drawer {
+  background: linear-gradient(180deg, #171d34, var(--hull-deep));
+  border: 1px solid var(--hull-lift);
+  border-radius: 14px;
+  box-shadow: 0 -4px 22px rgba(2, 4, 12, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dock-quick-btn,
+.dock-expand-toggle-btn,
+.dock-cat-pill,
+.drawer-tab-btn,
+.drawer-close-btn,
+.drawer-reset-btn,
+.category-tab {
+  font-family: var(--font-label);
+  font-weight: 400;
+  color: var(--star);
+  background: linear-gradient(180deg, #2c3657, #212a46);
+  border: 1px solid var(--hull-edge);
+  border-radius: 8px;
+  box-shadow: var(--key-depth);
+  animation: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dock-quick-btn:active,
+.dock-expand-toggle-btn:active,
+.dock-cat-pill:active,
+.drawer-tab-btn:active,
+.category-tab:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #070a16;
+}
+
+.dock-cat-pill {
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.dock-quick-btn.active,
+.drawer-tab-btn.active,
+.dock-cat-pill.active,
+.category-tab.on {
+  color: var(--amber-ink);
+  background: linear-gradient(180deg, #ffc35e, var(--amber));
+  border-color: #ffd28a;
+  box-shadow: var(--key-depth);
+}
+
+.dock-active-badge,
+.drawer-tab-badge {
+  font-family: var(--font-label);
+  background: var(--hull-deep);
+  color: var(--amber);
+  border: 1px solid var(--amber);
+  border-radius: 4px;
+  animation: none;
+  box-shadow: none;
+}
+
+.drawer-reset-btn,
+.dock-reset-btn {
+  color: var(--cyan);
+}
+
+/* 실험 버튼: 같은 키캡 + 종류별 색 LED 띠 */
+.btn.exp {
+  font-family: var(--font-label);
+  border-radius: 9px;
+  border-left: 4px solid var(--hull-edge);
+  background: linear-gradient(180deg, #2a3454, #1f2843);
+  animation: none;
+}
+
+.btn.exp-blackhole {
+  border-left-color: var(--danger);
+}
+
+.btn.exp-galaxy {
+  border-left-color: #a78bfa;
+}
+
+.btn.exp-asteroid {
+  border-left-color: var(--amber);
+}
+
+.btn.exp-constellation {
+  border-left-color: var(--cyan);
+}
+
+.btn.exp-reset {
+  border-left-color: var(--star);
+}
+
+.experiments-label,
+.extremes-subtitle-bar,
+.slider-card-title {
+  font-family: var(--font-label);
+  font-weight: 400;
+}
+
+.extreme-slider-card,
+.anomaly-btn {
+  background: var(--hull);
+  border: 1px solid var(--hull-edge);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: none;
+}
+
+.anomaly-btn.active {
+  border-color: var(--amber);
+  background: var(--hull);
+  box-shadow: inset 0 0 0 1px rgba(255, 178, 56, 0.35);
+}
+
+.anomaly-indicator.on {
+  background: var(--amber);
+  color: var(--amber-ink);
+  box-shadow: 0 0 8px rgba(255, 178, 56, 0.7);
+}
+
+.slider-card-badge {
+  font-family: var(--font-label);
+  background: #0a0e1d;
+  color: var(--cyan);
+  border: 1px solid var(--hull-lift);
+  border-radius: 4px;
+}
+
+/* ---------- 천체 정보 패널 (오른쪽) ---------- */
+.planet-inspector-panel {
+  background: rgba(16, 21, 42, 0.97);
+  border: 1px solid var(--hull-edge);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(2, 4, 12, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  font-family: var(--font-ui);
+}
+
+.inspector-names h2,
+.inspector-names h3,
+.controls-section-title {
+  font-family: var(--font-label);
+  font-weight: 400;
+}
+
+.metric-card {
+  background: #0a0e1d;
+  border: 1px solid var(--hull-lift);
+  border-radius: 6px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.55);
+}
+
+.metric-value {
+  font-family: var(--font-label);
+  color: var(--cyan);
+  font-variant-numeric: tabular-nums;
+}
+
+.ctrl-chip-btn,
+.ctrl-apply-btn,
+.inspector-btn-action {
+  font-family: var(--font-label);
+  font-weight: 400;
+  color: var(--star);
+  background: linear-gradient(180deg, #2c3657, #212a46);
+  border: 1px solid var(--hull-edge);
+  border-radius: 7px;
+  box-shadow: var(--key-depth);
+  animation: none;
+}
+
+.ctrl-chip-btn:active,
+.ctrl-apply-btn:active,
+.inspector-btn-action:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #070a16;
+}
+
+.ctrl-chip-btn.danger,
+.ctrl-chip-btn.danger-glow,
+.delete-body-btn,
+.btn-trigger-blackhole {
+  color: var(--danger);
+  border-color: rgba(255, 90, 78, 0.55);
+  animation: none;
+}
+
+/* ---------- 질량 증가 / 블랙홀 붕괴 안내 ---------- */
+.growth-banner,
+.collapse-banner {
+  background: rgba(16, 21, 42, 0.96);
+  border: 1px solid var(--hull-edge);
+  border-left: 4px solid var(--amber);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(2, 4, 12, 0.6);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.collapse-banner {
+  border-left-color: var(--danger);
+  box-shadow: 0 10px 28px rgba(2, 4, 12, 0.6);
+}
+
+.collapse-banner.stage-4 {
+  border-left-color: var(--cyan);
+}
+
+.growth-title,
+.collapse-banner h3 {
+  font-family: var(--font-label);
+  font-weight: 400;
+}
+
+.growth-bar div {
+  background: var(--amber);
+}
+
+.collapse-steps span {
+  font-family: var(--font-label);
+  border-radius: 4px;
+}
+
+.collapse-steps span.now {
+  background: var(--danger);
+  color: #fff;
+  box-shadow: none;
+}
+
+.collapse-steps span.done {
+  background: rgba(255, 90, 78, 0.18);
+  color: #ffc9c4;
+}
+
+/* ---------- 다른 시뮬레이션 화면의 큰 제목도 같은 각인 글꼴로 ---------- */
+.galaxy-main-title,
+.bh-title h1,
+.cosmic-scale-header h1,
+.constellation-header h1 {
+  font-family: var(--font-label);
+  font-weight: 400;
+}
+
+/* 좁은 화면: 보기 스위치가 아래 안내 문구와 겹치지 않게 */
+@media (max-width: 900px) {
+  .view-toggles {
+    bottom: 140px;
+  }
+}
+
+/* ---------- 움직임 줄이기 설정을 존중 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ---------- 천체 정보 패널: 남은 옛 스타일 정리 ---------- */
+.blackhole-event-card {
+  background: var(--hull);
+  border: 1px solid var(--hull-edge);
+  border-left: 4px solid var(--danger);
+  border-radius: 10px;
+  box-shadow: none;
+  animation: none;
+}
+
+.blackhole-event-card.active-bh {
+  border-left-color: var(--cyan);
+}
+
+.blackhole-event-card .bh-card-title {
+  font-family: var(--font-label);
+  font-weight: 400;
+  color: var(--star);
+}
+
+.blackhole-event-card .bh-card-desc {
+  color: var(--dim);
+}
+
+.btn-trigger-blackhole,
+.btn-restore-planet {
+  font-family: var(--font-label);
+  font-weight: 400;
+  background: linear-gradient(180deg, #2c3657, #212a46);
+  border: 1px solid rgba(255, 90, 78, 0.6);
+  border-radius: 8px;
+  box-shadow: var(--key-depth);
+  color: var(--danger);
+  animation: none;
+}
+
+.btn-restore-planet {
+  border-color: var(--hull-edge);
+  color: var(--cyan);
+}
+
+.multiplier-sublabel,
+.slider-current-val {
+  color: var(--dim);
+}
+
+.metric-sub,
+.metric-label,
+.inspector-id {
+  font-family: var(--font-ui);
+}
+
+.delete-body-btn {
+  font-family: var(--font-label);
+  font-weight: 400;
+  background: rgba(255, 90, 78, 0.1);
+  border: 1px solid rgba(255, 90, 78, 0.5);
+  border-radius: 8px;
+}
+
+/* ---------- 블랙홀 시뮬레이션 화면도 같은 콘솔 규칙으로 ---------- */
+.bh-title,
+.bh-subject-switch,
+.bh-chips,
+.bh-card,
+.bh-stage,
+.bh-controls,
+.bh-scenario,
+.bh-panel-toggle,
+.bh-scenario-explain {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.bh-title {
+  background: var(--hull-deep);
+  border: 1px solid var(--hull-edge);
+  box-shadow: none;
+}
+
+.bh-title h1 {
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--star);
+  font-size: 21px;
+}
+
+.bh-subject-switch,
+.bh-chips {
+  background: var(--hull-deep);
+  border-color: var(--hull-edge);
+  border-radius: 10px;
+}
+
+.bh-subject-switch button,
+.bh-chips button {
+  font-family: var(--font-label);
+  font-weight: 400;
+  font-size: 14px;
+  border-radius: 7px;
+}
+
+.bh-subject-switch button.active,
+.bh-chips button.active {
+  background: var(--amber);
+  color: var(--amber-ink);
+  box-shadow: 0 2px 0 #7a4c00;
+}
+
+.btn.bh-play {
+  background: linear-gradient(180deg, #ffc35e, var(--amber));
+  border-color: #ffd28a;
+  color: var(--amber-ink);
+  box-shadow: 0 3px 0 #7a4c00;
+}
+
+.btn.bh-play.playing {
+  background: linear-gradient(180deg, #2c3657, #212a46);
+  border-color: var(--amber);
+  color: var(--amber);
+  box-shadow: var(--key-depth);
+}
+
+.bh-card,
+.bh-stage,
+.bh-controls,
+.bh-scenario {
+  background: rgba(16, 21, 42, 0.94);
+  border-color: var(--hull-edge);
+}
+
+.bh-info-title,
+.bh-stage h2,
+.bh-scenario-title,
+.bh-panel-toggle {
+  font-family: var(--font-label);
+  font-weight: 400;
+}
+
+.bh-info-title {
+  color: var(--star);
+}
+
+.bh-big {
+  font-family: var(--font-label);
+  font-weight: 400;
+  color: var(--cyan);
+}
+
+.bh-row strong.mono {
+  color: var(--cyan);
+}
+
+.bh-meter-fill {
+  background: linear-gradient(90deg, var(--cyan), var(--amber) 60%, var(--danger));
+}
+
+.bh-scenario.active {
+  background: rgba(16, 21, 42, 0.94);
+  border-color: var(--amber);
+  box-shadow: inset 4px 0 0 var(--amber);
+}
+
+.bh-scenario-explain {
+  background: rgba(16, 21, 42, 0.94);
+  border-color: var(--hull-edge);
+  border-left: 4px solid var(--amber);
+  color: var(--star);
+}
+
+.bh-panel-toggle {
+  background: var(--hull-deep);
+  border-color: var(--hull-edge);
+  color: var(--star);
+}
+
+.bh-slider input[type='range'] {
+  accent-color: var(--amber);
+}
+
+@media (max-width: 1100px) {
+  /* 좁은 화면에서는 조작판이 두세 줄로 높아지므로 단계 안내를 그 위로 */
+  .bh-stage {
+    bottom: 250px;
+  }
+}
