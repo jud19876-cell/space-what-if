@@ -16,13 +16,17 @@ import {
 
 interface ConstellationSimProps {
   onBackToSolar: () => void;
+  /** 시나리오에서 특정 별자리(예: 오리온자리)를 골라 들어온 경우 그 별자리로 시작 */
+  initialConstellationId?: string;
 }
 
-export default function ConstellationSim({ onBackToSolar }: ConstellationSimProps) {
+export default function ConstellationSim({ onBackToSolar, initialConstellationId }: ConstellationSimProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ConstellationScene | null>(null);
 
-  const [activeConstellation, setActiveConstellation] = useState<ConstellationData>(CONSTELLATIONS[0]); // 기본 전갈자리
+  const [activeConstellation, setActiveConstellation] = useState<ConstellationData>(
+    () => CONSTELLATIONS.find((c) => c.id === initialConstellationId) ?? CONSTELLATIONS[0], // 기본 전갈자리
+  );
   const [viewMode, setViewMode] = useState<ConstellationViewMode>('earth');
   const [showArt, setShowArt] = useState(true);
   const [showGuides, setShowGuides] = useState(true);
@@ -96,6 +100,11 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
       containerRef.current,
       activeConstellation,
       (star) => setSelectedStar(star),
+      {
+        // 자동 공전 중 지구가 다음 달/계절로 넘어가면 아래 패널의 표시도 함께 바뀐다
+        onZodiacMonthChange: (m) => setWheelMonth(m),
+        onSeasonChange: (season) => setActiveSeason(season),
+      },
     );
     sceneRef.current = sc;
 
@@ -587,7 +596,7 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
           <div className="zodiac-dock-header">
             <div className="zodiac-dock-title-wrap">
               <span className="dock-badge rainbow">⏱️ 1~12월 천문 시계 다이얼 전체 뷰</span>
-              <h4>시계 1시~12시 방향에 각 월의 별자리가 배치되어, 지구가 1월에 돌면 1월 별자리가 정면에 바로 보여요!</h4>
+              <h4>생일 별자리는 그 달에 태양 뒤에 숨어서 안 보여요! 대신 밤하늘에는 태양 반대편 별자리가 떠요.</h4>
             </div>
             <button
               className={`btn-zodiac-play ${wheelAutoPlay ? 'playing' : ''}`}
@@ -605,7 +614,7 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
                 key={zm.month}
                 className={`zodiac-month-btn ${wheelMonth === zm.month ? 'active' : ''}`}
                 onClick={() => handleWheelMonthChange(zm.month)}
-                title={`${zm.month}시 방향: 지구가 ${zm.month}월 위치로 이동하여 ${zm.name}를 정면으로 바라봅니다`}
+                title={`${zm.month}월: 태양이 ${zm.name} 앞에 있고, 지구는 반대편에서 밤하늘을 바라봅니다`}
               >
                 <span className="zm-badge">{zm.month}시 ({zm.month}월)</span>
                 <span className="zm-emoji">{zm.emoji}</span>
@@ -617,28 +626,28 @@ export default function ConstellationSim({ onBackToSolar }: ConstellationSimProp
           {/* 실시간 천문 원리 설명 카드 */}
           {(() => {
             const curInfo = ZODIAC_MONTHS.find((z) => z.month === wheelMonth) || ZODIAC_MONTHS[0];
-            const curConstellation = CONSTELLATIONS.find((c) => c.id === curInfo.id);
+            const nightInfo = ZODIAC_MONTHS.find((z) => z.id === curInfo.oppositeConstellationId) || curInfo;
 
             return (
               <div className="zodiac-insight-card">
                 <div className="insight-row">
                   <div className="insight-box night">
                     <div className="insight-label">
-                      <span>🌌 [지구 밤하늘 정면 관측] {curInfo.month}시 방향</span>
-                      <strong>{curInfo.emoji} {curInfo.name} ({curInfo.zodiacSign})</strong>
+                      <span>🌙 [{curInfo.month}월 한밤중 정면 하늘]</span>
+                      <strong>{nightInfo.emoji} {nightInfo.name}</strong>
                     </div>
                     <p>
-                      지구가 태양에서 <strong>{curInfo.month}시 방향</strong>으로 공전하면, 태양 반대편(지구의 밤)이 정확히 <strong>{curInfo.name}</strong>를 정면으로 마주해요! 푸른 밤하늘 시야 빔이 별자리를 비춥니다.
+                      지구의 밤(태양 반대쪽)이 <strong>{nightInfo.name}</strong>를 향해요. 푸른 시야 빔이 비추는 별자리가 {curInfo.month}월 밤에 가장 잘 보여요!
                     </p>
                   </div>
 
                   <div className="insight-box day">
                     <div className="insight-label">
-                      <span>📐 [실제 광년 거리 3D 입체 배치]</span>
-                      <strong>가까운 별부터 먼 별까지 깊이감 체감</strong>
+                      <span>☀️ [{curInfo.month}월 생일 별자리]</span>
+                      <strong>{curInfo.emoji} {curInfo.name} ({curInfo.zodiacSign})</strong>
                     </div>
                     <p>
-                      각 별자리의 별들은 같은 거리가 아니에요! {curConstellation?.name}의 별들은 <strong>실제 광년 거리</strong>에 따라 가까운 별과 수백 광년 뒤 심우주의 별이 3D 깊이로 정밀 배치되어 있습니다.
+                      지구에서 보면 태양이 <strong>{curInfo.name}</strong> 앞에 겹쳐 있어요(황금 바늘). 낮 하늘에 떠 있어서 햇빛에 가려 보이지 않아요. 약 6개월 뒤 밤하늘에서 만날 수 있어요!
                     </p>
                   </div>
                 </div>

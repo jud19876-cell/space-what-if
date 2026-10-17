@@ -31,6 +31,7 @@ export default function App() {
   const sceneRef = useRef<SpaceScene | null>(null);
   const [simMode, setSimMode] = useState<'solar' | 'spaghetti' | 'constellation' | 'galaxy'>('solar');
   const [galaxyScenario, setGalaxyScenario] = useState<GalaxyScenarioType>('local_group');
+  const [constellationStart, setConstellationStart] = useState<string | undefined>(undefined);
   const [selected, setSelected] = useState<string | null>(null);
   const [toast, setToast] = useState<{ key: number; emoji: string; text: string; type?: 'normal' | 'impact' | 'explosion' } | null>(null);
   const [hinted, setHinted] = useState(false);
@@ -270,6 +271,11 @@ export default function App() {
     sceneRef.current?.setCannonMode(cannonMode, cannonMassType);
   }, [cannonMode, cannonMassType]);
 
+  // 다른 시뮬레이션 화면이 떠 있는 동안 뒤의 태양계는 멈춰서 GPU 를 쉬게 한다
+  useEffect(() => {
+    sceneRef.current?.setActive(simMode === 'solar');
+  }, [simMode]);
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3600);
@@ -288,6 +294,8 @@ export default function App() {
       return;
     }
     if (sc.id.startsWith('constellation-')) {
+      const key = sc.id.replace('constellation-', '');
+      setConstellationStart(key === 'ursa' ? 'ursa_major' : key);
       setSimMode('constellation');
       setToast({
         key: Date.now(),
@@ -379,6 +387,29 @@ export default function App() {
           <div className="clock" title="지구 시간">
             📅 {years < 1 ? `${Math.floor(state.time)}일` : `${years.toFixed(1)}년`}
           </div>
+
+          {/* 시뮬레이션 제어 (일시정지 / 리셋) — 예전엔 오른쪽 끝 스크롤 영역에 있어 화면 밖으로 밀려 안 보였음 */}
+          <div className="control-group play-group">
+            <button
+              id="btn-pause"
+              className={`btn round ${state.paused ? 'play' : ''}`}
+              onClick={() => runCommands([{ action: state.paused ? 'resume' : 'pause' }])}
+              aria-label={state.paused ? '다시 움직이기' : '멈추기'}
+              title={state.paused ? '시뮬레이션 재생' : '시뮬레이션 일시정지'}
+            >
+              {state.paused ? '▶️' : '⏸️'}
+            </button>
+
+            <button
+              id="btn-reset"
+              className="btn round"
+              onClick={() => runScenario(SCENARIOS.find((s) => s.id === 'reset')!)}
+              aria-label="처음으로"
+              title="태양계 초기 상태로 리셋"
+            >
+              🔄
+            </button>
+          </div>
         </div>
 
         <div className="speed-controller-panel" onWheel={handleSpeedWheel} title="마우스 휠 스크롤로 배속을 10~100x까지 조절할 수 있습니다">
@@ -431,7 +462,10 @@ export default function App() {
               <button
                 id="btn-constellation-sim"
                 className="btn constellation-nav-btn"
-                onClick={() => setSimMode('constellation')}
+                onClick={() => {
+                  setConstellationStart(undefined);
+                  setSimMode('constellation');
+                }}
                 title="3D 입체 별자리 탐험 (평면 vs 실제 3D 거리 비교)"
               >
                 <span>✨</span>
@@ -481,31 +515,6 @@ export default function App() {
               >
                 <span>☄️</span>
                 <span className="btn-text">소행성 클릭</span>
-              </button>
-            </div>
-
-            <div className="control-divider" />
-
-            {/* 시뮬레이션 제어 (일시정지 / 리셋) 그룹 */}
-            <div className="control-group play-group">
-              <button
-                id="btn-pause"
-                className={`btn round ${state.paused ? 'play' : ''}`}
-                onClick={() => runCommands([{ action: state.paused ? 'resume' : 'pause' }])}
-                aria-label={state.paused ? '다시 움직이기' : '멈추기'}
-                title={state.paused ? '시뮬레이션 재생' : '시뮬레이션 일시정지'}
-              >
-                {state.paused ? '▶️' : '⏸️'}
-              </button>
-
-              <button
-                id="btn-reset"
-                className="btn round"
-                onClick={() => runScenario(SCENARIOS.find((s) => s.id === 'reset')!)}
-                aria-label="처음으로"
-                title="태양계 초기 상태로 리셋"
-              >
-                🔄
               </button>
             </div>
           </div>
@@ -991,7 +1000,7 @@ export default function App() {
 
       {/* 3D 입체 별자리 탐험 전용 시뮬레이션 모드 */}
       {simMode === 'constellation' && (
-        <ConstellationSim onBackToSolar={() => setSimMode('solar')} />
+        <ConstellationSim onBackToSolar={() => setSimMode('solar')} initialConstellationId={constellationStart} />
       )}
 
       {/* 은하 대충돌 & 심우주 전용 시뮬레이션 모드 */}

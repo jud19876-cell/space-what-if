@@ -2162,7 +2162,7 @@ export interface ZodiacMonthInfo {
   zodiacSign: string;
   birthRange: string;
   angleRad: number; // 황도 링 상의 배치 각도 (0 ~ 2*PI)
-  sunConstellation: string; // 태양이 위치하는 별자리 (생일 별자리)
+  sunConstellation: string; // 그 달에 태양이 머무는 별자리 (생일 별자리 → 낮 하늘에 숨어 안 보임)
   oppositeConstellationId: string; // 한밤중 남쪽 하늘에 가장 잘 보이는 맞은편 별자리
   description: string;
 }
@@ -2178,7 +2178,7 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     angleRad: (1 * Math.PI) / 6, // 1시 방향 (30°)
     sunConstellation: '염소자리',
     oppositeConstellationId: 'cancer',
-    description: '1월 (시계 1시 방향): 지구가 1월 공전 위치에 서면 밤하늘 정면에 [염소자리]가 곧바로 펼쳐져요! 태양-지구-염소자리가 일직선을 이루며 겨울 밤하늘을 수놓습니다.',
+    description: '1월 생일 별자리 [염소자리]는 지금 태양 바로 뒤에 있어요! 낮 하늘에 떠 있어서 햇빛에 가려 보이지 않죠. 지구의 밤하늘은 반대편을 향해서, 한밤중에는 [게자리]가 남쪽 하늘에 떠요.',
   },
   {
     month: 2,
@@ -2190,7 +2190,7 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     angleRad: (2 * Math.PI) / 6, // 2시 방향 (60°)
     sunConstellation: '물병자리',
     oppositeConstellationId: 'leo',
-    description: '2월 (시계 2시 방향): 지구가 2월 공전 위치로 이동하면 밤하늘 정면에 푸른 물병을 든 [물병자리]를 마주해요! 밤하늘 시야 빔이 물병자리를 향해 비춥니다.',
+    description: '2월에는 태양이 [물병자리] 앞을 지나가요. 그래서 물병자리는 낮에 숨어 버려요! 대신 밤하늘 정면에는 반대편의 [사자자리]가 떠올라 봄을 알려줘요.',
   },
   {
     month: 3,
@@ -2202,7 +2202,7 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     angleRad: (3 * Math.PI) / 6, // 3시 방향 (90°)
     sunConstellation: '물고기자리',
     oppositeConstellationId: 'virgo',
-    description: '3월 (시계 3시 방향): 지구가 3월 위치에 도달하면 밤하늘 정면에 은빛 리본으로 연결된 [물고기자리]가 헤엄치는 신비로운 모습을 조망합니다.',
+    description: '3월에는 태양이 [물고기자리]와 함께 떠서 함께 져요. 물고기자리는 햇빛에 가려 안 보이고, 한밤중에는 반대편 [처녀자리]의 1등성 스피카가 빛나요.',
   },
   {
     month: 4,
@@ -2214,7 +2214,7 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     angleRad: (4 * Math.PI) / 6, // 4시 방향 (120°)
     sunConstellation: '양자리',
     oppositeConstellationId: 'libra',
-    description: '4월 (시계 4시 방향): 지구가 4월 위치에 서면 밤하늘 정면에 황금 양털을 휘날리는 [양자리]가 우뚝 솟아 봄밤의 밤하늘을 밝혀줍니다.',
+    description: '4월 생일 별자리 [양자리]는 태양 쪽에 있어서 밤에 볼 수 없어요. 지구가 태양 반대편을 바라보는 한밤중에는 [천칭자리]가 떠올라요.',
   },
   {
     month: 5,
@@ -2226,7 +2226,7 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     angleRad: (5 * Math.PI) / 6, // 5시 방향 (150°)
     sunConstellation: '황소자리',
     oppositeConstellationId: 'scorpius',
-    description: '5월 (시계 5시 방향): 지구가 5월 공전 위치로 나아가면 밤하늘 정면에 붉은 눈 알데바란과 플레이아데스 성단의 [황소자리]를 똑바로 바라봅니다.',
+    description: '5월에는 태양이 [황소자리] 앞에 있어요. 알데바란도 플레이아데스도 낮에 숨어요! 밤하늘에는 반대편의 [전갈자리]와 붉은 심장 안타레스가 떠오르기 시작해요.',
   },
   {
     month: 6,
@@ -2238,7 +2238,7 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     angleRad: (6 * Math.PI) / 6, // 6시 방향 (180°)
     sunConstellation: '쌍둥이자리',
     oppositeConstellationId: 'sagittarius',
-    description: '6월 (시계 6시 방향): 지구가 6월 위치에 도달하면 밤하늘 정면에 다정한 쌍둥이 형제별 카스토르와 폴룩스의 [쌍둥이자리]가 나란히 빛납니다.',
+    description: '6월에는 태양이 [쌍둥이자리] 앞을 지나요. 쌍둥이 형제별은 햇빛 뒤에 숨고, 한밤중에는 은하수 한가운데의 [궁수자리]가 남쪽 하늘에 보여요.',
   },
   {
     month: 7,
@@ -2250,7 +2250,7 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     angleRad: (7 * Math.PI) / 6, // 7시 방향 (210°)
     sunConstellation: '게자리',
     oppositeConstellationId: 'capricorn',
-    description: '7월 (시계 7시 방향): 지구가 7월 위치로 이동하면 밤하늘 정면에 은하수 보석 프레세페 성단을 품은 귀여운 바다 [게자리]를 정면으로 관측합니다.',
+    description: '7월에는 태양이 [게자리]와 겹쳐 있어요. 게자리는 낮 하늘에 숨고, 지구의 밤은 반대편 [염소자리] 쪽을 바라봐요.',
   },
   {
     month: 8,
@@ -2262,7 +2262,7 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     angleRad: (8 * Math.PI) / 6, // 8시 방향 (240°)
     sunConstellation: '사자자리',
     oppositeConstellationId: 'aquarius',
-    description: '8월 (시계 8시 방향): 지구가 8월 위치에 서면 밤하늘 정면에 용맹한 백수의 왕 [사자자리]의 심장 레굴루스가 당당하게 포효하듯 떠오릅니다.',
+    description: '8월 생일 별자리 [사자자리]는 태양 바로 옆이라 밤에 보기 어려워요. 한밤중 밤하늘에는 반대편 [물병자리]가 떠 있어요.',
   },
   {
     month: 9,
@@ -2274,7 +2274,7 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     angleRad: (9 * Math.PI) / 6, // 9시 방향 (270°)
     sunConstellation: '처녀자리',
     oppositeConstellationId: 'pisces',
-    description: '9월 (시계 9시 방향): 지구가 9월 위치로 공전하면 밤하늘 정면에 청백색 다이아몬드 1등성 스피카를 품은 [처녀자리]가 우아하게 밤하늘을 수놓습니다.',
+    description: '9월에는 태양이 [처녀자리] 앞에 있어서 스피카가 낮에 숨어요. 대신 가을밤 정면에는 반대편 [물고기자리]가 헤엄쳐요.',
   },
   {
     month: 10,
@@ -2286,7 +2286,7 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     angleRad: (10 * Math.PI) / 6, // 10시 방향 (300°)
     sunConstellation: '천칭자리',
     oppositeConstellationId: 'aries',
-    description: '10월 (시계 10시 방향): 지구가 10월 위치에 도달하면 밤하늘 정면에 정의와 평화의 황금 저울 [천칭자리]가 밤하늘 중앙에서 균형을 잡습니다.',
+    description: '10월에는 태양이 [천칭자리] 앞을 지나가요. 천칭자리는 낮에 숨고, 한밤중에는 반대편 [양자리]가 가을 하늘 높이 떠요.',
   },
   {
     month: 11,
@@ -2298,7 +2298,7 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     angleRad: (11 * Math.PI) / 6, // 11시 방향 (330°)
     sunConstellation: '전갈자리',
     oppositeConstellationId: 'taurus',
-    description: '11월 (시계 11시 방향): 지구가 11월 위치로 이동하면 밤하늘 정면에 붉게 고동치는 심장 안타레스의 거대한 [전갈자리]를 마주합니다.',
+    description: '11월에는 태양이 [전갈자리] 앞에 있어서 안타레스가 햇빛에 가려져요. 밤하늘 정면에는 반대편 [황소자리]와 플레이아데스 성단이 반짝여요.',
   },
   {
     month: 12,
@@ -2310,7 +2310,7 @@ export const ZODIAC_MONTHS: ZodiacMonthInfo[] = [
     angleRad: (12 * Math.PI) / 6, // 12시 방향 (360° / 0°)
     sunConstellation: '궁수자리',
     oppositeConstellationId: 'gemini',
-    description: '12월 (시계 12시 방향): 지구가 12시 위치에 서면 밤하늘 정면에 은하수 심장부를 향해 활을 겨눈 반인반마 켄타우로스 [궁수자리]를 장엄하게 조망합니다.',
+    description: '12월에는 태양이 [궁수자리] 앞, 은하수 중심 쪽에 있어요. 궁수자리는 낮에 숨고, 겨울밤 정면에는 반대편 [쌍둥이자리]가 나란히 빛나요.',
   },
 ];
 

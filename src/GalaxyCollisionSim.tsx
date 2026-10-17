@@ -129,6 +129,11 @@ export default function GalaxyCollisionSim({
     };
   }, [initialScenario]);
 
+  // 크기 비교 화면이 떠 있는 동안 뒤의 은하 시뮬레이션은 잠시 멈춘다
+  useEffect(() => {
+    sceneRef.current?.setPlaying(subMode === 'galaxy' && isPlaying);
+  }, [subMode, isPlaying]);
+
   const handleSelectScenario = (scId: GalaxyScenarioType) => {
     setActiveScenario(scId);
     sceneRef.current?.setScenario(scId);
@@ -183,12 +188,11 @@ export default function GalaxyCollisionSim({
 
   const currentScInfo = SCENARIOS.find((s) => s.id === activeScenario);
 
-  if (subMode === 'cosmic_scale') {
-    return <CosmicScaleViewer onBackToGalaxyLab={() => setSubMode('galaxy')} />;
-  }
-
+  // 우주 크기 비교는 위에 덮어 띄운다. (예전처럼 은하 화면을 통째로 바꿔치기하면
+  // 3D 캔버스가 붙어 있던 div 가 사라져서, 돌아왔을 때 화면이 새까맣게 비었음)
   return (
     <div className="galaxy-sim-root">
+      {subMode === 'cosmic_scale' && <CosmicScaleViewer onBackToGalaxyLab={() => setSubMode('galaxy')} />}
       {/* 3D 캔버스 영역 */}
       <div ref={containerRef} className="galaxy-canvas-container" />
 

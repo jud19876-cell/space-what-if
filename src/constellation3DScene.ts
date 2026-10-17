@@ -8,7 +8,8 @@ import {
   type ZodiacMonthInfo,
 } from './constellationsData.ts';
 import { generateGhostCanvas } from './constellationGhostArt.ts';
-import { generateEarthCanvas, generateSunCanvas } from './earthGlobeTexture.ts';
+import { createStarfield, createSunMaterial, getSoftDotTexture } from './fx.ts';
+import { createCloudTexture, createPlanetTexture, createRoughnessMap } from './planetTextures.ts';
 
 export type ConstellationViewMode = 'earth' | 'space3d' | 'top' | 'season_orbit' | 'zodiac_wheel';
 
@@ -25,6 +26,13 @@ export interface ConstellationScene {
   setSelectedStar(starId: string | null): void;
   onSelectStar?: (star: StarData | null) => void;
   dispose(): void;
+}
+
+export interface ConstellationSceneCallbacks {
+  /** 1~12월 시계 자동 공전 중 '현재 달'이 바뀔 때 */
+  onZodiacMonthChange?: (month: number) => void;
+  /** 4계절 자동 공전 중 계절이 바뀔 때 */
+  onSeasonChange?: (season: 'spring' | 'summer' | 'autumn' | 'winter') => void;
 }
 
 // Web Audio API 아름다운 우주 벨 & 별빛 효과음
@@ -108,6 +116,7 @@ export function createConstellation3DScene(
   container: HTMLDivElement,
   initialConstellation: ConstellationData,
   onSelectStar?: (star: StarData | null) => void,
+  callbacks: ConstellationSceneCallbacks = {},
 ): ConstellationScene {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x02030f);
@@ -144,32 +153,9 @@ export function createConstellation3DScene(
   dirLight.position.set(20, 30, -20);
   scene.add(dirLight);
 
-  // 1. 깊고 아름다운 우주 은하수 배경 별무리
-  const bgStarsCount = 2000;
-  const bgGeo = new THREE.BufferGeometry();
-  const bgPos = new Float32Array(bgStarsCount * 3);
-  const bgCols = new Float32Array(bgStarsCount * 3);
-  for (let i = 0; i < bgStarsCount; i++) {
-    const r = 180 + Math.random() * 220;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(Math.random() * 2 - 1);
-    bgPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    bgPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-    bgPos[i * 3 + 2] = r * Math.cos(phi);
-
-    const hue = Math.random();
-    const c = new THREE.Color().setHSL(hue > 0.7 ? 0.6 : hue > 0.4 ? 0.15 : 0.8, 0.8, 0.85);
-    bgCols[i * 3] = c.r;
-    bgCols[i * 3 + 1] = c.g;
-    bgCols[i * 3 + 2] = c.b;
-  }
-  bgGeo.setAttribute('position', new THREE.BufferAttribute(bgPos, 3));
-  bgGeo.setAttribute('color', new THREE.BufferAttribute(bgCols, 3));
-  const bgPoints = new THREE.Points(
-    bgGeo,
-    new THREE.PointsMaterial({ size: 1.5, vertexColors: true, transparent: true, opacity: 0.75 }),
-  );
-  scene.add(bgPoints);
+  // 1. 깊고 아름다운 우주 배경 별무리 (둥글게 반짝이는 별)
+  const starfield = createStarfield({ count: 5000, radius: 330, size: 2.2 });
+  scene.add(starfield.points);
 
   // 2. 별자리 메쉬 그룹
   const constellationGroup = new THREE.Group();
@@ -226,17 +212,23 @@ export function createConstellation3DScene(
   const earthGlobeGroup = new THREE.Group();
   scene.add(earthGlobeGroup);
 
-  const earthTex = new THREE.CanvasTexture(generateEarthCanvas());
-  earthTex.colorSpace = THREE.SRGBColorSpace;
+  // 태양계 화면과 같은 절차적 지구 텍스처 (대륙·기후대·만년설)
+  const earthTex = createPlanetTexture('earth');
   const earthGeo = new THREE.SphereGeometry(3.6, 32, 32);
   const earthMat = new THREE.MeshStandardMaterial({
     map: earthTex,
-    roughness: 0.55,
-    metalness: 0.1,
+    roughness: 1,
+    roughnessMap: createRoughnessMap('earth') ?? null,
+    metalness: 0,
   });
   const earthMesh = new THREE.Mesh(earthGeo, earthMat);
   earthMesh.position.set(0, -2.2, -38);
   earthGlobeGroup.add(earthMesh);
+  const earthClouds = new THREE.Mesh(
+    new THREE.SphereGeometry(3.66, 48, 48),
+    new THREE.MeshStandardMaterial({ map: createCloudTexture(), transparent: true, depthWrite: false }),
+  );
+  earthMesh.add(earthClouds);
 
   // 대기권 은은한 푸른 후광
   const atmoGeo = new THREE.SphereGeometry(3.85, 32, 32);
@@ -273,8 +265,9 @@ export function createConstellation3DScene(
   earthGlobeGroup.add(beamLine);
 
   // 지구 및 별자리 거리 3D 라벨 배지
-  const earthLabelSprite = makeLabelSprite('🌍 지구 관측소 (0 광년)', 'rgba(10, 24, 60, 0.9)', '#ffffff', '#4fe3c1', 9, 2.25);
-  earthLabelSprite.position.set(0, 2.6, -38);
+  // (예전 9×2.25 크기는 카메라 바로 앞이라 화면의 1/4을 가려 별자리를 덮었음)
+  const earthLabelSprite = makeLabelSprite('🌍 지구 관측소 (0 광년)', 'rgba(10, 24, 60, 0.9)', '#ffffff', '#4fe3c1', 3.4, 0.85);
+  earthLabelSprite.position.set(0, 2.15, -38);
   earthGlobeGroup.add(earthLabelSprite);
 
   const starDistanceLabel = makeLabelSprite('✨ 별자리 (우주 깊은 곳: 58+ 광년)', 'rgba(20, 15, 50, 0.9)', '#fde047', '#eab308', 11, 2.75);
@@ -294,12 +287,8 @@ export function createConstellation3DScene(
   sunGroup.position.set(0, 0, SUN_Z);
   seasonOrbitGroup.add(sunGroup);
 
-  const sunTex = new THREE.CanvasTexture(generateSunCanvas());
-  sunTex.colorSpace = THREE.SRGBColorSpace;
-  const sunMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(4.8, 32, 32),
-    new THREE.MeshBasicMaterial({ map: sunTex })
-  );
+  const seasonSunMat = createSunMaterial(1.35);
+  const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(4.8, 48, 32), seasonSunMat);
   sunGroup.add(sunMesh);
 
   const sunLight = new THREE.PointLight(0xfff7ed, 2.5, 160);
@@ -403,12 +392,8 @@ export function createConstellation3DScene(
   const wheelSunGroup = new THREE.Group();
   zodiacWheelGroup.add(wheelSunGroup);
 
-  const wheelSunTex = new THREE.CanvasTexture(generateSunCanvas());
-  wheelSunTex.colorSpace = THREE.SRGBColorSpace;
-  const wheelSunMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(6.6, 32, 32),
-    new THREE.MeshBasicMaterial({ map: wheelSunTex })
-  );
+  const wheelSunMat = createSunMaterial(1.35);
+  const wheelSunMesh = new THREE.Mesh(new THREE.SphereGeometry(6.6, 48, 32), wheelSunMat);
   wheelSunGroup.add(wheelSunMesh);
 
   // 태양 코로나 글로우 링
@@ -650,6 +635,7 @@ export function createConstellation3DScene(
 
       // 별 후광
       const hMat = new THREE.MeshBasicMaterial({
+        map: getSoftDotTexture(),
         color: new THREE.Color(star.color),
         transparent: true,
         opacity: 0.55,
@@ -714,44 +700,55 @@ export function createConstellation3DScene(
 
   let zodiacMonth = 1; // 기본 1월 염소자리
   let zodiacWheelAutoPlay = false;
+  let lastReportedMonth = 1;
+
+  // 생일 별자리(태양 뒤) / 오늘 밤 정면 별자리 안내 배지
+  const birthTag = makeLabelSprite('☀️ 태양 뒤에 숨은 생일 별자리', 'rgba(70, 30, 5, 0.94)', '#fde68a', '#f59e0b', 15, 3.4);
+  const nightTag = makeLabelSprite('🌙 오늘 밤 정면에 보이는 별자리', 'rgba(8, 30, 70, 0.94)', '#bae6fd', '#38bdf8', 15, 3.4);
+  zodiacWheelGroup.add(birthTag, nightTag);
 
   function updateZodiacWheel(month: number) {
-    // 1. 지구 공전 위치 (시계 M시 방향)
-    const { x: earthX, z: earthZ, angle } = getClockPos(month, ZODIAC_ORBIT_R);
+    // 그 달에는 태양이 '생일 별자리' 앞에 있다 = 지구는 태양 맞은편(시계 M+6시)에 있다.
+    // 그래서 생일 별자리는 낮 하늘에 숨고, 지구의 밤하늘은 반대편(M+6월) 별자리를 바라본다.
+    const { x: earthX, z: earthZ, angle } = getClockPos(month + 6, ZODIAC_ORBIT_R);
     wheelEarthGroup.position.set(earthX, 0, earthZ);
 
-    // 2. 밤하늘 시선 방향: 태양(0,0,0) -> 지구(earthX, earthZ) 바깥쪽 외향 벡터
+    // 밤하늘 시선 방향: 태양 → 지구 바깥쪽
     const dirX = Math.sin(angle);
     const dirZ = -Math.cos(angle);
 
-    // 밤하늘 시야 콘 배치 (지구 바깥쪽으로 펼쳐져 해당 월 별자리를 비춤)
+    // 밤하늘 시야 콘 (지구 바깥쪽으로 펼쳐져 맞은편 별자리를 비춤)
     wheelNightCone.position.set(earthX + dirX * 31, 0, earthZ + dirZ * 31);
     wheelNightCone.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), new THREE.Vector3(dirX, 0, dirZ));
 
-    // 3. 천문 시계 바늘선 (태양 -> 지구 -> 해당 월 별자리 일직선 관통)
-    const handEnd = new THREE.Vector3(dirX * (ZODIAC_DIAL_R + 6), 0, dirZ * (ZODIAC_DIAL_R + 6));
-    clockHandLine.geometry.setFromPoints([new THREE.Vector3(0, 0, 0), handEnd]);
+    // 천문 시계 바늘: 지구 → 태양 → 생일 별자리 일직선 (지구에서 보면 태양이 생일 별자리 앞에 겹쳐 보임)
+    const handEnd = new THREE.Vector3(-dirX * (ZODIAC_DIAL_R + 6), 0, -dirZ * (ZODIAC_DIAL_R + 6));
+    clockHandLine.geometry.setFromPoints([new THREE.Vector3(earthX, 0, earthZ), handEnd]);
 
-    // 4. 각 별자리 노드 밝기 및 하이라이트 갱신
+    // 별자리 밝기: 밤하늘 정면(맞은편) 별자리가 가장 크고 밝게, 생일 별자리는 태양빛 속에 은은하게
     zodiacNodes.forEach((node) => {
       const nodePos = getClockPos(node.monthInfo.month, 1);
-      // dot product: 1이면 지구가 해당 별자리를 밤하늘 정면으로 똑바로 바라봄!
       const dot = dirX * nodePos.x + dirZ * nodePos.z;
-
       if (dot > 0.92) {
-        // 정면 마주보는 이달의 별자리
         node.ghostMat.opacity = 0.95;
         node.group.scale.setScalar(1.22);
+      } else if (dot < -0.92) {
+        node.ghostMat.opacity = 0.6;
+        node.group.scale.setScalar(1.1);
       } else if (dot > 0.5) {
-        // 인접한 별자리
-        node.ghostMat.opacity = 0.65;
+        node.ghostMat.opacity = 0.6;
         node.group.scale.setScalar(1.05);
       } else {
-        // 나머지 별자리들 (전체 시계판에서 은은하게 상시 보임)
-        node.ghostMat.opacity = 0.45;
+        node.ghostMat.opacity = 0.4;
         node.group.scale.setScalar(1.0);
       }
     });
+
+    const m = ((Math.round(month) - 1 + 12) % 12) + 1;
+    const birthPos = getClockPos(m, ZODIAC_RING_R);
+    birthTag.position.set(birthPos.x, 21, birthPos.z);
+    const nightPos = getClockPos(m + 6, ZODIAC_RING_R);
+    nightTag.position.set(nightPos.x, 21, nightPos.z);
   }
 
   // 선택 링
@@ -817,6 +814,7 @@ export function createConstellation3DScene(
 
       // 별빛 광채 후광 (Halo Billboard)
       const haloMat = new THREE.MeshBasicMaterial({
+        map: getSoftDotTexture(), // 텍스처가 없으면 후광이 네모난 색 판으로 보임
         color: starColor,
         transparent: true,
         opacity: 0.45,
@@ -947,9 +945,10 @@ export function createConstellation3DScene(
     } else if (mode === 'zodiac_wheel') {
       // zodiac_wheel 모드: 1~12월 시계 다이얼과 중앙 태양, 지구 공전 궤도를 시계 방향으로 한눈에 조망하는 웅장한 부감 뷰
       // 12시가 화면 상단(-Z), 6시가 화면 하단(+Z), 3시가 우측(+X), 9시가 좌측(-X)으로 정확히 정렬됨
+      // (아래 월 선택 패널에 시계판 아래쪽이 가리지 않도록 시계판을 화면 위쪽에 둔다)
       return {
-        pos: new THREE.Vector3(0, 172, 48),
-        look: new THREE.Vector3(0, 0, -10),
+        pos: new THREE.Vector3(0, 190, 96),
+        look: new THREE.Vector3(0, 0, 34),
       };
     } else {
       // season_orbit 모드: 태양과 지구 공전 궤도, 밤하늘 시야 콘을 함께 조망하는 시점
@@ -1055,8 +1054,20 @@ export function createConstellation3DScene(
 
   // 렌더 루프
   let animId = 0;
-  function animate() {
+  let lastFrame = performance.now();
+  let lastSeason: 'spring' | 'summer' | 'autumn' | 'winter' | null = null;
+  function seasonOf(angle: number): 'spring' | 'summer' | 'autumn' | 'winter' {
+    const a = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    const k = Math.round(a / (Math.PI / 2)) % 4;
+    return (['spring', 'summer', 'autumn', 'winter'] as const)[k];
+  }
+  function animate(now: number) {
     animId = requestAnimationFrame(animate);
+    const dt = Math.min(0.1, (now - lastFrame) / 1000);
+    lastFrame = now;
+    starfield.update(now * 0.001);
+    wheelSunMat.uniforms.uTime.value = now * 0.001;
+    seasonSunMat.uniforms.uTime.value = now * 0.001;
 
     // 카메라 부드러운 전환 이동 (버튼 클릭 전환 시에만 lerp 작동하고 완료되거나 사용자 조작 시 멈춤)
     if (isAnimatingCamera) {
@@ -1091,19 +1102,31 @@ export function createConstellation3DScene(
     }
 
     // 3D 지구 자전 및 공전 애니메이션
-    earthMesh.rotation.y += 0.003;
-    orbEarthMesh.rotation.y += 0.008;
-    wheelEarthMesh.rotation.y += 0.012;
-    wheelSunMesh.rotation.y += 0.002;
+    earthMesh.rotation.y += 0.18 * dt;
+    earthClouds.rotation.y += 0.04 * dt;
+    orbEarthMesh.rotation.y += 0.48 * dt;
+    wheelEarthMesh.rotation.y += 0.72 * dt;
+    wheelSunMesh.rotation.y += 0.12 * dt;
 
+    // 자동 공전 (모니터 주사율과 무관하게 dt 기준: 1년 약 26초)
     if (viewMode === 'season_orbit' && seasonAutoPlay) {
-      seasonAngle = (seasonAngle + 0.004) % (Math.PI * 2);
+      seasonAngle = (seasonAngle + 0.24 * dt) % (Math.PI * 2);
       updateSeasonOrbit(seasonAngle);
+      const season = seasonOf(seasonAngle);
+      if (season !== lastSeason) {
+        lastSeason = season;
+        callbacks.onSeasonChange?.(season);
+      }
     }
 
     if (viewMode === 'zodiac_wheel' && zodiacWheelAutoPlay) {
-      zodiacMonth = ((zodiacMonth - 1 + 0.006) % 12) + 1;
+      zodiacMonth = ((zodiacMonth - 1 + 0.46 * dt) % 12) + 1;
       updateZodiacWheel(zodiacMonth);
+      const m = ((Math.round(zodiacMonth) - 1) % 12) + 1;
+      if (m !== lastReportedMonth) {
+        lastReportedMonth = m;
+        callbacks.onZodiacMonthChange?.(m);
+      }
     }
 
     beamMat.opacity = 0.55 + Math.sin(Date.now() * 0.005) * 0.25;
@@ -1148,6 +1171,7 @@ export function createConstellation3DScene(
     },
     setSeasonAngle(angleRad: number) {
       seasonAngle = angleRad;
+      lastSeason = seasonOf(angleRad);
       updateSeasonOrbit(seasonAngle);
     },
     setSeasonAutoPlay(play: boolean) {
@@ -1155,6 +1179,7 @@ export function createConstellation3DScene(
     },
     setZodiacWheelMonth(month: number) {
       zodiacMonth = month;
+      lastReportedMonth = month;
       updateZodiacWheel(zodiacMonth);
     },
     setZodiacWheelAutoPlay(play: boolean) {

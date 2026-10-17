@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { createBloomPipeline, softenPoints } from './fx.ts';
 import {
   createGalaxyScenario,
   stepGalaxySystem,
@@ -378,7 +379,7 @@ function buildCosmicWebVisuals(scene: THREE.Scene) {
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
-  const filPoints = new THREE.Points(filPointsGeo, filPointsMat);
+  const filPoints = new THREE.Points(filPointsGeo, softenPoints(filPointsMat));
   cosmicGroup.add(filPoints);
 
   // 5. 은하단 중심 노드 점무리
@@ -403,7 +404,7 @@ function buildCosmicWebVisuals(scene: THREE.Scene) {
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
-  cosmicGroup.add(new THREE.Points(nodeGeo, nodeMat));
+  cosmicGroup.add(new THREE.Points(nodeGeo, softenPoints(nodeMat)));
 
   // 6. 국부은하군 위치 거대 레이더 비콘 링
   const localRingGeo = new THREE.RingGeometry(25, 32, 48);
@@ -453,6 +454,8 @@ export function createGalaxyScene(
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
@@ -467,6 +470,9 @@ export function createGalaxyScene(
   controls.dampingFactor = 0.05;
   controls.minDistance = 8;
   controls.maxDistance = 7500;
+
+  // 은하 중심핵·퀘이사 제트처럼 밝은 부분만 은은하게 번지도록
+  const bloom = createBloomPipeline(renderer, scene, camera, { strength: 0.55, radius: 0.5, threshold: 0.9 });
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 
@@ -499,7 +505,7 @@ export function createGalaxyScene(
     opacity: 0.7,
     depthWrite: false,
   });
-  scene.add(new THREE.Points(bgStarGeo, bgStarMat));
+  scene.add(new THREE.Points(bgStarGeo, softenPoints(bgStarMat)));
 
   // 2. 태양계 오리온 팔 위치 마커 & 펄싱 링
   const solarGroup = new THREE.Group();
@@ -1047,7 +1053,7 @@ export function createGalaxyScene(
     controls.target.lerp(targetLerp, 0.06);
     controls.update();
 
-    renderer.render(scene, camera);
+    bloom.render();
   }
 
   frame();
@@ -1056,8 +1062,9 @@ export function createGalaxyScene(
     const w = container.clientWidth || window.innerWidth;
     const h = container.clientHeight || window.innerHeight;
     if (w === 0 || h === 0) return;
-    renderer.setSize(w, h);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(w, h);
+    bloom.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   };
@@ -1153,6 +1160,7 @@ export function createGalaxyScene(
       ro.disconnect();
       window.removeEventListener('resize', handleResize);
       controls.dispose();
+      bloom.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },

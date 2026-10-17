@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { createAccretionDisk, createBloomPipeline, createLensingHalo, createSkyDome, createStarfield, softenPoints } from './fx.ts';
 
 export interface SpaghettiState {
   distance: number; // 0 (사건의 지평선) ~ 100 (안전 구역)
@@ -124,30 +125,12 @@ export function createBlackHoleAstronautScene(
   const blackholeGlow = new THREE.PointLight(0xff7722, 3.5, 90, 1.2);
   scene.add(blackholeGlow);
 
-  // 1. 별빛 우주 배경
-  const starGeo = new THREE.BufferGeometry();
-  const starCount = 1800;
-  const starPos = new Float32Array(starCount * 3);
-  const starColors = new Float32Array(starCount * 3);
-  for (let i = 0; i < starCount; i++) {
-    const r = 200 + Math.random() * 250;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(Math.random() * 2 - 1);
-    starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    starPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-    starPos[i * 3 + 2] = r * Math.cos(phi);
+  const bloom = createBloomPipeline(renderer, scene, camera, { strength: 0.75, radius: 0.45, threshold: 0.85 });
 
-    const hue = Math.random();
-    const c = new THREE.Color().setHSL(hue > 0.8 ? 0.6 : hue > 0.6 ? 0.12 : 0.85, 0.7, 0.85);
-    starColors[i * 3] = c.r;
-    starColors[i * 3 + 1] = c.g;
-    starColors[i * 3 + 2] = c.b;
-  }
-  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-  starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
-  const starMat = new THREE.PointsMaterial({ size: 1.6, vertexColors: true, transparent: true, opacity: 0.85 });
-  const stars = new THREE.Points(starGeo, starMat);
-  scene.add(stars);
+  // 1. 별빛 우주 배경 (은하수 하늘 + 반짝이는 별)
+  scene.add(createSkyDome(600, 1.0));
+  const starfield = createStarfield({ count: 4000, radius: 420, size: 2.2 });
+  scene.add(starfield.points);
 
   // 2. 블랙홀 모델
   // (1) 사건의 지평선 (완전한 칠흑의 구체, 반지름 = 8)
@@ -157,37 +140,16 @@ export function createBlackHoleAstronautScene(
   const eventHorizon = new THREE.Mesh(horizonGeo, horizonMat);
   scene.add(eventHorizon);
 
-  // (2) 광자구 (Photon Sphere) - 얇은 백색/청색 빛 링
-  const photonSphereRadius = HORIZON_R * 1.5;
-  const photonSphereGeo = new THREE.RingGeometry(photonSphereRadius - 0.2, photonSphereRadius + 0.2, 96);
-  const photonSphereMat = new THREE.MeshBasicMaterial({
-    color: 0x88ccff,
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.65,
-    blending: THREE.AdditiveBlending,
-  });
-  const photonSphere = new THREE.Mesh(photonSphereGeo, photonSphereMat);
-  photonSphere.rotation.x = Math.PI / 2;
-  scene.add(photonSphere);
-
-  // (3) 찬란한 강착원반 (Accretion Disk) - 2중 레이어
+  // (2) 난류 플라스마 강착원반 (가까이 다가오는 쪽이 더 밝은 도플러 효과)
   const diskInner = HORIZON_R * 1.55;
   const diskOuter = HORIZON_R * 4.6;
-  const diskGeo = new THREE.RingGeometry(diskInner, diskOuter, 96, 8);
-  const diskMat = new THREE.MeshBasicMaterial({
-    color: 0xff6611,
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.72,
-    blending: THREE.AdditiveBlending,
-  });
-  const accretionDisk = new THREE.Mesh(diskGeo, diskMat);
-  accretionDisk.rotation.x = Math.PI / 2.2;
+  const DISK_TILT = Math.PI / 2.2;
+  const accretionDisk = createAccretionDisk(diskInner, diskOuter, { intensity: 0.85, speed: 0.8 });
+  accretionDisk.rotation.x = DISK_TILT;
   scene.add(accretionDisk);
 
   // 강착원반 소용돌이 파티클
-  const diskParticleCount = 900;
+  const diskParticleCount = 1600;
   const diskPartPos = new Float32Array(diskParticleCount * 3);
   const diskPartColors = new Float32Array(diskParticleCount * 3);
   const diskPartAngles: number[] = [];
@@ -213,27 +175,22 @@ export function createBlackHoleAstronautScene(
   const diskPartGeo = new THREE.BufferGeometry();
   diskPartGeo.setAttribute('position', new THREE.BufferAttribute(diskPartPos, 3));
   diskPartGeo.setAttribute('color', new THREE.BufferAttribute(diskPartColors, 3));
-  const diskPartMat = new THREE.PointsMaterial({
-    size: 1.2,
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.9,
-    blending: THREE.AdditiveBlending,
-  });
+  const diskPartMat = softenPoints(
+    new THREE.PointsMaterial({
+      size: 0.32,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+    }),
+  );
   const diskParticles = new THREE.Points(diskPartGeo, diskPartMat);
-  diskParticles.rotation.x = accretionDisk.rotation.x;
+  // 입자는 XZ 평면에 만들었으므로, XY 평면 링(원반)과 같은 기울기가 되도록 (기울기 - 90°)만 돌린다
+  diskParticles.rotation.x = DISK_TILT - Math.PI / 2;
   scene.add(diskParticles);
 
-  // (4) 중력 렌즈 효과 후광 (Halo Ring)
-  const haloGeo = new THREE.RingGeometry(HORIZON_R * 1.05, HORIZON_R * 2.4, 64);
-  const haloMat = new THREE.MeshBasicMaterial({
-    color: 0xffaa44,
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.35,
-    blending: THREE.AdditiveBlending,
-  });
-  const halo = new THREE.Mesh(haloGeo, haloMat);
+  // (3) 중력렌즈로 지평선을 감싸는 뒤편 원반 + 광자 고리 (항상 카메라를 향함)
+  const halo = createLensingHalo(HORIZON_R, { intensity: 0.75 });
   scene.add(halo);
 
   // 3. 우주비행사 캐릭터 3D 모델 그룹
@@ -370,7 +327,7 @@ export function createBlackHoleAstronautScene(
   warpGeo.setAttribute('color', new THREE.BufferAttribute(warpCols, 3));
   const warpPoints = new THREE.Points(
     warpGeo,
-    new THREE.PointsMaterial({ size: 1.8, vertexColors: true, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending }),
+    softenPoints(new THREE.PointsMaterial({ size: 1.8, vertexColors: true, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending })),
   );
   warpTunnelGroup.add(warpPoints);
 
@@ -443,7 +400,7 @@ export function createBlackHoleAstronautScene(
     };
   }
 
-  function applyVisuals(s: SpaghettiState, time: number) {
+  function applyVisuals(s: SpaghettiState, time: number, dt: number) {
     const actualR = HORIZON_R + (s.distance / 100) * 42;
 
     // 1. 우주비행사 위치 설정 (X축 기준 접근)
@@ -526,17 +483,20 @@ export function createBlackHoleAstronautScene(
     // 3. 지평선 돌파 시 무지개 웜홀 터널 활성화
     if (s.distance <= 0) {
       warpTunnelGroup.visible = true;
-      warpTunnelGroup.rotation.z += 0.04;
-      warpPoints.position.z = (warpPoints.position.z + 1.2) % 40;
+      warpTunnelGroup.rotation.z += 2.4 * dt;
+      warpPoints.position.z = (warpPoints.position.z + 72 * dt) % 40;
     } else {
       warpTunnelGroup.visible = false;
     }
 
-    // 4. 강착원반 & 파티클 회전
-    accretionDisk.rotation.z += 0.008;
+    // 4. 강착원반 & 파티클 회전 (프레임 속도와 무관하게 dt 기준)
+    accretionDisk.material.uniforms.uTime.value = time;
+    halo.material.uniforms.uTime.value = time;
+    halo.quaternion.copy(camera.quaternion);
+    starfield.update(time);
     const pArr = diskPartGeo.attributes.position.array as Float32Array;
     for (let i = 0; i < diskParticleCount; i++) {
-      diskPartAngles[i] += diskPartSpeeds[i] * 0.02;
+      diskPartAngles[i] += diskPartSpeeds[i] * 1.2 * dt;
       const r = diskPartRadii[i];
       const a = diskPartAngles[i];
       pArr[i * 3] = Math.cos(a) * r;
@@ -545,16 +505,18 @@ export function createBlackHoleAstronautScene(
     diskPartGeo.attributes.position.needsUpdate = true;
 
     // 5. 카메라 뷰 모드 처리
+    const follow = 1 - Math.pow(1 - 0.08, dt * 60);
     if (cameraMode === 'astronaut') {
       // 우주비행사 밀착 시점
       const camTarget = astronautGroup.position.clone();
       const camPos = camTarget.clone().add(new THREE.Vector3(0, 4, 9));
-      camera.position.lerp(camPos, 0.08);
-      controls.target.lerp(camTarget, 0.08);
+      camera.position.lerp(camPos, follow);
+      controls.target.lerp(camTarget, follow);
     } else if (cameraMode === 'blackhole') {
-      // 블랙홀 중심에서 빨려들어오는 우주비행사를 올려다보는 시점
-      camera.position.lerp(new THREE.Vector3(0, 2, 0), 0.06);
-      controls.target.lerp(astronautGroup.position, 0.08);
+      // 사건의 지평선 바로 위에서 빨려 들어오는 우주비행사를 올려다보는 시점
+      // (예전에는 카메라가 지평선 구 안쪽(반지름 7.5 안)에 들어가 블랙홀이 안 보였음)
+      camera.position.lerp(new THREE.Vector3(0, HORIZON_R * 1.25, HORIZON_R * 0.35), follow * 0.75);
+      controls.target.lerp(astronautGroup.position, follow);
     } else {
       // 전체 조망 뷰
       controls.target.set(0, 0, 0);
@@ -596,9 +558,9 @@ export function createBlackHoleAstronautScene(
     curState.astronautClock = astronautClock;
     curState.earthClock = earthClock;
 
-    applyVisuals(curState, now * 0.001);
+    applyVisuals(curState, now * 0.001, dt);
     controls.update();
-    renderer.render(scene, camera);
+    bloom.render();
 
     onUpdate?.(curState);
   }
@@ -610,6 +572,7 @@ export function createBlackHoleAstronautScene(
     camera.aspect = container.clientWidth / container.clientHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(container.clientWidth, container.clientHeight);
+    bloom.setSize(container.clientWidth, container.clientHeight);
   };
   window.addEventListener('resize', onResize);
 
@@ -656,6 +619,7 @@ export function createBlackHoleAstronautScene(
     dispose() {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', onResize);
+      bloom.dispose();
       renderer.dispose();
       if (renderer.domElement.parentNode) {
         renderer.domElement.parentNode.removeChild(renderer.domElement);

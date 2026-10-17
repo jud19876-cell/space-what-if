@@ -5492,7 +5492,10 @@ body,
    우주 크기 비교 시뮬레이터 (Powers of Ten & MetaBallStudios Arena)
    ======================================================== */
 .cosmic-scale-root {
-  position: relative;
+  /* 은하 화면 위에 덮어 띄움 (relative 였을 때는 태양계 상단바·하단 독이 비쳐 겹쳤음) */
+  position: fixed;
+  inset: 0;
+  z-index: 120;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
@@ -6521,6 +6524,59 @@ body,
     gap: 6px;
   }
   .zodiac-dock-title-wrap h4 {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   레이아웃 버그 수정: 공간이 부족할 때 버튼이 줄어들며 한글이 한 글자씩 세로로
+   줄바꿈되던 문제 (은하 헤더 제목, 별자리/은하 보조 토글)
+   ========================================================================== */
+.galaxy-header-left,
+.galaxy-title-group,
+.galaxy-main-mode-toggle {
+  flex-shrink: 0;
+}
+
+.galaxy-main-title,
+.galaxy-sub-badge,
+.btn-back-solar,
+.btn-aux-toggle,
+.galaxy-mode-tab-btn {
+  white-space: nowrap;
+}
+
+.galaxy-scenarios-bar {
+  flex: 1 1 auto;
+  min-width: 0;
+  scrollbar-width: none;
+}
+
+.galaxy-scenarios-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.aux-toggles,
+.btn-aux-toggle {
+  flex-shrink: 0;
+}
+
+/* 상단 바: 재생/리셋을 시계 옆으로 옮겨 항상 보이게 하고, 넘치는 버튼은 가장자리를 흐리게 */
+.brand-group .play-group {
+  margin-left: 2px;
+}
+
+.controls-scroll-wrapper {
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  padding-right: 24px;
+}
+
+
+/* 좁은 화면: 배속 프리셋 칩을 숨겨(슬라이더·휠은 그대로) 모드 버튼 글자가 잘리지 않게 */
+@media (max-width: 1600px) {
+  .topbar .speed-presets,
+  .topbar .speed-scroll-hint {
     display: none;
   }
 }

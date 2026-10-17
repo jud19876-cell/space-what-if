@@ -5,7 +5,19 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { AU_PER_DAY_TO_KM_S, G, length, SUN_MASS, calculateCircularSpeed, isBlackHoleBody, type Body, type Vec3, type AbsorptionEvent, type CollisionEvent } from './physics.ts';
 import { advance, findHost, type SimState } from './simulation.ts';
 import { BODY_INFO, ORBIT_RADII, type BodyId } from './solarSystem.ts';
-import { createPlanetTexture, createNormalMap, createRingTexture } from './planetTextures.ts';
+import { createPlanetTexture, createNormalMap, createRingTexture, createRoughnessMap, createCloudTexture } from './planetTextures.ts';
+import {
+  createAccretionDisk,
+  createAtmosphereMaterial,
+  createBloomPipeline,
+  createCoronaSprite,
+  createLensingHalo,
+  createSkyDome,
+  createStarfield,
+  createSunMaterial,
+  setRadialRingUVs,
+  softenPoints,
+} from './fx.ts';
 
 // ---------- 화면 거리 스케일 ----------
 // 실제 거리(0.39 ~ 30 AU)를 그대로 쓰면 안쪽 행성이 안 보이므로 제곱근으로 압축한다.
@@ -44,17 +56,49 @@ const TRAIL_N = 500;
 
 interface Visual {
   group: THREE.Group;
+  /** visualRadius 로 크기가 정해지는 천체 본체 (고리·대기·원반이 함께 커지고 작아짐) */
+  body: THREE.Group;
+  /** 자전하는 부분 (자전축 기울기 그룹 안쪽) */
+  spin: THREE.Object3D;
+  spinSpeed: number;
   sphere: THREE.Mesh;
+  clouds?: THREE.Mesh;
+  atmosphere?: THREE.ShaderMaterial;
   hit: THREE.Mesh;
   trail: THREE.Line;
   trailPos: Float32Array;
   trailCount: number;
   vis: THREE.Vector3;
-  accretionDisk?: THREE.Mesh;
-  lensingRing?: THREE.Mesh;
-  sunTexture?: THREE.CanvasTexture;
+  accretionDisk?: THREE.Mesh<THREE.RingGeometry, THREE.ShaderMaterial>;
+  lensingRing?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
+  sunMaterial?: THREE.ShaderMaterial;
   orbitLine?: THREE.LineLoop;
 }
+
+// 실제 자전축 기울기 (라디안)
+const AXIAL_TILT: Record<string, number> = {
+  mercury: 0.0006,
+  venus: 3.096,
+  earth: 0.4091,
+  moon: 0.117,
+  mars: 0.4396,
+  jupiter: 0.0546,
+  saturn: 0.4665,
+  uranus: 1.7064,
+  neptune: 0.4943,
+  pluto: 2.138,
+};
+
+// 대기 산란광 색 / 두께 / 세기
+const ATMOSPHERES: Record<string, { color: number; scale: number; power: number; intensity: number }> = {
+  earth: { color: 0x4d9dff, scale: 1.07, power: 2.4, intensity: 1.6 },
+  venus: { color: 0xffcf86, scale: 1.06, power: 2.2, intensity: 1.3 },
+  mars: { color: 0xff9466, scale: 1.025, power: 4.0, intensity: 0.55 },
+  jupiter: { color: 0xffe2b8, scale: 1.02, power: 5.0, intensity: 0.4 },
+  saturn: { color: 0xffe8b6, scale: 1.02, power: 5.0, intensity: 0.4 },
+  uranus: { color: 0x9cf6ff, scale: 1.045, power: 3.0, intensity: 1.0 },
+  neptune: { color: 0x5a8cff, scale: 1.045, power: 3.0, intensity: 1.1 },
+};
 
 export interface AimInfo {
   active: boolean;
@@ -89,6 +133,8 @@ export interface SpaceScene {
   ): void;
   focusBody(id: string | null): void;
   resetCamera(): void;
+  /** 다른 시뮬레이션 화면이 위에 떠 있는 동안 계산·렌더링을 멈춘다 */
+  setActive(active: boolean): void;
   dispose(): void;
 }
 
@@ -186,10 +232,12 @@ export function createSpaceScene(
 ): SpaceScene {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#040615');
+  scene.background = new THREE.Color('#02030b');
 
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 5000);
   camera.position.set(0, 48, 62);
@@ -200,10 +248,18 @@ export function createSpaceScene(
   controls.minDistance = 4;
   controls.maxDistance = 1400;
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-  const sunLight = new THREE.PointLight(0xfff2d0, 3.2, 0, 0);
+  scene.add(new THREE.AmbientLight(0xb8c4ff, 0.22));
+  const sunLight = new THREE.PointLight(0xfff2d8, 3.6, 0, 0);
   scene.add(sunLight);
-  scene.add(makeStars());
+
+  // 하늘 (은하수 돔 + 반짝이는 별) — 카메라를 따라다녀서 아무리 멀리 가도 배경으로 남는다
+  const sky = new THREE.Group();
+  sky.add(createSkyDome(2600, 1.0));
+  const starfield = createStarfield({ count: 7000, radius: 1900, size: 2.3 });
+  sky.add(starfield.points);
+  scene.add(sky);
+
+  const bloom = createBloomPipeline(renderer, scene, camera, { strength: 0.7, radius: 0.42, threshold: 0.88 });
 
   // 원래 궤도 (흐린 기준선) — 궤도에서 벗어나는 게 잘 보이도록
   for (const o of ORBIT_RADII) {
@@ -236,114 +292,132 @@ export function createSpaceScene(
     const baseInfo = customType ? BODY_INFO[customType as BodyId] : undefined;
     const info = BODY_INFO[id] ?? baseInfo ?? (isBlackHole ? BODY_INFO['black_hole'] : isAsteroid ? (isGiant ? BODY_INFO['giant_asteroid'] : BODY_INFO['asteroid']) : { emoji: '🪐', color: '#38bdf8', lines: [] });
     const group = new THREE.Group();
+    // body: 단위 크기(반지름 1)로 만들고 매 프레임 visualRadius 로 확대
+    const body = new THREE.Group();
+    group.add(body);
+    const tilt = new THREE.Group();
+    tilt.rotation.z = AXIAL_TILT[effectiveType] ?? 0;
+    body.add(tilt);
+    const spin = new THREE.Group();
+    tilt.add(spin);
+    let spinSpeed = 0.6;
 
     let sphere: THREE.Mesh;
-    let accretionDisk: THREE.Mesh | undefined;
-    let lensingRing: THREE.Mesh | undefined;
+    let clouds: THREE.Mesh | undefined;
+    let atmosphere: THREE.ShaderMaterial | undefined;
+    let accretionDisk: Visual['accretionDisk'];
+    let lensingRing: Visual['lensingRing'];
+    let sunMaterial: THREE.ShaderMaterial | undefined;
 
     if (isBlackHole) {
-      // 사건의 지평선 (완전한 칠흑의 구체)
-      sphere = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: 0x010103 }));
-      group.add(sphere);
+      // 사건의 지평선 (빛 한 줄기 없는 칠흑의 구체)
+      sphere = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: 0x000000 }));
+      body.add(sphere);
 
       const isSupermassive = id === 'supermassive_black_hole';
-      const diskInner = isSupermassive ? 1.6 : 1.25;
-      const diskOuter = isSupermassive ? 5.0 : 3.2;
+      // 난류 플라스마 강착원반 (가까이 다가오는 쪽이 더 밝은 도플러 효과)
+      accretionDisk = createAccretionDisk(1.5, isSupermassive ? 5.6 : 4.2, { intensity: 0.75 });
+      accretionDisk.rotation.x = -Math.PI / 2 + 0.32;
+      accretionDisk.rotation.y = 0.12;
+      body.add(accretionDisk);
 
-      // 강착원반 (Accretion Disk)
-      const diskGeo = new THREE.RingGeometry(diskInner, diskOuter, 64);
-      const diskMat = new THREE.MeshBasicMaterial({
-        map: makeAccretionDiskTexture(),
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.95,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      });
-      accretionDisk = new THREE.Mesh(diskGeo, diskMat);
-      accretionDisk.rotation.x = -Math.PI / 2 + 0.35;
-      accretionDisk.rotation.z = 0.2;
-      group.add(accretionDisk);
-
-      // 중력 렌징 광자 고리 (Gravitational Lensing Halo Ring)
-      const lensGeo = new THREE.RingGeometry(diskInner * 0.85, diskInner * 1.35, 64);
-      const lensMat = new THREE.MeshBasicMaterial({
-        map: makeAccretionDiskTexture(),
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.75,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      });
-      lensingRing = new THREE.Mesh(lensGeo, lensMat);
-      lensingRing.rotation.y = 0.4;
-      group.add(lensingRing);
-
-      // 오로라빛 보라/자주 광륜 (Halo Glow)
-      group.add(makeBlackHoleGlow());
+      // 중력렌즈로 지평선 위·아래를 감싸는 뒤편 원반 + 광자 고리 (카메라를 향함)
+      lensingRing = createLensingHalo(1.0, { intensity: 0.7 });
+      body.add(lensingRing);
     } else if (isAsteroid) {
-      // 소행성 및 파편: 거친 암석 표면 + 타오르는 불꽃 오라
+      // 소행성 및 파편: 울퉁불퉁한 암석 + 대기 마찰 불꽃 오라
+      const rockGeo = new THREE.IcosahedronGeometry(1, 3);
+      const p = rockGeo.attributes.position;
+      const v3 = new THREE.Vector3();
+      const seed = b.id.length * 13.7;
+      for (let i = 0; i < p.count; i++) {
+        v3.fromBufferAttribute(p, i);
+        const k = 1 + 0.22 * Math.sin(v3.x * 3.1 + seed) * Math.cos(v3.y * 2.7 - seed) + 0.1 * Math.sin(v3.z * 6.3 + seed * 2);
+        v3.multiplyScalar(k);
+        p.setXYZ(i, v3.x, v3.y, v3.z);
+      }
+      rockGeo.computeVertexNormals();
       const mat = new THREE.MeshStandardMaterial({
-        color: isGiant ? '#ff4d4d' : '#f59e0b',
-        roughness: 0.9,
-        metalness: 0.1,
+        color: isGiant ? '#ff8a7a' : '#d9b48a',
+        roughness: 0.95,
+        metalness: 0.05,
         map: makeAsteroidTexture(isGiant),
+        emissive: isGiant ? new THREE.Color('#ff3300') : new THREE.Color('#ff7a00'),
+        emissiveIntensity: isGiant ? 0.35 : 0.15,
       });
-      sphere = new THREE.Mesh(sphereGeo, mat);
-      group.add(sphere);
-      group.add(makeAsteroidFlameGlow(isGiant));
+      sphere = new THREE.Mesh(rockGeo, mat);
+      spin.add(sphere);
+      spinSpeed = 2.2;
+      body.add(makeAsteroidFlameGlow(isGiant));
     } else {
       const isSun = effectiveType === 'sun';
-      let mat: THREE.Material;
-      let sunTex: THREE.CanvasTexture | undefined;
 
       if (isSun) {
-        sunTex = createPlanetTexture('sun');
-        mat = new THREE.MeshBasicMaterial({ map: sunTex });
+        sunMaterial = createSunMaterial(1.45);
+        sphere = new THREE.Mesh(sphereGeo, sunMaterial);
+        spin.add(sphere);
+        spinSpeed = 0.08;
+        // 코로나 (안쪽 밝은 빛무리 + 넓게 퍼지는 은은한 빛)
+        const innerCorona = createCoronaSprite(0xffc46b, 3.4);
+        innerCorona.material.opacity = 0.75;
+        body.add(innerCorona);
+        const outerCorona = createCoronaSprite(0xff7a2e, 7.0);
+        outerCorona.material.opacity = 0.35;
+        body.add(outerCorona);
       } else {
         const textureKey = ['mercury', 'venus', 'earth', 'moon', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'].includes(effectiveType) ? effectiveType : id;
+        const isGas = ['jupiter', 'saturn', 'uranus', 'neptune'].includes(effectiveType);
         const diffTex = createPlanetTexture(textureKey);
-        const normTex = createNormalMap(diffTex, 2.4);
-        mat = new THREE.MeshStandardMaterial({
+        const roughTex = createRoughnessMap(textureKey);
+        const mat = new THREE.MeshStandardMaterial({
           map: diffTex,
-          normalMap: normTex,
-          normalScale: new THREE.Vector2(1.25, 1.25),
-          roughness: effectiveType === 'earth' ? 0.35 : 0.75,
-          metalness: effectiveType === 'earth' ? 0.15 : 0.05,
+          normalMap: isGas ? null : createNormalMap(diffTex, 2.4),
+          normalScale: new THREE.Vector2(0.9, 0.9),
+          roughness: roughTex ? 1.0 : isGas ? 0.85 : 0.9,
+          roughnessMap: roughTex ?? null,
+          metalness: 0.0,
           emissive: new THREE.Color(info.color),
-          emissiveIntensity: isCustom ? 0.2 : 0.02,
+          emissiveIntensity: isCustom ? 0.08 : 0.0,
         });
+        sphere = new THREE.Mesh(sphereGeo, mat);
+        spin.add(sphere);
+        spinSpeed = isGas ? 1.1 : effectiveType === 'venus' ? -0.1 : 0.6;
+
+        // 지구 구름층 (지표보다 조금 빠르게 흐름)
+        if (effectiveType === 'earth') {
+          clouds = new THREE.Mesh(
+            sphereGeo,
+            new THREE.MeshStandardMaterial({ map: createCloudTexture(), transparent: true, depthWrite: false, roughness: 1 }),
+          );
+          clouds.scale.setScalar(1.015);
+          spin.add(clouds);
+        }
+
+        // 대기 산란광 (태양 쪽 가장자리가 빛남)
+        const atm = ATMOSPHERES[effectiveType] ?? (isCustom ? { color: new THREE.Color(info.color).getHex(), scale: 1.05, power: 2.8, intensity: 0.9 } : undefined);
+        if (atm) {
+          atmosphere = createAtmosphereMaterial(atm.color, { power: atm.power, intensity: atm.intensity });
+          const shell = new THREE.Mesh(sphereGeo, atmosphere);
+          shell.scale.setScalar(atm.scale);
+          body.add(shell);
+        }
       }
 
-      sphere = new THREE.Mesh(sphereGeo, mat);
-      group.add(sphere);
-
-      if (isSun) {
-        group.add(makeSunCoronaShells());
-      }
-
-      // 대기권 산란 림 글로우 효과 (Atmospheric Rim Glow)
-      if (effectiveType === 'earth') group.add(makeAtmosphereGlow(0x4da6ff, 1.04));
-      if (effectiveType === 'venus') group.add(makeAtmosphereGlow(0xffcc66, 1.035));
-      if (effectiveType === 'neptune') group.add(makeAtmosphereGlow(0x3388ff, 1.035));
-      if (effectiveType === 'uranus') group.add(makeAtmosphereGlow(0x5ce6ff, 1.035));
-      if (effectiveType === 'jupiter') group.add(makeAtmosphereGlow(0xffddaa, 1.025));
-
-      // 고리 시스템 (토성 및 천왕성 정밀 절차적 링)
+      // 고리 (적도면에 놓이도록 자전축 기울기 그룹 안에 둔다. 실제 비율: 토성 1.24~2.33R, 천왕성 1.6~2.0R)
       if (b.hasRings || effectiveType === 'saturn' || id === 'saturn' || id === 'andros_titan') {
-        group.add(makeProceduralRing('saturn', 1.35, 2.45, 0.45));
+        tilt.add(makeProceduralRing('saturn', 1.24, 2.33));
       } else if (effectiveType === 'uranus' || id === 'uranus') {
-        group.add(makeProceduralRing('uranus', 1.25, 1.85, 1.7));
+        tilt.add(makeProceduralRing('uranus', 1.6, 2.05));
       }
 
-      // 인접 나선은하 안드로스 중심핵 및 외계 거성 효과
-      if (id === 'andros_core') {
-        group.add(makeSpiralGalaxyDisc());
-        group.add(makeAtmosphereGlow(0xc084fc, 1.15));
-      } else if (id === 'andros_sirius') {
-        group.add(makeAtmosphereGlow(0x60a5fa, 1.12));
-      } else if (id === 'andros_betelgeuse') {
-        group.add(makeAtmosphereGlow(0xf87171, 1.15));
+      // 인접 나선은하 안드로스 중심핵 및 외계 거성 효과 (원래 크기 유지 위해 group 에 직접)
+      if (id === 'andros_core') group.add(makeSpiralGalaxyDisc());
+      const glow = id === 'andros_core' ? 0xc084fc : id === 'andros_sirius' ? 0x60a5fa : id === 'andros_betelgeuse' ? 0xf87171 : null;
+      if (glow !== null) {
+        atmosphere = createAtmosphereMaterial(glow, { power: 2.0, intensity: 1.8 });
+        const shell = new THREE.Mesh(sphereGeo, atmosphere);
+        shell.scale.setScalar(1.15);
+        body.add(shell);
       }
     }
 
@@ -391,7 +465,12 @@ export function createSpaceScene(
     scene.add(group, trail);
     const vis: Visual = {
       group,
+      body,
+      spin,
+      spinSpeed,
       sphere,
+      clouds,
+      atmosphere,
       hit,
       trail,
       trailPos,
@@ -399,7 +478,7 @@ export function createSpaceScene(
       vis: new THREE.Vector3(),
       accretionDisk,
       lensingRing,
-      sunTexture: id === 'sun' ? (sphere.material as THREE.MeshBasicMaterial).map as THREE.CanvasTexture : undefined,
+      sunMaterial,
       orbitLine,
     };
     visuals.set(b.id, vis);
@@ -507,15 +586,18 @@ export function createSpaceScene(
     geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(colArr, 3));
 
-    const mat = new THREE.PointsMaterial({
-      size: isGiant ? 4.0 : 2.5,
-      sizeAttenuation: false,
-      vertexColors: true,
-      transparent: true,
-      opacity: 1.0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
+    const mat = softenPoints(
+      new THREE.PointsMaterial({
+        size: isGiant ? 4.0 : 2.5,
+        sizeAttenuation: false,
+        vertexColors: true,
+        transparent: true,
+        opacity: 1.0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+      2.4,
+    );
 
     const mesh = new THREE.Points(geo, mat);
     scene.add(mesh);
@@ -633,7 +715,7 @@ export function createSpaceScene(
   const clock = new THREE.Clock();
   let raf = 0;
 
-  function updateVisuals(bodies: Body[]) {
+  function updateVisuals(bodies: Body[], dt: number, elapsed: number) {
     // 새로운 천체가 생겼거나 블랙홀 변신 상태가 전환된 경우 비주얼 동기화
     for (const b of bodies) {
       let v = visuals.get(b.id);
@@ -685,28 +767,26 @@ export function createSpaceScene(
       const w = Math.min(1, Math.max(0, (0.05 - dl) / 0.03));
       v.vis.lerp(tmp, w);
     }
+    const sunBody = bodies.find((b) => b.id === 'sun');
+    const sunWorld = sunBody ? visuals.get('sun')!.vis : tmp.set(0, 0, 0);
     for (const b of bodies) {
       const v = visuals.get(b.id)!;
       v.group.position.copy(v.vis);
-      v.sphere.scale.setScalar(b.visualRadius);
+      v.body.scale.setScalar(b.visualRadius);
       v.hit.scale.setScalar(Math.max(b.visualRadius * 1.6, 1.1));
-      v.sphere.rotation.y += 0.01;
+      v.spin.rotation.y += v.spinSpeed * dt;
+      if (v.clouds) v.clouds.rotation.y += 0.05 * dt;
       if (b.id === 'andros_core') {
-        v.group.rotation.y += 0.003;
+        v.group.rotation.y += 0.18 * dt;
       }
+      if (v.atmosphere) v.atmosphere.uniforms.uSunPos.value.copy(sunWorld);
+      if (v.sunMaterial) v.sunMaterial.uniforms.uTime.value = elapsed;
 
-      // 블랙홀 강착원반 & 렌징 링 회전 애니메이션
-      if (v.accretionDisk) {
-        v.accretionDisk.rotation.z += 0.03;
-        v.accretionDisk.scale.setScalar(b.visualRadius);
-      }
+      // 블랙홀 강착원반 소용돌이 & 렌즈 광륜은 항상 카메라를 향함
+      if (v.accretionDisk) v.accretionDisk.material.uniforms.uTime.value = elapsed;
       if (v.lensingRing) {
-        v.lensingRing.rotation.z -= 0.015;
-        v.lensingRing.scale.setScalar(b.visualRadius);
-      }
-
-      if (v.sunTexture) {
-        v.sunTexture.offset.x += 0.0008;
+        v.lensingRing.material.uniforms.uTime.value = elapsed;
+        v.lensingRing.quaternion.copy(camera.quaternion);
       }
 
       // 동적 네온 궤도선 갱신 (Dynamic Neon Orbit Path Loop)
@@ -750,10 +830,20 @@ export function createSpaceScene(
     geo.attributes.position.needsUpdate = true;
   }
 
+  let active = true;
+  let elapsed = 0;
+  const shakeOffset = new THREE.Vector3();
+
   function frame() {
     raf = requestAnimationFrame(frame);
     const dt = Math.min(clock.getDelta(), 0.1);
+    if (!active) return;
+    elapsed += dt;
     const state = getState();
+
+    // 지난 프레임의 흔들림 오프셋을 되돌려 카메라가 조금씩 밀려나지 않게 한다
+    camera.position.sub(shakeOffset);
+    shakeOffset.set(0, 0, 0);
 
     advance(
       state,
@@ -781,18 +871,10 @@ export function createSpaceScene(
       },
     );
 
-    updateVisuals(state.bodies);
+    updateVisuals(state.bodies, dt, elapsed);
     updateShockwaves(dt);
     updateSparks(dt);
-
-    // 충돌 시 카메라 흔들림(Camera Shake)
-    if (shakeTime > 0) {
-      shakeTime -= dt;
-      const s = shakeIntensity * (shakeTime / 0.45);
-      camera.position.x += (Math.random() - 0.5) * s;
-      camera.position.y += (Math.random() - 0.5) * s;
-      camera.position.z += (Math.random() - 0.5) * s;
-    }
+    starfield.update(elapsed);
 
     // 선택 또는 포커스된 천체를 카메라가 부드럽게 추적
     const targetId = focusedBodyId ?? selectedId;
@@ -813,7 +895,17 @@ export function createSpaceScene(
     }
 
     controls.update();
-    renderer.render(scene, camera);
+
+    // 충돌 시 카메라 흔들림 (다음 프레임 시작 때 되돌림)
+    if (shakeTime > 0) {
+      shakeTime -= dt;
+      const s = shakeIntensity * Math.max(0, shakeTime / 0.45);
+      shakeOffset.set((Math.random() - 0.5) * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * s);
+      camera.position.add(shakeOffset);
+    }
+
+    sky.position.copy(camera.position);
+    bloom.render();
   }
 
   // ---------- 크기 변경 (화면 / 모니터 보정) ----------
@@ -821,8 +913,9 @@ export function createSpaceScene(
     const w = container.clientWidth || window.innerWidth;
     const h = container.clientHeight || window.innerHeight;
     if (w === 0 || h === 0) return;
-    renderer.setSize(w, h);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(w, h);
+    bloom.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   };
@@ -1193,8 +1286,14 @@ export function createSpaceScene(
       controls.target.set(0, 0, 0);
       camera.position.set(0, 48, 62);
     },
+    setActive(next) {
+      active = next;
+      renderer.domElement.style.visibility = next ? 'visible' : 'hidden';
+      clock.getDelta();
+    },
     dispose() {
       cancelAnimationFrame(raf);
+      bloom.dispose();
       ro.disconnect();
       window.removeEventListener('resize', updateSize);
       el.removeEventListener('pointerdown', onDown);
@@ -1207,174 +1306,21 @@ export function createSpaceScene(
   };
 }
 
-// ---------- 꾸미기 (텍스처, 별, 태양 빛, 블랙홀 강착원반, 소행성) ----------
+// ---------- 꾸미기 (고리, 나선은하, 소행성) ----------
 
-function makeProceduralRing(planetId: string, innerR: number, outerR: number, tilt: number): THREE.Mesh {
-  const geo = new THREE.RingGeometry(innerR, outerR, 128);
-  const ringTex = createRingTexture(planetId);
+function makeProceduralRing(planetId: string, innerR: number, outerR: number): THREE.Mesh {
+  // 고리를 따라 줄무늬가 돌도록 (반지름, 각도) UV 를 쓴다
+  const geo = setRadialRingUVs(new THREE.RingGeometry(innerR, outerR, 192, 1), innerR, outerR);
   const mat = new THREE.MeshBasicMaterial({
-    map: ringTex,
+    map: createRingTexture(planetId),
+    color: 0xd8d2c8,
     side: THREE.DoubleSide,
     transparent: true,
-    opacity: 0.88,
     depthWrite: false,
   });
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.rotation.x = -Math.PI / 2 + tilt;
+  mesh.rotation.x = -Math.PI / 2;
   return mesh;
-}
-
-function makeAtmosphereGlow(colorHex: number, scaleMultiplier = 1.035): THREE.Mesh {
-  const geo = new THREE.SphereGeometry(1, 32, 24);
-  const mat = new THREE.MeshBasicMaterial({
-    color: colorHex,
-    transparent: true,
-    opacity: 0.35,
-    blending: THREE.AdditiveBlending,
-    side: THREE.BackSide,
-    depthWrite: false,
-  });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.scale.setScalar(scaleMultiplier);
-  return mesh;
-}
-
-function makeSunCoronaShells(): THREE.Group {
-  const group = new THREE.Group();
-  const geo1 = new THREE.SphereGeometry(1, 32, 24);
-  const mat1 = new THREE.MeshBasicMaterial({
-    color: 0xffaa22,
-    transparent: true,
-    opacity: 0.42,
-    blending: THREE.AdditiveBlending,
-    side: THREE.BackSide,
-    depthWrite: false,
-  });
-  const shell1 = new THREE.Mesh(geo1, mat1);
-  shell1.scale.setScalar(1.12);
-  group.add(shell1);
-
-  const geo2 = new THREE.SphereGeometry(1, 32, 24);
-  const mat2 = new THREE.MeshBasicMaterial({
-    color: 0xff3300,
-    transparent: true,
-    opacity: 0.22,
-    blending: THREE.AdditiveBlending,
-    side: THREE.BackSide,
-    depthWrite: false,
-  });
-  const shell2 = new THREE.Mesh(geo2, mat2);
-  shell2.scale.setScalar(1.32);
-  group.add(shell2);
-
-  group.add(makeGlow());
-  return group;
-}
-
-function makeStars(): THREE.Points {
-  const n = 3500;
-  const pos = new Float32Array(n * 3);
-  const col = new Float32Array(n * 3);
-  const colorPalette = [
-    new THREE.Color(0x9db4ff),
-    new THREE.Color(0xf8f9ff),
-    new THREE.Color(0xfff4e8),
-    new THREE.Color(0xffdd6f),
-    new THREE.Color(0xffaa44),
-    new THREE.Color(0xff6060),
-  ];
-  for (let i = 0; i < n; i++) {
-    const u = Math.random() * 2 - 1;
-    const t = Math.random() * Math.PI * 2;
-    const r = 650 + Math.random() * 450;
-    const s = Math.sqrt(1 - u * u);
-    pos.set([r * s * Math.cos(t), r * u, r * s * Math.sin(t)], i * 3);
-    const c = colorPalette[Math.floor(Math.random() * colorPalette.length)];
-    col.set([c.r, c.g, c.b], i * 3);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  return new THREE.Points(geo, new THREE.PointsMaterial({ size: 2.2, sizeAttenuation: false, vertexColors: true }));
-}
-
-function makeGlow(): THREE.Sprite {
-  const c = document.createElement('canvas');
-  c.width = c.height = 256;
-  const g = c.getContext('2d')!;
-  const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-  grad.addColorStop(0, 'rgba(255,230,150,0.9)');
-  grad.addColorStop(0.25, 'rgba(255,190,80,0.45)');
-  grad.addColorStop(0.6, 'rgba(255,140,40,0.12)');
-  grad.addColorStop(1, 'rgba(255,120,0,0)');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 256, 256);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false }));
-  sprite.scale.setScalar(16);
-  return sprite;
-}
-
-/** 블랙홀 강착원반(Accretion Disk) 소용돌이 텍스처 */
-function makeAccretionDiskTexture(): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = 512;
-  c.height = 512;
-  const g = c.getContext('2d')!;
-  const cx = 256;
-  const cy = 256;
-
-  const grad = g.createRadialGradient(cx, cy, 60, cx, cy, 255);
-  grad.addColorStop(0, 'rgba(255, 255, 255, 0)');
-  grad.addColorStop(0.06, 'rgba(255, 255, 255, 1)');
-  grad.addColorStop(0.18, 'rgba(255, 220, 110, 0.95)');
-  grad.addColorStop(0.38, 'rgba(255, 100, 30, 0.85)');
-  grad.addColorStop(0.65, 'rgba(190, 40, 230, 0.55)');
-  grad.addColorStop(0.85, 'rgba(110, 20, 200, 0.2)');
-  grad.addColorStop(1, 'rgba(60, 0, 150, 0)');
-  g.fillStyle = grad;
-  g.beginPath();
-  g.arc(cx, cy, 255, 0, Math.PI * 2);
-  g.fill();
-
-  let seed = 42;
-  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
-  for (let i = 0; i < 90; i++) {
-    const angle = rnd() * Math.PI * 2;
-    const r = 80 + rnd() * 150;
-    const len = 0.2 + rnd() * 0.45;
-    g.strokeStyle = `rgba(255, ${Math.floor(160 + rnd() * 95)}, ${Math.floor(80 + rnd() * 175)}, ${0.15 + rnd() * 0.25})`;
-    g.lineWidth = 2 + rnd() * 5;
-    g.beginPath();
-    g.arc(cx, cy, r, angle, angle + len);
-    g.stroke();
-  }
-
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-/** 블랙홀 주변의 신비로운 보랏빛 중력 렌징 광륜 */
-function makeBlackHoleGlow(): THREE.Sprite {
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 256;
-  const g = c.getContext('2d')!;
-  const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-  grad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
-  grad.addColorStop(0.18, 'rgba(220, 110, 255, 0.55)');
-  grad.addColorStop(0.42, 'rgba(130, 40, 255, 0.22)');
-  grad.addColorStop(0.7, 'rgba(70, 20, 180, 0.07)');
-  grad.addColorStop(1, 'rgba(30, 0, 100, 0)');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 256, 256);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false }));
-  sprite.scale.setScalar(14);
-  return sprite;
 }
 
 /** 나선은하 안드로스(Andros) 3D 성운 원반 & 나선팔 별무리 파티클 시스템 */
@@ -1462,7 +1408,7 @@ function makeSpiralGalaxyDisc(): THREE.Group {
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
-  const stars = new THREE.Points(starGeo, starMat);
+  const stars = new THREE.Points(starGeo, softenPoints(starMat));
   group.add(stars);
 
   return group;
@@ -1522,54 +1468,8 @@ function makeAsteroidFlameGlow(isGiant: boolean): THREE.Sprite {
   const sprite = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false }),
   );
-  sprite.scale.setScalar(isGiant ? 3.5 : 2.0);
+  // 본체(반지름 1) 기준 크기 — 이전 절대 크기(일반 2.0 / 거대 3.5)와 화면상 같은 크기
+  sprite.scale.setScalar(isGiant ? 4.1 : 4.6);
   return sprite;
 }
 
-/** 간단한 절차적 텍스처: 가스 행성은 줄무늬, 지구는 대륙, 나머지는 얼룩 */
-function makeTexture(id: BodyId, color: string): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 128;
-  const g = c.getContext('2d')!;
-  const base = new THREE.Color(color);
-  g.fillStyle = color;
-  g.fillRect(0, 0, 256, 128);
-  let seed = id.length * 9301 + id.charCodeAt(0) * 49297;
-  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
-  const shade = (k: number) => '#' + base.clone().offsetHSL(0, 0, k).getHexString();
-
-  if (id === 'jupiter' || id === 'saturn' || id === 'uranus' || id === 'neptune') {
-    const strong = id === 'jupiter' ? 0.12 : 0.05;
-    for (let y = 0; y < 128; y += 4 + Math.floor(rnd() * 8)) {
-      g.fillStyle = shade((rnd() - 0.5) * strong * 2);
-      g.fillRect(0, y, 256, 3 + rnd() * 8);
-    }
-    if (id === 'jupiter') {
-      g.fillStyle = '#c0583a';
-      g.beginPath();
-      g.ellipse(170, 80, 16, 8, 0, 0, Math.PI * 2);
-      g.fill();
-    }
-  } else if (id === 'earth') {
-    g.fillStyle = '#3fae5a';
-    for (let i = 0; i < 14; i++) {
-      g.beginPath();
-      g.ellipse(rnd() * 256, 25 + rnd() * 78, 10 + rnd() * 26, 6 + rnd() * 14, rnd() * 3, 0, Math.PI * 2);
-      g.fill();
-    }
-    g.fillStyle = '#ffffff';
-    g.fillRect(0, 0, 256, 8);
-    g.fillRect(0, 120, 256, 8);
-  } else {
-    for (let i = 0; i < 40; i++) {
-      g.fillStyle = shade((rnd() - 0.5) * 0.18);
-      g.beginPath();
-      g.arc(rnd() * 256, rnd() * 128, 2 + rnd() * 9, 0, Math.PI * 2);
-      g.fill();
-    }
-  }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}

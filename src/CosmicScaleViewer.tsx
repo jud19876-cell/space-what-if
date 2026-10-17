@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { createAtmosphereMaterial, setRadialRingUVs, softenPoints } from './fx.ts';
+import { createCloudTexture, createPlanetTexture, createRingTexture, createRoughnessMap } from './planetTextures.ts';
 
 export type CosmicCategory = 'all' | 'human_earth' | 'planets_moons' | 'stars_giants' | 'black_holes' | 'galaxies_universe';
 
@@ -587,57 +589,7 @@ export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleView
   // 절차적 고품질 3D 텍스처 생성 유틸리티들
   // ==========================================
   const textures = useMemo(() => {
-    // 1. 지구 텍스처 (Ocean + Continents + Cloud highlights)
-    const earthC = document.createElement('canvas');
-    earthC.width = 1024;
-    earthC.height = 512;
-    const eg = earthC.getContext('2d')!;
-    eg.fillStyle = '#0f2756'; // Deep ocean
-    eg.fillRect(0, 0, 1024, 512);
-    // Continents
-    eg.fillStyle = '#166534';
-    eg.beginPath();
-    eg.ellipse(680, 200, 180, 100, 0, 0, Math.PI * 2); // Eurasia
-    eg.fill();
-    eg.fillStyle = '#22c55e';
-    eg.beginPath();
-    eg.ellipse(750, 190, 50, 70, 0.2, 0, Math.PI * 2); // East Asia / Korea
-    eg.fill();
-    eg.fillStyle = '#15803d';
-    eg.beginPath();
-    eg.ellipse(260, 220, 120, 90, 0.3, 0, Math.PI * 2); // Americas
-    eg.fill();
-    eg.beginPath();
-    eg.ellipse(540, 290, 90, 120, -0.2, 0, Math.PI * 2); // Africa
-    eg.fill();
-    // Swirling Clouds
-    eg.fillStyle = 'rgba(255, 255, 255, 0.45)';
-    for (let i = 0; i < 40; i++) {
-      eg.beginPath();
-      eg.arc(Math.random() * 1024, Math.random() * 512, 20 + Math.random() * 60, 0, Math.PI * 2);
-      eg.fill();
-    }
-    const earthTex = new THREE.CanvasTexture(earthC);
-
-    // 2. 목성 텍스처 (Banded Gas Clouds + Great Red Spot)
-    const jupC = document.createElement('canvas');
-    jupC.width = 1024;
-    jupC.height = 512;
-    const jg = jupC.getContext('2d')!;
-    const jupBands = ['#7c2d12', '#fed7aa', '#9a3412', '#ffedd5', '#c2410c', '#fef3c7', '#ea580c', '#fed7aa'];
-    for (let y = 0; y < 512; y++) {
-      const bandIdx = Math.floor((y / 512) * jupBands.length);
-      const wave = Math.sin(y * 0.1) * 15;
-      jg.fillStyle = jupBands[bandIdx];
-      jg.fillRect(0, y, 1024, 1);
-    }
-    // Great Red Spot
-    jg.fillStyle = '#b91c1c';
-    jg.beginPath();
-    jg.ellipse(650, 320, 70, 42, 0, 0, Math.PI * 2);
-    jg.fill();
-    const jupTex = new THREE.CanvasTexture(jupC);
-
+    // 지구·목성은 planetTextures 의 절차적 텍스처를 쓴다 (buildObjectMesh 참고)
     // 3. 태양 표면 (Solar Convection Granulation + Flares)
     const sunC = document.createElement('canvas');
     sunC.width = 512;
@@ -657,6 +609,7 @@ export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleView
       sg.fill();
     }
     const sunTex = new THREE.CanvasTexture(sunC);
+    sunTex.colorSpace = THREE.SRGBColorSpace;
 
     // 4. 초거대성 표면 (Boiling Supergiant Convection)
     const giantC = document.createElement('canvas');
@@ -672,8 +625,9 @@ export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleView
       gg.fill();
     }
     const giantTex = new THREE.CanvasTexture(giantC);
+    giantTex.colorSpace = THREE.SRGBColorSpace;
 
-    return { earthTex, jupTex, sunTex, giantTex };
+    return { sunTex, giantTex };
   }, []);
 
   // 천체 3D 비주얼 모델 빌더
@@ -758,39 +712,45 @@ export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleView
       }
 
       case 'earth': {
-        // 사실적인 절차적 텍스처 지구 + 대기층 헤일로
+        // 태양계 화면과 같은 절차적 지구 (대륙·기후대 + 구름층 + 대기 산란광)
         const earthMesh = new THREE.Mesh(
-          new THREE.SphereGeometry(visualRadius, 48, 48),
-          new THREE.MeshStandardMaterial({ map: textures.earthTex, roughness: 0.5, metalness: 0.1 }),
+          new THREE.SphereGeometry(visualRadius, 64, 48),
+          new THREE.MeshStandardMaterial({ map: createPlanetTexture('earth'), roughnessMap: createRoughnessMap('earth') ?? null, roughness: 1, metalness: 0 }),
         );
         earthMesh.rotation.z = (23.5 * Math.PI) / 180;
+        const clouds = new THREE.Mesh(
+          new THREE.SphereGeometry(visualRadius * 1.015, 64, 48),
+          new THREE.MeshStandardMaterial({ map: createCloudTexture(), transparent: true, depthWrite: false }),
+        );
+        earthMesh.add(clouds);
         group.add(earthMesh);
 
-        // 대기층 광선 산란 헤일로
         const atmo = new THREE.Mesh(
-          new THREE.SphereGeometry(visualRadius * 1.035, 32, 32),
-          new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.25, side: THREE.BackSide }),
+          new THREE.SphereGeometry(visualRadius * 1.06, 48, 32),
+          createAtmosphereMaterial(0x4d9dff, { power: 2.4, intensity: 1.4 }),
         );
+        (atmo.material as THREE.ShaderMaterial).uniforms.uSunPos.value.set(300, 500, 400);
         group.add(atmo);
         break;
       }
 
       case 'saturn': {
-        // 토성 본체
+        // 토성 본체 (줄무늬 텍스처) + 실제 비율 고리 (카시니 간극)
         const saturnMesh = new THREE.Mesh(
-          new THREE.SphereGeometry(visualRadius, 36, 36),
-          new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.6 }),
+          new THREE.SphereGeometry(visualRadius, 64, 48),
+          new THREE.MeshStandardMaterial({ map: createPlanetTexture('saturn'), roughness: 0.85 }),
         );
         group.add(saturnMesh);
 
-        // 화려한 토성 고리 (카시니 간극 이중 링)
-        const ringGeo = new THREE.RingGeometry(visualRadius * 1.35, visualRadius * 2.35, 64);
-        const ringMat = new THREE.MeshStandardMaterial({
-          color: 0xfef08a,
+        const rIn = visualRadius * 1.24;
+        const rOut = visualRadius * 2.33;
+        const ringGeo = setRadialRingUVs(new THREE.RingGeometry(rIn, rOut, 192, 1), rIn, rOut);
+        const ringMat = new THREE.MeshBasicMaterial({
+          map: createRingTexture('saturn'),
+          color: 0xd8d2c8,
           side: THREE.DoubleSide,
           transparent: true,
-          opacity: 0.85,
-          roughness: 0.3,
+          depthWrite: false,
         });
         const ring = new THREE.Mesh(ringGeo, ringMat);
         ring.rotation.x = Math.PI / 2 + 0.35;
@@ -799,14 +759,14 @@ export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleView
       }
 
       case 'gas_giant': {
-        // 목성 / 해왕성 등 가스 행성
-        const isJup = obj.id === 'jupiter';
+        // 목성 / 천왕성 / 해왕성 (태양계 화면과 같은 절차적 줄무늬 텍스처)
+        const known = ['jupiter', 'uranus', 'neptune'].includes(obj.id);
         const giantMesh = new THREE.Mesh(
-          new THREE.SphereGeometry(visualRadius, 40, 40),
+          new THREE.SphereGeometry(visualRadius, 64, 48),
           new THREE.MeshStandardMaterial({
-            map: isJup ? textures.jupTex : undefined,
-            color: isJup ? undefined : obj.color,
-            roughness: 0.45,
+            map: known ? createPlanetTexture(obj.id) : undefined,
+            color: known ? undefined : obj.color,
+            roughness: 0.85,
           }),
         );
         group.add(giantMesh);
@@ -920,7 +880,7 @@ export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleView
         }
         starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         starGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        const pMat = new THREE.PointsMaterial({ size: 1.5, vertexColors: true, transparent: true, opacity: 0.85 });
+        const pMat = softenPoints(new THREE.PointsMaterial({ size: 1.5, vertexColors: true, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending }));
         group.add(new THREE.Points(starGeo, pMat));
         break;
       }
@@ -940,16 +900,17 @@ export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleView
           positions[i * 3 + 2] = r * Math.cos(phi);
         }
         webGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        const webMat = new THREE.PointsMaterial({ color: 0x818cf8, size: 1.6, transparent: true, opacity: 0.8 });
+        const webMat = softenPoints(new THREE.PointsMaterial({ color: 0x818cf8, size: 1.6, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending }));
         group.add(new THREE.Points(webGeo, webMat));
         break;
       }
 
       default: {
-        // 표준 구체 (암석, 위성 등)
+        // 표준 구체 (암석, 위성 등) — 태양계 천체는 절차적 표면 텍스처 사용
+        const known = ['moon', 'mercury', 'mars', 'venus'].includes(obj.id);
         const sphere = new THREE.Mesh(
-          new THREE.SphereGeometry(visualRadius, 32, 32),
-          new THREE.MeshStandardMaterial({ color: obj.color, roughness: 0.7 }),
+          new THREE.SphereGeometry(visualRadius, 48, 32),
+          new THREE.MeshStandardMaterial({ map: known ? createPlanetTexture(obj.id) : undefined, color: known ? undefined : obj.color, roughness: 0.9 }),
         );
         group.add(sphere);
         break;
@@ -1021,7 +982,7 @@ export default function CosmicScaleViewer({ onBackToGalaxyLab }: CosmicScaleView
       starPos[i * 3 + 2] = r * Math.cos(phi);
     }
     starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-    scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x94a3b8, size: 1.5, sizeAttenuation: false })));
+    scene.add(new THREE.Points(starGeo, softenPoints(new THREE.PointsMaterial({ color: 0xcbd5e1, size: 1.5, sizeAttenuation: false }))));
 
     // 스테이지 메인 그룹
     const stageGroup = new THREE.Group();
